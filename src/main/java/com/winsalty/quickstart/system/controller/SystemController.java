@@ -2,12 +2,15 @@ package com.winsalty.quickstart.system.controller;
 
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.common.api.PageResponse;
+import com.winsalty.quickstart.system.dto.SystemConfigSaveRequest;
 import com.winsalty.quickstart.system.dto.SystemListRequest;
 import com.winsalty.quickstart.system.dto.SystemMenuListRequest;
 import com.winsalty.quickstart.system.dto.SystemMenuSaveRequest;
 import com.winsalty.quickstart.system.dto.SystemSaveRequest;
 import com.winsalty.quickstart.system.dto.SystemStatusRequest;
+import com.winsalty.quickstart.system.service.SystemConfigService;
 import com.winsalty.quickstart.system.service.SystemService;
+import com.winsalty.quickstart.system.vo.SystemConfigVo;
 import com.winsalty.quickstart.system.vo.SystemMenuVo;
 import com.winsalty.quickstart.system.vo.SystemRecordVo;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,9 +38,11 @@ import java.util.List;
 public class SystemController {
 
     private final SystemService systemService;
+    private final SystemConfigService systemConfigService;
 
-    public SystemController(SystemService systemService) {
+    public SystemController(SystemService systemService, SystemConfigService systemConfigService) {
         this.systemService = systemService;
+        this.systemConfigService = systemConfigService;
     }
 
     @GetMapping("/{moduleKey}/list")
@@ -62,6 +67,17 @@ public class SystemController {
     @PostMapping("/status")
     public ApiResponse<SystemRecordVo> status(@Validated @RequestBody SystemStatusRequest request) {
         return ApiResponse.success("状态已更新", systemService.updateStatus(request));
+    }
+
+    @GetMapping("/configs")
+    public ApiResponse<List<SystemConfigVo>> configs() {
+        return ApiResponse.success("获取成功", systemConfigService.getConfigs());
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/configs/save")
+    public ApiResponse<SystemConfigVo> saveConfig(@Valid @RequestBody SystemConfigSaveRequest request) {
+        return ApiResponse.success("配置已保存", systemConfigService.saveConfig(request));
     }
 
     @GetMapping("/menus/tree")

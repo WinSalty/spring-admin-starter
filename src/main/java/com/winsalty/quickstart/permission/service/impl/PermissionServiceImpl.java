@@ -1,6 +1,7 @@
 package com.winsalty.quickstart.permission.service.impl;
 
 import com.winsalty.quickstart.common.exception.BusinessException;
+import com.winsalty.quickstart.infra.cache.RedisCacheService;
 import com.winsalty.quickstart.permission.dto.PermissionAssignmentSaveRequest;
 import com.winsalty.quickstart.permission.entity.MenuEntity;
 import com.winsalty.quickstart.permission.entity.RoleActionEntity;
@@ -33,15 +34,29 @@ import java.util.Set;
 public class PermissionServiceImpl implements PermissionService {
 
     private static final Logger log = LoggerFactory.getLogger(PermissionServiceImpl.class);
+    private static final String BOOTSTRAP_VERSION_KEY = "sa:cache:ver:bootstrap";
+    private static final String BOOTSTRAP_CACHE_KEY_PREFIX = "sa:bootstrap:v";
+    private static final long BOOTSTRAP_CACHE_TTL_SECONDS = 1800L;
 
     private final PermissionMapper permissionMapper;
+    private final RedisCacheService redisCacheService;
 
-    public PermissionServiceImpl(PermissionMapper permissionMapper) {
+    public PermissionServiceImpl(PermissionMapper permissionMapper,
+                                 RedisCacheService redisCacheService) {
         this.permissionMapper = permissionMapper;
+        this.redisCacheService = redisCacheService;
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public PermissionBootstrapVo getBootstrap(Long userId, String roleCode) {
+        long version = currentVersion(BOOTSTRAP_VERSION_KEY);
+        String cacheKey = BOOTSTRAP_CACHE_KEY_PREFIX + version + ":role:" + roleCode;
+        Object cached = redisCacheService.get(cacheKey);
+        if (cached instanceof PermissionBootstrapVo) {
+            log.info("permission bootstrap cache hit, userId={}, roleCode={}, cacheKey={}", userId, roleCode, cacheKey);
+            return (PermissionBootstrapVo) cached;
+        }
         List<MenuEntity> menus = permissionMapper.findMenusByRoleCode(roleCode);
         List<String> routes = permissionMapper.findRouteCodesByRoleCode(roleCode);
         List<RoleActionEntity> actions = permissionMapper.findActionsByRoleCode(roleCode);
@@ -50,8 +65,9 @@ public class PermissionServiceImpl implements PermissionService {
         response.setMenus(buildMenuTree(menus));
         response.setRoutes(routes);
         response.setActions(buildActions(actions));
-        log.info("permission bootstrap loaded, userId={}, roleCode={}, menuSize={}, routeSize={}, actionSize={}",
-                userId, roleCode, menus.size(), routes.size(), actions.size());
+        redisCacheService.set(cacheKey, response, BOOTSTRAP_CACHE_TTL_SECONDS);
+        log.info("permission bootstrap cache refreshed, userId={}, roleCode={}, cacheKey={}, menuSize={}, routeSize={}, actionSize={}",
+                userId, roleCode, cacheKey, menus.size(), routes.size(), actions.size());
         return response;
     }
 
@@ -102,9 +118,24 @@ public class PermissionServiceImpl implements PermissionService {
         for (String actionCode : distinctNonBlank(request.getActionCodes())) {
             permissionMapper.insertRoleAction(roleId, actionCode, resolveActionName(actionCode));
         }
-        log.info("permission assignment saved, roleCode={}, menuSize={}, routeSize={}, actionSize={}",
-                request.getRoleCode(), menuIds.size(), routeCodeSet.size(), request.getActionCodes().size());
+        long version = nextVersion(BOOTSTRAP_VERSION_KEY);
+        log.info("permission assignment saved, roleCode={}, menuSize={}, routeSize={}, actionSize={}, cacheVersion={}",
+                request.getRoleCode(), menuIds.size(), routeCodeSet.size(), request.getActionCodes().size(), version);
         return getAssignment(request.getRoleCode());
+    }
+
+    private long currentVersion(String versionKey) {
+        Object cached = redisCacheService.get(versionKey);
+        if (cached instanceof Number) {
+            return ((Number) cached).longValue();
+        }
+        redisCacheService.set(versionKey, 1L, BOOTSTRAP_CACHE_TTL_SECONDS * 24);
+        return 1L;
+    }
+
+    private long nextVersion(String versionKey) {
+        Long version = redisCacheService.increment(versionKey);
+        return version == null ? 1L : version.longValue();
     }
 
     private List<String> distinctNonBlank(List<String> values) {

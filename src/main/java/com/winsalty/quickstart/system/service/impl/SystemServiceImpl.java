@@ -2,6 +2,7 @@ package com.winsalty.quickstart.system.service.impl;
 
 import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.common.exception.BusinessException;
+import com.winsalty.quickstart.infra.cache.RedisCacheService;
 import com.winsalty.quickstart.system.dto.SystemListRequest;
 import com.winsalty.quickstart.system.dto.SystemMenuListRequest;
 import com.winsalty.quickstart.system.dto.SystemMenuSaveRequest;
@@ -33,17 +34,44 @@ import java.util.Map;
 public class SystemServiceImpl implements SystemService {
 
     private static final Logger log = LoggerFactory.getLogger(SystemServiceImpl.class);
+    private static final String BOOTSTRAP_VERSION_KEY = "sa:cache:ver:bootstrap";
+    private static final String DICT_VERSION_KEY = "sa:cache:ver:dict";
+    private static final String DICT_CACHE_KEY_PREFIX = "sa:dict:v";
+    private static final long DICT_CACHE_TTL_SECONDS = 3600L;
 
     private final SystemMapper systemMapper;
+    private final RedisCacheService redisCacheService;
 
-    public SystemServiceImpl(SystemMapper systemMapper) {
+    public SystemServiceImpl(SystemMapper systemMapper,
+                             RedisCacheService redisCacheService) {
         this.systemMapper = systemMapper;
+        this.redisCacheService = redisCacheService;
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public PageResponse<SystemRecordVo> getPage(SystemListRequest request) {
         int pageNo = request.getPageNo() == null ? 1 : request.getPageNo();
         int pageSize = request.getPageSize() == null ? 10 : request.getPageSize();
+        if ("dicts".equals(request.getModuleKey()) && !StringUtils.hasText(request.getLogType())) {
+            long version = currentVersion(DICT_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
+            String cacheKey = DICT_CACHE_KEY_PREFIX + version + ":list";
+            Object cached = redisCacheService.get(cacheKey);
+            List<SystemRecordVo> records;
+            if (cached instanceof List) {
+                records = (List<SystemRecordVo>) cached;
+                log.info("system dict cache hit, cacheKey={}, size={}", cacheKey, records.size());
+            } else {
+                List<SystemRecordEntity> entities = systemMapper.findPage(request.getModuleKey(), null, null, null, 0, Integer.MAX_VALUE);
+                records = toVoList(entities);
+                redisCacheService.set(cacheKey, records, DICT_CACHE_TTL_SECONDS);
+                log.info("system dict cache refreshed, cacheKey={}, size={}", cacheKey, records.size());
+            }
+            List<SystemRecordVo> filtered = filterDictPage(records, request.getKeyword(), request.getStatus());
+            int fromIndex = Math.min((pageNo - 1) * pageSize, filtered.size());
+            int toIndex = Math.min(fromIndex + pageSize, filtered.size());
+            return new PageResponse<SystemRecordVo>(filtered.subList(fromIndex, toIndex), pageNo, pageSize, filtered.size());
+        }
         int offset = (pageNo - 1) * pageSize;
         List<SystemRecordEntity> entities = systemMapper.findPage(request.getModuleKey(), request.getKeyword(), request.getStatus(), request.getLogType(), offset, pageSize);
         long total = systemMapper.countPage(request.getModuleKey(), request.getKeyword(), request.getStatus(), request.getLogType());
@@ -79,6 +107,10 @@ public class SystemServiceImpl implements SystemService {
             applyCommonFields(existed, request);
             applyModuleFields(existed, request);
             updateWritable(existed);
+            if ("dicts".equals(existed.getModuleKey())) {
+                long version = nextVersion(DICT_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
+                log.info("system dict cache version bumped after save, id={}, version={}", existed.getRecordCode(), version);
+            }
             log.info("system record updated, moduleKey={}, id={}, code={}", existed.getModuleKey(), existed.getRecordCode(), existed.getCode());
             return toVo(loadWritableRecord(existed.getRecordCode()));
         }
@@ -92,6 +124,10 @@ public class SystemServiceImpl implements SystemService {
         applyCommonFields(entity, request);
         applyModuleFields(entity, request);
         insertWritable(entity);
+        if ("dicts".equals(entity.getModuleKey())) {
+            long version = nextVersion(DICT_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
+            log.info("system dict cache version bumped after create, id={}, version={}", entity.getRecordCode(), version);
+        }
         log.info("system record created, moduleKey={}, id={}, code={}", entity.getModuleKey(), entity.getRecordCode(), entity.getCode());
         return toVo(loadWritableRecord(entity.getRecordCode()));
     }
@@ -107,6 +143,10 @@ public class SystemServiceImpl implements SystemService {
             throw new BusinessException(4011, "日志模块不支持状态变更");
         }
         updateWritableStatus(existed, request.getStatus());
+        if ("dicts".equals(existed.getModuleKey())) {
+            long version = nextVersion(DICT_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
+            log.info("system dict cache version bumped after status update, id={}, version={}", existed.getRecordCode(), version);
+        }
         log.info("system status updated, moduleKey={}, id={}, status={}", existed.getModuleKey(), existed.getRecordCode(), request.getStatus());
         return toVo(loadWritableRecord(existed.getRecordCode()));
     }
@@ -139,7 +179,8 @@ public class SystemServiceImpl implements SystemService {
             applyMenuFields(existed, request);
             existed.setRouteCode(resolveRouteCode(request.getRoutePath()));
             systemMapper.updateMenu(existed);
-            log.info("system menu updated, id={}, code={}", existed.getId(), existed.getCode());
+            long version = nextVersion(BOOTSTRAP_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
+            log.info("system menu updated, id={}, code={}, bootstrapCacheVersion={}", existed.getId(), existed.getCode(), version);
             return toMenuVo(loadMenuById(existed.getId()));
         }
 
@@ -152,7 +193,8 @@ public class SystemServiceImpl implements SystemService {
         applyMenuFields(entity, request);
         entity.setRouteCode(resolveRouteCode(request.getRoutePath()));
         systemMapper.insertMenu(entity);
-        log.info("system menu created, id={}, code={}", entity.getId(), entity.getCode());
+        long version = nextVersion(BOOTSTRAP_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
+        log.info("system menu created, id={}, code={}, bootstrapCacheVersion={}", entity.getId(), entity.getCode(), version);
         return toMenuVo(loadMenuById(entity.getId()));
     }
 
@@ -164,8 +206,51 @@ public class SystemServiceImpl implements SystemService {
             throw new BusinessException(4042, "菜单记录不存在");
         }
         systemMapper.updateMenuStatus(existed.getId(), request.getStatus());
-        log.info("system menu status updated, id={}, status={}", existed.getId(), request.getStatus());
+        long version = nextVersion(BOOTSTRAP_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
+        log.info("system menu status updated, id={}, status={}, bootstrapCacheVersion={}", existed.getId(), request.getStatus(), version);
         return toMenuVo(loadMenuById(existed.getId()));
+    }
+
+    private long currentVersion(String versionKey, long ttlSeconds) {
+        Object cached = redisCacheService.get(versionKey);
+        if (cached instanceof Number) {
+            return ((Number) cached).longValue();
+        }
+        redisCacheService.set(versionKey, 1L, ttlSeconds * 24);
+        return 1L;
+    }
+
+    private long nextVersion(String versionKey, long ttlSeconds) {
+        Long version = redisCacheService.increment(versionKey);
+        if (version == null) {
+            redisCacheService.set(versionKey, 1L, ttlSeconds * 24);
+            return 1L;
+        }
+        return version.longValue();
+    }
+
+    private List<SystemRecordVo> filterDictPage(List<SystemRecordVo> records, String keyword, String status) {
+        List<SystemRecordVo> filtered = new ArrayList<SystemRecordVo>();
+        for (SystemRecordVo record : records) {
+            if (StringUtils.hasText(status) && !status.equals(record.getStatus())) {
+                continue;
+            }
+            if (StringUtils.hasText(keyword)) {
+                String normalizedKeyword = keyword.trim().toLowerCase();
+                if (!containsText(record.getName(), normalizedKeyword)
+                        && !containsText(record.getCode(), normalizedKeyword)
+                        && !containsText(record.getOwner(), normalizedKeyword)
+                        && !containsText(record.getDescription(), normalizedKeyword)) {
+                    continue;
+                }
+            }
+            filtered.add(record);
+        }
+        return filtered;
+    }
+
+    private boolean containsText(String source, String keyword) {
+        return source != null && source.toLowerCase().contains(keyword);
     }
 
     private void validateMenuFields(SystemMenuSaveRequest request, Long parentId) {

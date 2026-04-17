@@ -359,19 +359,19 @@ Deliverable：
 
 Deliverable：
 
-- [ ] 实现 `GET /api/system/configs`。
-- [ ] 实现 `POST /api/system/configs/save`。
-- [ ] 配置项支持 `basic`、`switch`、`cache` 三种类型。
-- [ ] 将权限 bootstrap、字典数据、系统配置纳入 Redis 缓存。
-- [ ] 配置保存后支持缓存刷新。
-- [ ] 提供缓存命中与刷新日志，便于排查联调问题。
+- [x] 实现 `GET /api/system/configs`。
+- [x] 实现 `POST /api/system/configs/save`。
+- [x] 配置项支持 `basic`、`switch`、`cache` 三种类型。
+- [x] 将权限 bootstrap、字典数据、系统配置纳入 Redis 缓存。
+- [x] 配置保存后支持缓存刷新。
+- [x] 提供缓存命中与刷新日志，便于排查联调问题。
 
 验收标准：
 
-- [ ] `/system/configs` 页面可读取真实配置。
-- [ ] 页面修改配置后可保存成功。
-- [ ] Redis 中可以看到对应缓存 key。
-- [ ] 配置更新后缓存能够刷新。
+- [x] `/system/configs` 页面可读取真实配置。
+- [x] 页面修改配置后可保存成功。
+- [x] Redis 中可以看到对应缓存 key。
+- [x] 配置更新后缓存能够刷新。
 
 ### 阶段 6：认证增强与脚手架通用能力补全
 
@@ -424,13 +424,14 @@ Deliverable：
 - 2026-04-17：已完成阶段 2 的 dashboard/query 接口、查询表结构与种子数据，并验证分页、详情、保存与 403 返回。
 - 2026-04-17：已完成阶段 3 的 system 通用模块接口，新增 users/roles/dicts/logs 四类真实数据表、种子数据和 `/api/system/{moduleKey}/list`、`/api/system/detail`、`/api/system/save`、`/api/system/status`，已完成 admin token 冒烟验证。
 - 2026-04-17：已完成阶段 4 的菜单管理与权限分配接口，新增 `/api/system/menus/tree`、`/api/system/menus/save`、`/api/system/menus/status`、`/api/permission/assignment`，补充角色路由权限表并完成 bootstrap 联动验证。
-- 当前已具备工作台、认证、权限、查询管理、system 通用模块和菜单/权限分配的最小联调能力，Redis 与系统配置接口尚未开始。
+- 2026-04-17：已完成阶段 5 的系统配置接口与 Redis 缓存能力，新增 `/api/system/configs`、`/api/system/configs/save`、配置表与种子数据，并完成 bootstrap、dict、config 三类缓存命中与刷新验证。
+- 当前已具备工作台、认证、权限、查询管理、system 通用模块、菜单/权限分配、系统配置和 Redis 缓存的最小联调能力。
 
 ## 下一步任务
 
-1. 阶段 5：实现系统配置接口与 Redis 缓存能力。
-2. 阶段 1 收尾：完成前端实际页面联调验证，确认路由守卫和按钮权限控制生效。
-3. 清理并统一菜单/权限种子数据与前端文案映射，补齐 system/configs 页面真实接口。
+1. 阶段 1 收尾：完成前端实际页面联调验证，确认路由守卫和按钮权限控制生效。
+2. 阶段 6：增强认证能力，补充 refresh token、登出与日志链路。
+3. 补齐系统配置缓存 TTL 与 dict 缓存 TTL 的联动控制，把缓存过期时间从配置项读取。
 
 ## 完成记录
 
@@ -441,3 +442,4 @@ Deliverable：
 - 2026-04-17：已完成阶段 2，新增 `dashboard/query` 接口、查询表结构与种子数据，并验证 403 权限返回。
 - 2026-04-17：已完成阶段 3，新增 users/roles/dicts/logs 四类真实数据表与通用 system 接口，并验证 admin token 下的分页、详情、保存与状态切换。
 - 2026-04-17：已完成阶段 4，新增菜单树、菜单保存、菜单状态切换、角色权限分配接口，补充 `sys_role_route` 路由权限关系表，并验证权限分配对 bootstrap 的联动生效。
+- 2026-04-17：已完成阶段 5，新增系统配置表、配置种子数据、`/api/system/configs`、`/api/system/configs/save` 和 Redis 缓存基础设施，并验证 bootstrap、dict、config 三类缓存 key 与版本刷新。

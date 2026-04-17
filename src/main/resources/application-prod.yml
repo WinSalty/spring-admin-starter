@@ -1,3 +1,10 @@
+spring:
+  redis:
+    host: 127.0.0.1
+    port: 6379
+    database: 2
+    timeout: 3000
+
 logging:
   level:
     root: info

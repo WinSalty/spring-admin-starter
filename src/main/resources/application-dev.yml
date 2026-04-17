@@ -4,6 +4,11 @@ spring:
     url: jdbc:mysql://127.0.0.1:3306/spring_admin?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
     username: spring_admin
     password: SpringAdmin@2026
+  redis:
+    host: 127.0.0.1
+    port: 6379
+    database: 0
+    timeout: 3000
 
 mybatis-plus:
   configuration:
