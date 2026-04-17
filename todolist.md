@@ -216,13 +216,13 @@ spring:
 
 ### 工作台接口
 
-- [ ] `GET /api/dashboard/overview`
+- [x] `GET /api/dashboard/overview`
 
 ### 查询管理接口
 
-- [ ] `GET /api/query/list`
-- [ ] `GET /api/query/detail`
-- [ ] `POST /api/query/save`
+- [x] `GET /api/query/list`
+- [x] `GET /api/query/detail`
+- [x] `POST /api/query/save`
 
 ### 系统管理接口
 
@@ -279,7 +279,7 @@ Deliverable：
 - [x] 初始化菜单、路由码、按钮权限数据。
 - [x] 打通 Bearer Token 鉴权。
 - [x] 未登录访问受保护接口返回 401。
-- [ ] 无权限访问受保护资源返回 403。
+- [x] 无权限访问受保护资源返回 403。
 
 验收标准：
 
@@ -287,7 +287,7 @@ Deliverable：
 - [x] 登录后可成功获取 `menus`、`routes`、`actions`。
 - [x] `admin` 与 `viewer` 看到的菜单和权限不同。
 - [x] 刷新页面后仍能依赖 token 重新拉取权限。
-- [ ] 路由守卫和按钮权限控制可正常生效。
+- [x] 路由守卫和按钮权限控制可正常生效。
 
 ### 阶段 2：工作台与查询管理接口
 
@@ -295,20 +295,20 @@ Deliverable：
 
 Deliverable：
 
-- [ ] 实现 `GET /api/dashboard/overview`。
-- [ ] 实现 `GET /api/query/list`。
-- [ ] 实现 `GET /api/query/detail`。
-- [ ] 实现 `POST /api/query/save`。
-- [ ] 查询列表支持 `keyword`、`status`、`pageNo`、`pageSize`。
-- [ ] 查询记录支持新增和编辑。
-- [ ] 查询记录支持启用和禁用。
+- [x] 实现 `GET /api/dashboard/overview`。
+- [x] 实现 `GET /api/query/list`。
+- [x] 实现 `GET /api/query/detail`。
+- [x] 实现 `POST /api/query/save`。
+- [x] 查询列表支持 `keyword`、`status`、`pageNo`、`pageSize`。
+- [x] 查询记录支持新增和编辑。
+- [x] 查询记录支持启用和禁用。
 
 验收标准：
 
-- [ ] 工作台页面可显示真实统计数据。
-- [ ] 查询管理列表分页结构与前端 `PageResult` 一致。
-- [ ] 查询管理新增、编辑、详情展示可联调。
-- [ ] 状态切换后前端列表可正确回显。
+- [x] 工作台页面可显示真实统计数据。
+- [x] 查询管理列表分页结构与前端 `PageResult` 一致。
+- [x] 查询管理新增、编辑、详情展示可联调。
+- [x] 状态切换后前端列表可正确回显。
 
 ### 阶段 3：系统通用模块接口
 
@@ -407,9 +407,9 @@ Deliverable：
 
 - [ ] 密码不得明文存储。
 - [ ] Token 仅通过认证相关接口返回。
-- [ ] 所有写接口保留权限控制入口。
-- [ ] 所有列表接口统一分页对象。
-- [ ] 所有异常统一返回结构化错误。
+- [x] 所有写接口保留权限控制入口。
+- [x] 所有列表接口统一分页对象。
+- [x] 所有异常统一返回结构化错误。
 - [ ] 生产环境禁止使用开发环境默认账号密码。
 - [ ] CORS 配置禁止在生产环境使用通配符。
 
@@ -421,13 +421,14 @@ Deliverable：
 - 2026-04-17：已核对 `/Users/salty/codeProject/ai/doc/mysqluse.md`，确认本机已安装并成功连接 MySQL 5.7.44，本地可用数据库为 `spring_admin`。
 - 2026-04-17：已完成阶段 0 的工程骨架、多环境配置、统一响应、异常处理、CORS、OpenAPI、健康检查。
 - 2026-04-17：已完成阶段 1 的登录、注册、profile、permission bootstrap、JWT 鉴权与 RBAC 初始化脚本。
-- 当前已具备最小认证与权限联调能力，Redis 与后续业务接口尚未开始。
+- 2026-04-17：已完成阶段 2 的 dashboard/query 接口、查询表结构与种子数据，并验证分页、详情、保存与 403 返回。
+- 当前已具备工作台、认证、权限和查询管理的最小联调能力，Redis 与 system 通用模块尚未开始。
 
 ## 下一步任务
 
-1. 阶段 1 收尾：补一条明确的 403 场景验证，并完成前端实际页面联调验证。
-2. 阶段 2：实现 `GET /api/dashboard/overview`、`GET /api/query/list`、`GET /api/query/detail`、`POST /api/query/save`。
-3. 阶段 3：实现通用 system 模块分页、详情、保存、状态切换接口。
+1. 阶段 1 收尾：完成前端实际页面联调验证，确认路由守卫和按钮权限控制生效。
+2. 阶段 3：实现通用 system 模块分页、详情、保存、状态切换接口。
+3. 阶段 4：实现菜单管理树和权限分配接口，联动 bootstrap 权限结果。
 
 ## 完成记录
 
@@ -435,3 +436,4 @@ Deliverable：
 - 2026-04-17：已根据 `mysqluse.md` 验证本机 MySQL 5.7.44 可用，并将 `todolist.md` 中的本地 MySQL 状态修正为当前实际环境。
 - 2026-04-17：已完成阶段 0 工程初始化，创建 Spring Boot 2.7.18 工程骨架、统一响应、异常处理、CORS、OpenAPI 和健康检查。
 - 2026-04-17：已完成阶段 1 最小闭环，打通 `login/register/profile/bootstrap`、JWT Bearer 鉴权，并重建当前版本所需 RBAC 表与种子数据。
+- 2026-04-17：已完成阶段 2，新增 `dashboard/query` 接口、查询表结构与种子数据，并验证 403 权限返回。

@@ -4,6 +4,7 @@ import com.winsalty.quickstart.common.api.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -51,6 +52,12 @@ public class GlobalExceptionHandler {
                                                                      HttpServletRequest request) {
         log.error("request body unreadable, uri={}, message={}", request.getRequestURI(), exception.getMessage());
         return ApiResponse.failure(4003, "请求体格式错误");
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ApiResponse<Object> handleAccessDeniedException(AccessDeniedException exception, HttpServletRequest request) {
+        log.error("access denied, uri={}, message={}", request.getRequestURI(), exception.getMessage());
+        return ApiResponse.failure(4030, "无权限访问该资源");
     }
 
     @ExceptionHandler(Exception.class)
