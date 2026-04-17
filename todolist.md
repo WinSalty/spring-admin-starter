@@ -381,7 +381,7 @@ Deliverable：
 
 - [x] 登录接口升级为双 Token 方案，并同步规划前端适配。
 - [x] 增加 refresh token、登出、会话失效控制。
-- [ ] 增加登录日志、操作日志、异常日志。
+- [x] 增加登录日志、操作日志、异常日志。
 - [ ] 增加字典模块、参数模块更完整的数据结构。
 - [ ] 增加文件上传模块，支持本地文件存储。
 - [ ] 增加基础 SQL 初始化脚本与二次开发说明。
@@ -426,13 +426,14 @@ Deliverable：
 - 2026-04-17：已完成阶段 4 的菜单管理与权限分配接口，新增 `/api/system/menus/tree`、`/api/system/menus/save`、`/api/system/menus/status`、`/api/permission/assignment`，补充角色路由权限表并完成 bootstrap 联动验证。
 - 2026-04-17：已完成阶段 5 的系统配置接口与 Redis 缓存能力，新增 `/api/system/configs`、`/api/system/configs/save`、配置表与种子数据，并完成 bootstrap、dict、config 三类缓存命中与刷新验证。
 - 2026-04-17：已完成阶段 6 第一阶段，登录接口升级为双 Token，新增 `/api/auth/refresh-token`、`/api/auth/logout` 和基于 Redis 的会话失效控制，并验证 refresh 后刷新、logout 后 refresh 失效。
-- 当前已具备工作台、认证、权限、查询管理、system 通用模块、菜单/权限分配、系统配置、Redis 缓存和双 Token 会话控制的最小联调能力。
+- 2026-04-17：已完成阶段 6 第二阶段，新增登录日志、操作日志、异常日志写入链路，并验证登录、权限分配、system 保存和异常场景会落入 `/system/logs` 列表。
+- 当前已具备工作台、认证、权限、查询管理、system 通用模块、菜单/权限分配、系统配置、Redis 缓存、双 Token 会话控制和基础日志链路的最小联调能力。
 
 ## 下一步任务
 
 1. 阶段 1 收尾：完成前端实际页面联调验证，确认路由守卫和按钮权限控制生效，并适配双 Token 登录。
-2. 阶段 6 下一步：补登录日志、操作日志、异常日志链路。
-3. 增加 refresh token 轮换策略与 access token 黑名单控制，继续完善会话失效治理。
+2. 阶段 6 下一步：补字典模块、参数模块更完整的数据结构。
+3. 继续阶段 6：增加文件上传模块、本地开发 README 和初始化脚本说明。
 
 ## 完成记录
 

@@ -2,6 +2,8 @@ package com.winsalty.quickstart.permission.service.impl;
 
 import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.infra.cache.RedisCacheService;
+import com.winsalty.quickstart.log.dto.OperationLogRequest;
+import com.winsalty.quickstart.log.service.LogService;
 import com.winsalty.quickstart.permission.dto.PermissionAssignmentSaveRequest;
 import com.winsalty.quickstart.permission.entity.MenuEntity;
 import com.winsalty.quickstart.permission.entity.RoleActionEntity;
@@ -40,11 +42,14 @@ public class PermissionServiceImpl implements PermissionService {
 
     private final PermissionMapper permissionMapper;
     private final RedisCacheService redisCacheService;
+    private final LogService logService;
 
     public PermissionServiceImpl(PermissionMapper permissionMapper,
-                                 RedisCacheService redisCacheService) {
+                                 RedisCacheService redisCacheService,
+                                 LogService logService) {
         this.permissionMapper = permissionMapper;
         this.redisCacheService = redisCacheService;
+        this.logService = logService;
     }
 
     @Override
@@ -119,6 +124,7 @@ public class PermissionServiceImpl implements PermissionService {
             permissionMapper.insertRoleAction(roleId, actionCode, resolveActionName(actionCode));
         }
         long version = nextVersion(BOOTSTRAP_VERSION_KEY);
+        recordPermissionLog(request.getRoleCode(), "permission_assignment_save", "角色权限分配保存成功", "permission", "成功");
         log.info("permission assignment saved, roleCode={}, menuSize={}, routeSize={}, actionSize={}, cacheVersion={}",
                 request.getRoleCode(), menuIds.size(), routeCodeSet.size(), request.getActionCodes().size(), version);
         return getAssignment(request.getRoleCode());
@@ -303,5 +309,19 @@ public class PermissionServiceImpl implements PermissionService {
             return "编辑系统配置";
         }
         return actionCode;
+    }
+
+    private void recordPermissionLog(String owner, String code, String description, String target, String result) {
+        OperationLogRequest request = new OperationLogRequest();
+        request.setLogType("operation");
+        request.setOwner(owner);
+        request.setName(description);
+        request.setCode(code);
+        request.setDescription(description);
+        request.setTarget(target);
+        request.setIpAddress("127.0.0.1");
+        request.setResult(result);
+        request.setDurationMs(0L);
+        logService.record(request);
     }
 }

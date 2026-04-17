@@ -13,6 +13,8 @@ import com.winsalty.quickstart.auth.vo.LoginResponse;
 import com.winsalty.quickstart.auth.vo.ProfileResponse;
 import com.winsalty.quickstart.auth.vo.RefreshTokenResponse;
 import com.winsalty.quickstart.common.exception.BusinessException;
+import com.winsalty.quickstart.log.dto.OperationLogRequest;
+import com.winsalty.quickstart.log.service.LogService;
 import com.winsalty.quickstart.permission.mapper.PermissionMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,17 +38,20 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final BCryptPasswordEncoder passwordEncoder;
     private final AuthSessionService authSessionService;
+    private final LogService logService;
 
     public AuthServiceImpl(UserMapper userMapper,
                            PermissionMapper permissionMapper,
                            JwtTokenProvider jwtTokenProvider,
                            BCryptPasswordEncoder passwordEncoder,
-                           AuthSessionService authSessionService) {
+                           AuthSessionService authSessionService,
+                           LogService logService) {
         this.userMapper = userMapper;
         this.permissionMapper = permissionMapper;
         this.jwtTokenProvider = jwtTokenProvider;
         this.passwordEncoder = passwordEncoder;
         this.authSessionService = authSessionService;
+        this.logService = logService;
     }
 
     @Override
@@ -66,6 +71,7 @@ public class AuthServiceImpl implements AuthService {
         String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUsername(), roleCode, sessionId);
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId(), user.getUsername(), roleCode, sessionId);
         authSessionService.createSession(sessionId, refreshToken, jwtTokenProvider.getRefreshExpireSeconds());
+        recordAuthLog("login", user.getUsername(), "auth_login_success", "用户登录成功", "认证中心", "成功");
         log.info("user login success, username={}, roleCode={}, sessionId={}", user.getUsername(), roleCode, sessionId);
         return new LoginResponse(accessToken, accessToken, refreshToken,
                 jwtTokenProvider.getAccessExpireSeconds(), jwtTokenProvider.getRefreshExpireSeconds(), "Bearer");
@@ -84,6 +90,7 @@ public class AuthServiceImpl implements AuthService {
         String accessToken = jwtTokenProvider.createAccessToken(payload.getUserId(), payload.getUsername(), payload.getRoleCode(), payload.getSessionId());
         String refreshToken = jwtTokenProvider.createRefreshToken(payload.getUserId(), payload.getUsername(), payload.getRoleCode(), payload.getSessionId());
         authSessionService.refreshSession(payload.getSessionId(), refreshToken, jwtTokenProvider.getRefreshExpireSeconds());
+        recordAuthLog("api", payload.getUsername(), "auth_refresh_token", "刷新 access token 成功", "/api/auth/refresh-token", "成功");
         RefreshTokenResponse response = new RefreshTokenResponse();
         response.setAccessToken(accessToken);
         response.setRefreshToken(refreshToken);
@@ -97,6 +104,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void logout(Long userId, String sessionId) {
         authSessionService.deleteSession(sessionId);
+        recordAuthLog("operation", String.valueOf(userId), "auth_logout", "用户退出登录", "认证中心", "成功");
         log.info("user logout success, userId={}, sessionId={}", userId, sessionId);
     }
 
@@ -116,6 +124,7 @@ public class AuthServiceImpl implements AuthService {
         user.setDeleted(0);
         userMapper.insert(user);
         userMapper.insertUserRole(user.getId(), 2L);
+        recordAuthLog("operation", user.getUsername(), "auth_register", "新用户注册成功", "认证中心", "成功");
         log.info("user register success, username={}, roleCode=viewer", user.getUsername());
     }
 
@@ -132,5 +141,19 @@ public class AuthServiceImpl implements AuthService {
         response.setRoleCode(permissionMapper.findRoleCodeByUserId(userId));
         response.setRoleName(permissionMapper.findRoleNameByUserId(userId));
         return response;
+    }
+
+    private void recordAuthLog(String logType, String owner, String code, String description, String target, String result) {
+        OperationLogRequest request = new OperationLogRequest();
+        request.setLogType(logType);
+        request.setOwner(owner);
+        request.setName(description);
+        request.setCode(code);
+        request.setDescription(description);
+        request.setTarget(target);
+        request.setIpAddress("127.0.0.1");
+        request.setResult(result);
+        request.setDurationMs(0L);
+        logService.record(request);
     }
 }

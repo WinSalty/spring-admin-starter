@@ -1,6 +1,8 @@
 package com.winsalty.quickstart.common.exception;
 
 import com.winsalty.quickstart.common.api.ApiResponse;
+import com.winsalty.quickstart.log.dto.OperationLogRequest;
+import com.winsalty.quickstart.log.service.LogService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -22,9 +24,16 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    private final LogService logService;
+
+    public GlobalExceptionHandler(LogService logService) {
+        this.logService = logService;
+    }
+
     @ExceptionHandler(BusinessException.class)
     public ApiResponse<Object> handleBusinessException(BusinessException exception, HttpServletRequest request) {
         log.error("business exception, uri={}, message={}", request.getRequestURI(), exception.getMessage());
+        recordExceptionLog(request.getRequestURI(), exception.getMessage(), "business");
         return ApiResponse.failure(exception.getCode(), exception.getMessage());
     }
 
@@ -63,6 +72,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ApiResponse<Object> handleException(Exception exception, HttpServletRequest request) {
         log.error("system exception, uri={}, message={}", request.getRequestURI(), exception.getMessage(), exception);
+        recordExceptionLog(request.getRequestURI(), exception.getMessage(), "system");
         return ApiResponse.failure(5000, "系统繁忙，请稍后重试");
+    }
+
+    private void recordExceptionLog(String target, String description, String logType) {
+        OperationLogRequest request = new OperationLogRequest();
+        request.setLogType(logType);
+        request.setOwner("system");
+        request.setName("异常日志");
+        request.setCode("exception_log");
+        request.setDescription(description);
+        request.setTarget(target);
+        request.setIpAddress("127.0.0.1");
+        request.setResult("失败");
+        request.setDurationMs(0L);
+        logService.record(request);
     }
 }

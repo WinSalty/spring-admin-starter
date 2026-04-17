@@ -3,6 +3,8 @@ package com.winsalty.quickstart.system.service.impl;
 import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.infra.cache.RedisCacheService;
+import com.winsalty.quickstart.log.dto.OperationLogRequest;
+import com.winsalty.quickstart.log.service.LogService;
 import com.winsalty.quickstart.system.dto.SystemListRequest;
 import com.winsalty.quickstart.system.dto.SystemMenuListRequest;
 import com.winsalty.quickstart.system.dto.SystemMenuSaveRequest;
@@ -41,11 +43,14 @@ public class SystemServiceImpl implements SystemService {
 
     private final SystemMapper systemMapper;
     private final RedisCacheService redisCacheService;
+    private final LogService logService;
 
     public SystemServiceImpl(SystemMapper systemMapper,
-                             RedisCacheService redisCacheService) {
+                             RedisCacheService redisCacheService,
+                             LogService logService) {
         this.systemMapper = systemMapper;
         this.redisCacheService = redisCacheService;
+        this.logService = logService;
     }
 
     @Override
@@ -112,6 +117,7 @@ public class SystemServiceImpl implements SystemService {
                 log.info("system dict cache version bumped after save, id={}, version={}", existed.getRecordCode(), version);
             }
             log.info("system record updated, moduleKey={}, id={}, code={}", existed.getModuleKey(), existed.getRecordCode(), existed.getCode());
+            recordSystemLog("operation", request.getOwner(), request.getCode(), "系统记录更新成功", request.getModuleKey(), "成功");
             return toVo(loadWritableRecord(existed.getRecordCode()));
         }
 
@@ -129,6 +135,7 @@ public class SystemServiceImpl implements SystemService {
             log.info("system dict cache version bumped after create, id={}, version={}", entity.getRecordCode(), version);
         }
         log.info("system record created, moduleKey={}, id={}, code={}", entity.getModuleKey(), entity.getRecordCode(), entity.getCode());
+        recordSystemLog("operation", request.getOwner(), request.getCode(), "系统记录创建成功", request.getModuleKey(), "成功");
         return toVo(loadWritableRecord(entity.getRecordCode()));
     }
 
@@ -148,6 +155,7 @@ public class SystemServiceImpl implements SystemService {
             log.info("system dict cache version bumped after status update, id={}, version={}", existed.getRecordCode(), version);
         }
         log.info("system status updated, moduleKey={}, id={}, status={}", existed.getModuleKey(), existed.getRecordCode(), request.getStatus());
+        recordSystemLog("operation", existed.getOwner(), existed.getCode(), "系统记录状态更新成功", existed.getModuleKey(), "成功");
         return toVo(loadWritableRecord(existed.getRecordCode()));
     }
 
@@ -195,6 +203,7 @@ public class SystemServiceImpl implements SystemService {
         systemMapper.insertMenu(entity);
         long version = nextVersion(BOOTSTRAP_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
         log.info("system menu created, id={}, code={}, bootstrapCacheVersion={}", entity.getId(), entity.getCode(), version);
+        recordSystemLog("operation", entity.getOwner(), entity.getCode(), "菜单创建成功", "menus", "成功");
         return toMenuVo(loadMenuById(entity.getId()));
     }
 
@@ -208,6 +217,7 @@ public class SystemServiceImpl implements SystemService {
         systemMapper.updateMenuStatus(existed.getId(), request.getStatus());
         long version = nextVersion(BOOTSTRAP_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
         log.info("system menu status updated, id={}, status={}, bootstrapCacheVersion={}", existed.getId(), request.getStatus(), version);
+        recordSystemLog("operation", existed.getOwner(), existed.getCode(), "菜单状态更新成功", "menus", "成功");
         return toMenuVo(loadMenuById(existed.getId()));
     }
 
@@ -524,5 +534,19 @@ public class SystemServiceImpl implements SystemService {
             return "接口日志";
         }
         return logType;
+    }
+
+    private void recordSystemLog(String logType, String owner, String code, String description, String target, String result) {
+        OperationLogRequest request = new OperationLogRequest();
+        request.setLogType(logType);
+        request.setOwner(owner);
+        request.setName(description);
+        request.setCode(code);
+        request.setDescription(description);
+        request.setTarget(target);
+        request.setIpAddress("127.0.0.1");
+        request.setResult(result);
+        request.setDurationMs(0L);
+        logService.record(request);
     }
 }
