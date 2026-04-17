@@ -1,0 +1,12 @@
+logging:
+  level:
+    root: info
+    com.winsalty.quickstart: info
+
+app:
+  cors:
+    allowed-origins: []
+  security:
+    jwt-secret: winsalty-quickstart-test-jwt-secret-2026-secure-key
+    jwt-expire-seconds: 7200
+    register-enabled: false
