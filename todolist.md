@@ -100,21 +100,21 @@
 
 Deliverable：
 
-- [ ] 初始化 Maven 工程，配置 Java 8、Spring Boot 2.7.18。
-- [ ] 接入 Web、Validation、Security、MyBatis-Plus、MySQL、Redis、AOP、JWT、OpenAPI。
-- [ ] 创建基础包结构：`common`、`auth`、`system`、`log`、`file`、`message`、`infra`。
-- [ ] 创建 `application.yml`、`application-dev.yml`、`application-test.yml`、`application-prod.yml`。
-- [ ] 创建统一响应、分页对象、异常体系、基础实体、枚举常量。
-- [ ] 配置全局 CORS、Jackson 时间格式、MyBatis-Plus 分页插件、逻辑删除策略。
-- [ ] 配置 Logback 日志滚动与不同环境日志级别。
+- [x] 初始化 Maven 工程，配置 Java 8、Spring Boot 2.7.18。
+- [x] 接入 Web、Validation、Security、MyBatis-Plus、MySQL、Redis、AOP、JWT、OpenAPI。
+- [x] 创建基础包结构：`common`、`auth`、`system`、`log`、`file`、`message`、`infra`。
+- [x] 创建 `application.yml`、`application-dev.yml`、`application-test.yml`、`application-prod.yml`。
+- [x] 创建统一响应、分页对象、异常体系、基础实体、枚举常量。
+- [x] 配置全局 CORS、Jackson 时间格式、MyBatis-Plus 分页插件、逻辑删除策略。
+- [x] 配置 Logback 日志滚动与不同环境日志级别。
 
 验收标准：
 
-- [ ] `mvn clean test` 通过。
-- [ ] `mvn clean package` 通过。
-- [ ] 启动后可访问 `/actuator/health` 或自定义健康检查接口。
-- [ ] OpenAPI 文档可访问，且基础接口展示正常。
-- [ ] 所有接口返回统一 `ApiResponse<T>`。
+- [x] `mvn clean test` 通过。
+- [x] `mvn clean package` 通过。
+- [x] 启动后可访问 `/actuator/health` 或自定义健康检查接口。
+- [x] OpenAPI 文档可访问，且基础接口展示正常。
+- [x] 所有接口返回统一 `ApiResponse<T>`。
 
 ### 阶段 1：认证鉴权模块
 
@@ -122,27 +122,27 @@ Deliverable：
 
 Deliverable：
 
-- [ ] 创建认证鉴权相关表：`sys_user`、`sys_user_role`、`sys_email_verify_code`、`sys_refresh_token`。
-- [ ] 实现邮箱验证码发送、校验、频率限制和验证码消费。
-- [ ] 实现仅支持邮箱验证码的注册流程。
-- [ ] 实现账号密码登录、登录失败限制、账号锁定和登录日志。
-- [ ] 实现 access token + refresh token 双 Token 签发与刷新。
-- [ ] 实现 Redis + 数据库的 Token 存储、撤销和续期策略。
-- [ ] 实现 JWT 认证过滤器、Spring Security 配置、接口白名单。
-- [ ] 实现当前用户上下文 `LoginUserContext` 与 `SecurityUtils`。
-- [ ] 实现 `/api/auth/profile` 返回当前用户、角色、权限概要。
-- [ ] 实现 `/api/permission/bootstrap` 返回前端动态菜单、路由权限和按钮权限。
+- [x] 创建认证鉴权相关表：`sys_user`、`sys_user_role`、`sys_email_verify_code`、`sys_refresh_token`。
+- [x] 实现邮箱验证码发送、校验、频率限制和验证码消费。
+- [x] 实现仅支持邮箱验证码的注册流程。
+- [x] 实现账号密码登录、登录失败限制、账号锁定和登录日志。
+- [x] 实现 access token + refresh token 双 Token 签发与刷新。
+- [x] 实现 Redis + 数据库的 Token 存储、撤销和续期策略。
+- [x] 实现 JWT 认证过滤器、Spring Security 配置、接口白名单。
+- [x] 实现当前用户上下文 `LoginUserContext` 与 `SecurityUtils`。
+- [x] 实现 `/api/auth/profile` 返回当前用户、角色、权限概要。
+- [x] 实现 `/api/permission/bootstrap` 返回前端动态菜单、路由权限和按钮权限。
 
 验收标准：
 
-- [ ] 注册必须经过邮箱验证码，不能绕过验证码直接创建用户。
-- [ ] 密码必须 BCrypt 加密存储，数据库无明文密码。
-- [ ] 登录成功返回 `accessToken`、`refreshToken`、`expiresIn`、用户信息和权限 bootstrap 所需的最小信息。
-- [ ] access token 过期后可使用 refresh token 刷新；退出登录后 Token 立即失效。
-- [ ] 未登录访问受保护接口返回 `40101`；无权限访问返回 `40301`。
-- [ ] 前端可按 `Authorization: Bearer <accessToken>` 调用受保护接口。
-- [ ] `/api/permission/bootstrap` 字段能映射到前端 `PermissionBootstrap`。
-- [ ] 对发送验证码、注册、登录、刷新 Token、登出均有测试覆盖。
+- [x] 注册必须经过邮箱验证码，不能绕过验证码直接创建用户。
+- [x] 密码必须 BCrypt 加密存储，数据库无明文密码。
+- [x] 登录成功返回 `accessToken`、`refreshToken`、`expiresIn`、用户信息和权限 bootstrap 所需的最小信息。
+- [x] access token 过期后可使用 refresh token 刷新；退出登录后 Token 立即失效。
+- [x] 未登录访问受保护接口返回 `40101`；无权限访问返回 `40301`。
+- [x] 前端可按 `Authorization: Bearer <accessToken>` 调用受保护接口。
+- [x] `/api/permission/bootstrap` 字段能映射到前端 `PermissionBootstrap`。
+- [x] 对发送验证码、注册、登录、刷新 Token、登出均有测试覆盖。
 
 ### 阶段 2：用户管理模块
 
@@ -1475,17 +1475,15 @@ docs: 更新认证鉴权设计 gpt-5.4
 ## 当前进度
 
 - 2026-04-17：已根据后端设计文档和前端项目 README/TODO 创建后端开发计划。
-- 当前尚未初始化 Spring Boot 源码工程。
-- 当前首要任务是阶段 0 工程骨架和阶段 1 认证鉴权模块。
+- 2026-04-17：完成阶段 0 工程骨架初始化（Maven 工程、统一响应/异常、多环境配置、CORS、日志等）。
+- 2026-04-17：完成阶段 1 认证鉴权模块（邮箱验证码注册、密码登录、双 Token、JWT 过滤器、Spring Security、权限 bootstrap）。
+- 当前已完成阶段 0 和阶段 1，Claude 评审均通过。mvn clean package 构建成功。
 
 ## 下一步任务
 
-1. 初始化 Spring Boot 2.7.18 + Java 8 Maven 工程。
-2. 创建统一响应、异常、分页、基础实体和基础配置。
-3. 创建认证鉴权模块的数据表迁移 SQL。
-4. 实现邮箱验证码注册。
-5. 实现账号密码登录和双 Token 机制。
-6. 实现 JWT 过滤器、Spring Security 配置和权限 bootstrap 接口。
+1. 阶段 2：用户管理模块（用户 CRUD、分页、状态管理、角色分配、密码重置、个人资料）。
+2. 阶段 3：角色与权限管理模块。
+3. 阶段 4：菜单管理模块。
 
 ## 完成记录
 
