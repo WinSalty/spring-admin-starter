@@ -46,6 +46,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                         "/api/common/ping",
                         "/api/common/demo",
                         "/api/auth/login",
+                        "/api/auth/refresh-token",
                         "/api/auth/register"
                 ).permitAll()
                 .anyRequest().authenticated()

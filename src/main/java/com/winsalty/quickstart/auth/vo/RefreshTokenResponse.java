@@ -1,38 +1,17 @@
 package com.winsalty.quickstart.auth.vo;
 
 /**
- * 登录响应对象。
+ * 刷新令牌响应对象。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
-public class LoginResponse {
+public class RefreshTokenResponse {
 
-    private String token;
     private String accessToken;
     private String refreshToken;
     private Long expiresIn;
     private Long refreshExpiresIn;
     private String tokenType;
-
-    public LoginResponse() {
-    }
-
-    public LoginResponse(String token, String accessToken, String refreshToken, Long expiresIn, Long refreshExpiresIn, String tokenType) {
-        this.token = token;
-        this.accessToken = accessToken;
-        this.refreshToken = refreshToken;
-        this.expiresIn = expiresIn;
-        this.refreshExpiresIn = refreshExpiresIn;
-        this.tokenType = tokenType;
-    }
-
-    public String getToken() {
-        return token;
-    }
-
-    public void setToken(String token) {
-        this.token = token;
-    }
 
     public String getAccessToken() {
         return accessToken;

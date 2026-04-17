@@ -12,6 +12,7 @@
 - 已完成阶段 3：`/api/system/{moduleKey}/list`、`/api/system/detail`、`/api/system/save`、`/api/system/status`，覆盖 `users`、`roles`、`dicts`、`logs`。
 - 已完成阶段 4：`/api/system/menus/tree`、`/api/system/menus/save`、`/api/system/menus/status`、`/api/permission/assignment`，已联动权限 bootstrap。
 - 已完成阶段 5：`/api/system/configs`、`/api/system/configs/save`，已接入 Redis 并覆盖 bootstrap、dict、config 三类缓存。
+- 已完成阶段 6 第一阶段：登录接口升级为双 Token，新增 refresh token、登出与基于 Redis 的会话失效控制。
 - 已接入 JWT Bearer 鉴权。
 - 已提供 `admin` / `viewer` 两套角色与权限差异数据。
 - 当前阶段按要求先使用本地 MySQL `spring_admin`。
@@ -82,6 +83,8 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 - `POST /api/auth/login`
 - `POST /api/auth/register`
 - `GET /api/auth/profile`
+- `POST /api/auth/refresh-token`
+- `POST /api/auth/logout`
 - `GET /api/permission/bootstrap`
 - `GET /api/query/list`
 - `GET /api/query/detail`

@@ -1,12 +1,14 @@
 package com.winsalty.quickstart.auth.controller;
 
 import com.winsalty.quickstart.auth.dto.LoginRequest;
+import com.winsalty.quickstart.auth.dto.RefreshTokenRequest;
 import com.winsalty.quickstart.auth.dto.RegisterRequest;
 import com.winsalty.quickstart.auth.security.AuthContext;
 import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.auth.service.AuthService;
 import com.winsalty.quickstart.auth.vo.LoginResponse;
 import com.winsalty.quickstart.auth.vo.ProfileResponse;
+import com.winsalty.quickstart.auth.vo.RefreshTokenResponse;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +40,21 @@ public class AuthController {
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Validated @RequestBody LoginRequest request) {
         return ApiResponse.success("登录成功", authService.login(request));
+    }
+
+    @PostMapping("/refresh-token")
+    public ApiResponse<RefreshTokenResponse> refreshToken(@Validated @RequestBody RefreshTokenRequest request) {
+        return ApiResponse.success("刷新成功", authService.refreshToken(request));
+    }
+
+    @PostMapping("/logout")
+    public ApiResponse<Object> logout() {
+        AuthUser authUser = AuthContext.get();
+        if (authUser == null) {
+            throw new BusinessException(4010, "未登录或登录已失效");
+        }
+        authService.logout(authUser.getUserId(), authUser.getSessionId());
+        return ApiResponse.success("退出成功", null);
     }
 
     @PostMapping("/register")

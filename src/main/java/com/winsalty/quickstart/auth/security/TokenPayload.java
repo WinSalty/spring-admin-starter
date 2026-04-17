@@ -1,22 +1,24 @@
 package com.winsalty.quickstart.auth.security;
 
 /**
- * 认证上下文对象。
+ * 令牌载荷对象。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
-public class AuthUser {
+public class TokenPayload {
 
     private final Long userId;
     private final String username;
     private final String roleCode;
     private final String sessionId;
+    private final String tokenType;
 
-    public AuthUser(Long userId, String username, String roleCode, String sessionId) {
+    public TokenPayload(Long userId, String username, String roleCode, String sessionId, String tokenType) {
         this.userId = userId;
         this.username = username;
         this.roleCode = roleCode;
         this.sessionId = sessionId;
+        this.tokenType = tokenType;
     }
 
     public Long getUserId() {
@@ -33,5 +35,9 @@ public class AuthUser {
 
     public String getSessionId() {
         return sessionId;
+    }
+
+    public String getTokenType() {
+        return tokenType;
     }
 }

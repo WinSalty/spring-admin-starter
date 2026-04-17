@@ -16,4 +16,5 @@ app:
   security:
     jwt-secret: winsalty-quickstart-test-jwt-secret-2026-secure-key
     jwt-expire-seconds: 7200
+    jwt-refresh-expire-seconds: 604800
     register-enabled: false
