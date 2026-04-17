@@ -1,5 +1,7 @@
 package com.winsalty.quickstart.permission.service;
 
+import com.winsalty.quickstart.permission.dto.PermissionAssignmentSaveRequest;
+import com.winsalty.quickstart.permission.vo.PermissionAssignmentVo;
 import com.winsalty.quickstart.permission.vo.PermissionBootstrapVo;
 
 /**
@@ -10,4 +12,8 @@ import com.winsalty.quickstart.permission.vo.PermissionBootstrapVo;
 public interface PermissionService {
 
     PermissionBootstrapVo getBootstrap(Long userId, String roleCode);
+
+    PermissionAssignmentVo getAssignment(String roleCode);
+
+    PermissionAssignmentVo saveAssignment(PermissionAssignmentSaveRequest request);
 }

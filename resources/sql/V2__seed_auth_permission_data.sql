@@ -1,3 +1,4 @@
+DELETE FROM sys_role_route;
 DELETE FROM sys_role_action;
 DELETE FROM sys_role_menu;
 DELETE FROM sys_user_role;
@@ -17,29 +18,55 @@ INSERT INTO sys_user_role (user_id, role_id) VALUES
 (1, 1),
 (2, 2);
 
-INSERT INTO sys_menu (id, parent_id, title, path, icon, order_no, menu_type, route_code, permission_code, hidden_in_menu, redirect, keep_alive, external_link, badge, disabled, status) VALUES
-(1, NULL, '工作台', '/dashboard', 'DashboardOutlined', 1, 'menu', 'dashboard', 'dashboard:view', 0, NULL, 1, NULL, NULL, 0, 'active'),
-(2, NULL, '查询管理', '/query', 'SearchOutlined', 2, 'menu', 'query', 'query:view', 0, NULL, 1, NULL, NULL, 0, 'active'),
-(3, NULL, '权限管理', '/permission', 'SafetyCertificateOutlined', 3, 'menu', 'permission', 'permission:view', 0, NULL, 1, NULL, NULL, 0, 'active'),
-(4, NULL, '系统管理', '/system', 'SettingOutlined', 4, 'catalog', NULL, 'system:view', 0, '/system/users', 1, NULL, NULL, 0, 'active'),
-(5, 4, '用户管理', '/system/users', 'UserOutlined', 1, 'menu', 'users', 'users:view', 0, NULL, 1, NULL, NULL, 0, 'active'),
-(6, 4, '角色管理', '/system/roles', 'TeamOutlined', 2, 'menu', 'roles', 'roles:view', 0, NULL, 1, NULL, NULL, 0, 'active'),
-(7, 4, '菜单管理', '/system/menus', 'MenuOutlined', 3, 'menu', 'menus', 'menus:view', 0, NULL, 1, NULL, NULL, 0, 'active'),
-(8, 4, '字典管理', '/system/dicts', 'BookOutlined', 4, 'menu', 'dicts', 'dicts:view', 0, NULL, 1, NULL, NULL, 0, 'active'),
-(9, 4, '日志管理', '/system/logs', 'FileTextOutlined', 5, 'menu', 'logs', 'logs:view', 0, NULL, 1, NULL, NULL, 0, 'active'),
-(10, 4, '系统配置', '/system/configs', 'ControlOutlined', 6, 'menu', 'configs', 'configs:view', 0, NULL, 1, NULL, NULL, 0, 'active');
+INSERT INTO sys_menu (id, record_code, parent_id, title, code, path, icon, order_no, menu_type, route_code, permission_code, hidden_in_menu, redirect, keep_alive, external_link, badge, disabled, status, owner, description) VALUES
+('1', 'M1001', NULL, '工作台', 'dashboard', '/dashboard', 'DashboardOutlined', 1, 'menu', 'dashboard', 'dashboard:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '工作台首页入口'),
+('2', 'M1002', NULL, '业务中心', 'business', NULL, 'AppstoreOutlined', 2, 'catalog', NULL, NULL, 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '业务模块目录'),
+('3', 'M1003', 2, '查询管理', 'query', '/query', 'SearchOutlined', 10, 'menu', 'query', 'query:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '查询管理入口'),
+('4', 'M1004', 2, '数据统计', 'statistics', '/statistics', 'LineChartOutlined', 20, 'menu', 'statistics', 'statistics:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '统计分析入口'),
+('5', 'M1005', NULL, '系统管理', 'system', '/system', 'SettingOutlined', 3, 'catalog', NULL, NULL, 0, '/system/users', 1, NULL, NULL, 0, 'active', '平台技术部', '系统模块目录'),
+('6', 'M1006', 5, '权限目录', 'permission', '/permission', 'KeyOutlined', 10, 'menu', 'permission', 'permission:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '权限分配入口'),
+('7', 'M1007', 5, '用户管理', 'system_user', '/system/users', 'UserOutlined', 20, 'menu', 'users', 'system:user:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '用户管理入口'),
+('8', 'M1008', 5, '角色管理', 'system_role', '/system/roles', 'TeamOutlined', 30, 'menu', 'roles', 'system:role:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '角色管理入口'),
+('9', 'M1009', 5, '菜单管理', 'system_menu', '/system/menus', 'MenuOutlined', 40, 'menu', 'menus', 'system:menu:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '菜单管理入口'),
+('10', 'M1010', 5, '字典管理', 'system_dict', '/system/dicts', 'BookOutlined', 50, 'menu', 'dicts', 'system:dict:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '字典管理入口'),
+('11', 'M1011', 5, '日志管理', 'system_log', '/system/logs', 'FileSearchOutlined', 60, 'menu', 'logs', 'system:log:view', 0, NULL, 1, NULL, NULL, 0, 'active', '安全中心', '日志管理入口'),
+('12', 'M1012', 5, '系统配置', 'system_config', '/system/configs', 'SettingOutlined', 70, 'menu', 'configs', 'system:config:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '系统配置入口'),
+('13', 'M1013', 11, '审计详情隐藏页', 'system_log_detail', '/system/logs/detail', 'FileSearchOutlined', 10, 'hidden', 'detail', 'system:log:detail', 1, NULL, 1, NULL, NULL, 0, 'active', '安全中心', '日志详情隐藏页'),
+('14', 'M1014', NULL, 'Ant Design 文档', 'antd_docs', NULL, 'BookOutlined', 90, 'external', NULL, 'docs:antd:view', 0, NULL, 1, 'https://ant.design', NULL, 0, 'active', '平台技术部', '外链菜单示例');
+
 
 INSERT INTO sys_role_menu (role_id, menu_id) VALUES
-(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10),
-(2, 1), (2, 2);
+(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10), (1, 11), (1, 12), (1, 13), (1, 14),
+(2, 1);
+
+INSERT INTO sys_role_route (role_id, route_code) VALUES
+(1, 'dashboard'), (1, 'query'), (1, 'statistics'), (1, 'permission'), (1, 'users'), (1, 'roles'), (1, 'menus'), (1, 'dicts'), (1, 'logs'), (1, 'configs'), (1, 'detail'),
+(2, 'dashboard');
 
 INSERT INTO sys_role_action (role_id, action_code, action_name) VALUES
 (1, 'query:add', '新增查询'),
 (1, 'query:edit', '编辑查询'),
-(1, 'permission:save', '保存权限'),
-(1, 'users:save', '保存用户'),
-(1, 'roles:save', '保存角色'),
-(1, 'menus:save', '保存菜单'),
-(1, 'configs:save', '保存配置'),
-(2, 'dashboard:view', '查看工作台'),
-(2, 'query:view', '查看查询');
+(1, 'query:delete', '删除查询'),
+(1, 'query:export', '导出查询'),
+(1, 'statistics:view', '查看统计'),
+(1, 'statistics:export', '导出统计'),
+(1, 'permission:view', '查看权限'),
+(1, 'permission:assign', '分配权限'),
+(1, 'system:user:add', '新增用户'),
+(1, 'system:user:edit', '编辑用户'),
+(1, 'system:user:status', '切换用户状态'),
+(1, 'system:user:reset', '重置密码'),
+(1, 'system:user:assign-role', '分配角色'),
+(1, 'system:role:add', '新增角色'),
+(1, 'system:role:edit', '编辑角色'),
+(1, 'system:role:status', '切换角色状态'),
+(1, 'system:role:assign-permission', '分配权限'),
+(1, 'system:menu:add', '新增菜单'),
+(1, 'system:menu:edit', '编辑菜单'),
+(1, 'system:menu:status', '切换菜单状态'),
+(1, 'system:dict:add', '新增字典'),
+(1, 'system:dict:edit', '编辑字典'),
+(1, 'system:dict:status', '切换字典状态'),
+(1, 'system:dict:refresh', '刷新字典缓存'),
+(1, 'system:config:view', '查看系统配置'),
+(1, 'system:config:edit', '编辑系统配置');

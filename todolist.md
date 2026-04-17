@@ -316,13 +316,13 @@ Deliverable：
 
 Deliverable：
 
-- [ ] 实现 `GET /api/system/{moduleKey}/list`。
-- [ ] 实现 `GET /api/system/detail`。
-- [ ] 实现 `POST /api/system/save`。
-- [ ] 实现 `POST /api/system/status`。
-- [ ] 覆盖 `users`、`roles`、`dicts`、`logs` 四类模块。
-- [ ] 列表分页支持 `keyword`、`status`、`logType`、`pageNo`、`pageSize`。
-- [ ] 保证返回字段与前端 `SystemRecord` 兼容。
+- [x] 实现 `GET /api/system/{moduleKey}/list`。
+- [x] 实现 `GET /api/system/detail`。
+- [x] 实现 `POST /api/system/save`。
+- [x] 实现 `POST /api/system/status`。
+- [x] 覆盖 `users`、`roles`、`dicts`、`logs` 四类模块。
+- [x] 列表分页支持 `keyword`、`status`、`logType`、`pageNo`、`pageSize`。
+- [x] 保证返回字段与前端 `SystemRecord` 兼容。
 
 验收标准：
 
@@ -337,21 +337,21 @@ Deliverable：
 
 Deliverable：
 
-- [ ] 实现 `GET /api/system/menus/tree`。
-- [ ] 实现 `POST /api/system/menus/save`。
-- [ ] 实现 `POST /api/system/menus/status`。
-- [ ] 实现 `GET /api/permission/assignment`。
-- [ ] 实现 `POST /api/permission/assignment`。
-- [ ] 菜单支持目录、菜单、隐藏路由、外链四种类型。
-- [ ] 菜单支持图标、排序、路径、权限码、外链地址、父子关系。
-- [ ] 角色权限保存后能影响 bootstrap 返回结果。
+- [x] 实现 `GET /api/system/menus/tree`。
+- [x] 实现 `POST /api/system/menus/save`。
+- [x] 实现 `POST /api/system/menus/status`。
+- [x] 实现 `GET /api/permission/assignment`。
+- [x] 实现 `POST /api/permission/assignment`。
+- [x] 菜单支持目录、菜单、隐藏路由、外链四种类型。
+- [x] 菜单支持图标、排序、路径、权限码、外链地址、父子关系。
+- [x] 角色权限保存后能影响 bootstrap 返回结果。
 
 验收标准：
 
-- [ ] 菜单管理页可展示树形数据。
-- [ ] 菜单新增、编辑、状态修改可联调。
-- [ ] 权限页可读取角色的菜单、路由、按钮权限分配结果。
-- [ ] 保存角色权限后重新登录或重新拉取 bootstrap 能生效。
+- [x] 菜单管理页可展示树形数据。
+- [x] 菜单新增、编辑、状态修改可联调。
+- [x] 权限页可读取角色的菜单、路由、按钮权限分配结果。
+- [x] 保存角色权限后重新登录或重新拉取 bootstrap 能生效。
 
 ### 阶段 5：系统配置与缓存能力
 
@@ -422,13 +422,15 @@ Deliverable：
 - 2026-04-17：已完成阶段 0 的工程骨架、多环境配置、统一响应、异常处理、CORS、OpenAPI、健康检查。
 - 2026-04-17：已完成阶段 1 的登录、注册、profile、permission bootstrap、JWT 鉴权与 RBAC 初始化脚本。
 - 2026-04-17：已完成阶段 2 的 dashboard/query 接口、查询表结构与种子数据，并验证分页、详情、保存与 403 返回。
-- 当前已具备工作台、认证、权限和查询管理的最小联调能力，Redis 与 system 通用模块尚未开始。
+- 2026-04-17：已完成阶段 3 的 system 通用模块接口，新增 users/roles/dicts/logs 四类真实数据表、种子数据和 `/api/system/{moduleKey}/list`、`/api/system/detail`、`/api/system/save`、`/api/system/status`，已完成 admin token 冒烟验证。
+- 2026-04-17：已完成阶段 4 的菜单管理与权限分配接口，新增 `/api/system/menus/tree`、`/api/system/menus/save`、`/api/system/menus/status`、`/api/permission/assignment`，补充角色路由权限表并完成 bootstrap 联动验证。
+- 当前已具备工作台、认证、权限、查询管理、system 通用模块和菜单/权限分配的最小联调能力，Redis 与系统配置接口尚未开始。
 
 ## 下一步任务
 
-1. 阶段 1 收尾：完成前端实际页面联调验证，确认路由守卫和按钮权限控制生效。
-2. 阶段 3：实现通用 system 模块分页、详情、保存、状态切换接口。
-3. 阶段 4：实现菜单管理树和权限分配接口，联动 bootstrap 权限结果。
+1. 阶段 5：实现系统配置接口与 Redis 缓存能力。
+2. 阶段 1 收尾：完成前端实际页面联调验证，确认路由守卫和按钮权限控制生效。
+3. 清理并统一菜单/权限种子数据与前端文案映射，补齐 system/configs 页面真实接口。
 
 ## 完成记录
 
@@ -437,3 +439,5 @@ Deliverable：
 - 2026-04-17：已完成阶段 0 工程初始化，创建 Spring Boot 2.7.18 工程骨架、统一响应、异常处理、CORS、OpenAPI 和健康检查。
 - 2026-04-17：已完成阶段 1 最小闭环，打通 `login/register/profile/bootstrap`、JWT Bearer 鉴权，并重建当前版本所需 RBAC 表与种子数据。
 - 2026-04-17：已完成阶段 2，新增 `dashboard/query` 接口、查询表结构与种子数据，并验证 403 权限返回。
+- 2026-04-17：已完成阶段 3，新增 users/roles/dicts/logs 四类真实数据表与通用 system 接口，并验证 admin token 下的分页、详情、保存与状态切换。
+- 2026-04-17：已完成阶段 4，新增菜单树、菜单保存、菜单状态切换、角色权限分配接口，补充 `sys_role_route` 路由权限关系表，并验证权限分配对 bootstrap 的联动生效。
