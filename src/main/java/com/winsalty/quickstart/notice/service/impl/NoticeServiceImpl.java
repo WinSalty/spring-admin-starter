@@ -5,8 +5,6 @@ import com.winsalty.quickstart.common.base.BaseService;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.constant.SystemConstants;
 import com.winsalty.quickstart.common.exception.BusinessException;
-import com.winsalty.quickstart.log.dto.OperationLogRequest;
-import com.winsalty.quickstart.log.service.LogService;
 import com.winsalty.quickstart.notice.dto.NoticeListRequest;
 import com.winsalty.quickstart.notice.dto.NoticeSaveRequest;
 import com.winsalty.quickstart.notice.dto.NoticeStatusRequest;
@@ -34,11 +32,9 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
     private static final Logger log = LoggerFactory.getLogger(NoticeServiceImpl.class);
 
     private final NoticeMapper noticeMapper;
-    private final LogService logService;
 
-    public NoticeServiceImpl(NoticeMapper noticeMapper, LogService logService) {
+    public NoticeServiceImpl(NoticeMapper noticeMapper) {
         this.noticeMapper = noticeMapper;
-        this.logService = logService;
     }
 
     @Override
@@ -69,11 +65,9 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         }
         if (entity.getId() == null) {
             noticeMapper.insert(entity);
-            recordLog("notice_create", "公告创建成功", entity.getTitle());
             log.info("notice created, id={}, title={}", entity.getId(), entity.getTitle());
         } else {
             noticeMapper.update(entity);
-            recordLog("notice_update", "公告更新成功", entity.getTitle());
             log.info("notice updated, id={}, title={}", entity.getId(), entity.getTitle());
         }
         return toVo(load(entity.getId()));
@@ -85,7 +79,6 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         Long id = parseId(request.getId());
         NoticeEntity existed = load(id);
         noticeMapper.updateStatus(id, request.getStatus());
-        recordLog("notice_status_update", "公告状态更新成功", existed.getTitle());
         log.info("notice status updated, id={}, status={}", id, request.getStatus());
         return toVo(load(id));
     }
@@ -149,19 +142,5 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         vo.setCreatedAt(entity.getCreatedAt());
         vo.setUpdatedAt(entity.getUpdatedAt());
         return vo;
-    }
-
-    private void recordLog(String code, String description, String target) {
-        OperationLogRequest request = new OperationLogRequest();
-        request.setLogType(SystemConstants.OPERATION_LOG_TYPE);
-        request.setOwner(SystemConstants.SYSTEM_OPERATOR);
-        request.setName(description);
-        request.setCode(code);
-        request.setDescription(description);
-        request.setTarget(target);
-        request.setIpAddress(SystemConstants.LOCALHOST_IP);
-        request.setResult(SystemConstants.RESULT_SUCCESS);
-        request.setDurationMs(0L);
-        logService.record(request);
     }
 }

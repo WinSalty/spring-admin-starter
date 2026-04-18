@@ -7,8 +7,6 @@ import com.winsalty.quickstart.department.entity.DepartmentEntity;
 import com.winsalty.quickstart.department.mapper.DepartmentMapper;
 import com.winsalty.quickstart.department.service.DepartmentService;
 import com.winsalty.quickstart.department.vo.DepartmentVo;
-import com.winsalty.quickstart.log.dto.OperationLogRequest;
-import com.winsalty.quickstart.log.service.LogService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -31,11 +29,9 @@ public class DepartmentServiceImpl implements DepartmentService {
     private static final Logger log = LoggerFactory.getLogger(DepartmentServiceImpl.class);
 
     private final DepartmentMapper departmentMapper;
-    private final LogService logService;
 
-    public DepartmentServiceImpl(DepartmentMapper departmentMapper, LogService logService) {
+    public DepartmentServiceImpl(DepartmentMapper departmentMapper) {
         this.departmentMapper = departmentMapper;
-        this.logService = logService;
     }
 
     @Override
@@ -58,11 +54,9 @@ public class DepartmentServiceImpl implements DepartmentService {
         applyFields(entity, request, parentId);
         if (entity.getId() == null) {
             departmentMapper.insert(entity);
-            recordLog("department_create", "部门创建成功", entity.getName());
             log.info("department created, id={}, code={}", entity.getId(), entity.getCode());
         } else {
             departmentMapper.update(entity);
-            recordLog("department_update", "部门更新成功", entity.getName());
             log.info("department updated, id={}, code={}", entity.getId(), entity.getCode());
         }
         return toVo(load(entity.getId()));
@@ -74,7 +68,6 @@ public class DepartmentServiceImpl implements DepartmentService {
         Long id = parseId(request.getId());
         DepartmentEntity existed = load(id);
         departmentMapper.updateStatus(id, request.getStatus());
-        recordLog("department_status_update", "部门状态更新成功", existed.getName());
         log.info("department status updated, id={}, status={}", id, request.getStatus());
         return toVo(load(id));
     }
@@ -166,19 +159,5 @@ public class DepartmentServiceImpl implements DepartmentService {
 
     private String defaultText(String value) {
         return StringUtils.hasText(value) ? value.trim() : "";
-    }
-
-    private void recordLog(String code, String description, String target) {
-        OperationLogRequest request = new OperationLogRequest();
-        request.setLogType("operation");
-        request.setOwner("system");
-        request.setName(description);
-        request.setCode(code);
-        request.setDescription(description);
-        request.setTarget(target);
-        request.setIpAddress("127.0.0.1");
-        request.setResult("成功");
-        request.setDurationMs(0L);
-        logService.record(request);
     }
 }

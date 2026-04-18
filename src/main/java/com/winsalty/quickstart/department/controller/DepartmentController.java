@@ -1,5 +1,6 @@
 package com.winsalty.quickstart.department.controller;
 
+import com.winsalty.quickstart.auth.annotation.AuditLog;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.department.dto.DepartmentSaveRequest;
 import com.winsalty.quickstart.department.dto.DepartmentStatusRequest;
@@ -40,12 +41,14 @@ public class DepartmentController {
         return ApiResponse.success("获取成功", departmentService.getTree(keyword, status));
     }
 
+    @AuditLog(logType = "operation", code = "department_save", name = "保存部门")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/save")
     public ApiResponse<DepartmentVo> save(@Valid @RequestBody DepartmentSaveRequest request) {
         return ApiResponse.success("保存成功", departmentService.save(request));
     }
 
+    @AuditLog(logType = "operation", code = "department_status", name = "更新部门状态")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/status")
     public ApiResponse<DepartmentVo> status(@Valid @RequestBody DepartmentStatusRequest request) {

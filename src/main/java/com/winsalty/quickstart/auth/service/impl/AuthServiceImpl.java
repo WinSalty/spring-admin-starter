@@ -20,8 +20,6 @@ import com.winsalty.quickstart.common.constant.SecurityConstants;
 import com.winsalty.quickstart.common.constant.SystemConstants;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.common.util.IpUtils;
-import com.winsalty.quickstart.log.dto.OperationLogRequest;
-import com.winsalty.quickstart.log.service.LogService;
 import com.winsalty.quickstart.permission.mapper.PermissionMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,8 +27,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * 认证服务实现。
@@ -50,22 +46,19 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     private final BCryptPasswordEncoder passwordEncoder;
     private final AuthSessionService authSessionService;
     private final RegisterVerificationService registerVerificationService;
-    private final LogService logService;
 
     public AuthServiceImpl(UserMapper userMapper,
                            PermissionMapper permissionMapper,
                            JwtTokenProvider jwtTokenProvider,
                            BCryptPasswordEncoder passwordEncoder,
                            AuthSessionService authSessionService,
-                           RegisterVerificationService registerVerificationService,
-                           LogService logService) {
+                           RegisterVerificationService registerVerificationService) {
         this.userMapper = userMapper;
         this.permissionMapper = permissionMapper;
         this.jwtTokenProvider = jwtTokenProvider;
         this.passwordEncoder = passwordEncoder;
         this.authSessionService = authSessionService;
         this.registerVerificationService = registerVerificationService;
-        this.logService = logService;
     }
 
     @Override
@@ -164,31 +157,5 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         response.setRoleCode(permissionMapper.findRoleCodeByUserId(userId));
         response.setRoleName(permissionMapper.findRoleNameByUserId(userId));
         return response;
-    }
-
-    private void recordAuthLog(String logType, String owner, String code, String description, String target, String result) {
-        OperationLogRequest request = new OperationLogRequest();
-        request.setLogType(logType);
-        request.setOwner(owner);
-        request.setName(description);
-        request.setCode(code);
-        request.setDescription(description);
-        request.setTarget(target);
-        request.setIpAddress(resolveCurrentIp());
-        request.setResult(result);
-        request.setDurationMs(0L);
-        logService.record(request);
-    }
-
-    private String resolveCurrentIp() {
-        try {
-            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attrs == null) {
-                return "";
-            }
-            return IpUtils.getClientIp(attrs.getRequest());
-        } catch (Exception e) {
-            return "";
-        }
     }
 }

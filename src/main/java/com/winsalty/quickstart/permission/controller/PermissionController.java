@@ -1,5 +1,6 @@
 package com.winsalty.quickstart.permission.controller;
 
+import com.winsalty.quickstart.auth.annotation.AuditLog;
 import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.common.base.BaseController;
@@ -45,6 +46,7 @@ public class PermissionController extends BaseController {
         return ApiResponse.success("获取成功", permissionService.getAssignment(roleCode));
     }
 
+    @AuditLog(logType = "operation", code = "permission_assignment", name = "保存权限分配")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/assignment")
     public ApiResponse<PermissionAssignmentVo> saveAssignment(@Valid @RequestBody PermissionAssignmentSaveRequest request) {

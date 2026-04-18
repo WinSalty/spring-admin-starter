@@ -1,5 +1,6 @@
 package com.winsalty.quickstart.notice.controller;
 
+import com.winsalty.quickstart.auth.annotation.AuditLog;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.notice.dto.NoticeListRequest;
@@ -45,12 +46,14 @@ public class NoticeController {
         return ApiResponse.success("获取成功", noticeService.getDetail(id));
     }
 
+    @AuditLog(logType = "operation", code = "notice_save", name = "保存公告")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/save")
     public ApiResponse<NoticeVo> save(@Valid @RequestBody NoticeSaveRequest request) {
         return ApiResponse.success("保存成功", noticeService.save(request));
     }
 
+    @AuditLog(logType = "operation", code = "notice_status", name = "更新公告状态")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/status")
     public ApiResponse<NoticeVo> status(@Valid @RequestBody NoticeStatusRequest request) {

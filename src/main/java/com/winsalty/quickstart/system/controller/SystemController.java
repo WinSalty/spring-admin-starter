@@ -1,5 +1,6 @@
 package com.winsalty.quickstart.system.controller;
 
+import com.winsalty.quickstart.auth.annotation.AuditLog;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.system.dto.SystemConfigSaveRequest;
@@ -58,12 +59,14 @@ public class SystemController {
         return ApiResponse.success("获取成功", systemService.getDetail(id));
     }
 
+    @AuditLog(logType = "operation", code = "system_save", name = "保存系统记录")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/save")
     public ApiResponse<SystemRecordVo> save(@Validated @RequestBody SystemSaveRequest request) {
         return ApiResponse.success("保存成功", systemService.save(request));
     }
 
+    @AuditLog(logType = "operation", code = "system_status", name = "更新系统记录状态")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/status")
     public ApiResponse<SystemRecordVo> status(@Validated @RequestBody SystemStatusRequest request) {
@@ -86,18 +89,21 @@ public class SystemController {
         return ApiResponse.success("获取成功", systemService.getMenuTree(request));
     }
 
+    @AuditLog(logType = "operation", code = "menu_save", name = "保存菜单")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/menus/save")
     public ApiResponse<SystemMenuVo> saveMenu(@Valid @RequestBody SystemMenuSaveRequest request) {
         return ApiResponse.success("保存成功", systemService.saveMenu(request));
     }
 
+    @AuditLog(logType = "operation", code = "menu_status", name = "更新菜单状态")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/menus/status")
     public ApiResponse<SystemMenuVo> updateMenuStatus(@Validated @RequestBody SystemStatusRequest request) {
         return ApiResponse.success("状态已更新", systemService.updateMenuStatus(request));
     }
 
+    @AuditLog(logType = "operation", code = "user_assign_roles", name = "分配用户角色")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/users/assign-roles")
     public ApiResponse<SystemRecordVo> assignUserRoles(@Validated @RequestBody UserRoleAssignRequest request) {
