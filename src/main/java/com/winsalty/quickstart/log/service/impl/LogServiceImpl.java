@@ -35,11 +35,22 @@ public class LogServiceImpl implements LogService {
         if (!StringUtils.hasText(request.getResult())) {
             request.setResult(SystemConstants.RESULT_SUCCESS);
         }
+        request.setDescription(limit(request.getDescription(), 255));
+        request.setTarget(limit(request.getTarget(), 180));
+        request.setDeviceInfo(limit(request.getDeviceInfo(), 255));
         if (request.getDurationMs() == null) {
             request.setDurationMs(0L);
         }
         String recordCode = "L" + UUID.randomUUID().toString().replace("-", "").substring(0, 31);
         logMapper.insertLog(recordCode, request);
         log.info("operation log recorded, type={}, owner={}, code={}", request.getLogType(), request.getOwner(), request.getCode());
+    }
+
+    private String limit(String value, int maxLength) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String normalized = value.trim();
+        return normalized.length() <= maxLength ? normalized : normalized.substring(0, maxLength);
     }
 }

@@ -432,15 +432,14 @@ Deliverable：
 - 2026-04-18：已补齐部门管理模块，新增 `sys_department` 表和 `/api/system/departments/tree`、`/api/system/departments/save`、`/api/system/departments/status`，并为用户表增加 `department_id` 关联。
 - 2026-04-18：已将系统用户/角色列表与保存切到 `sys_user`、`sys_role`、`sys_user_role` 真实关系，新增 `/api/system/users/assign-roles`，角色变更会刷新 bootstrap 缓存版本。
 - 2026-04-18：已核对前端 `services/` 目录，当前前端 `auth/dashboard/query/permission/system` service 仍使用 mock；后端已覆盖现有 service 注释中声明的真实接口，双 Token 后端响应保留 `token` 字段兼容旧登录逻辑。
-- 2026-04-18：已执行 `mvn -q -DskipTests compile` 通过；本地 MySQL `127.0.0.1:3306` 当前无法连接，`sql/init.sql` 和 `sql/seed-data.sql` 的实际导入冒烟需要 MySQL 启动后重试。
+- 2026-04-18：已执行 `mvn -q -DskipTests compile` 通过，并已完成本地 SQL 导入、服务启动与关键接口冒烟验证：`/api/auth/login`、`/api/permission/bootstrap`、`/api/system/notices/list`、`/api/system/notices/active`、`/api/system/departments/tree`、`/api/system/users/assign-roles`、`/api/auth/register`、`/api/auth/refresh-token`、`/api/system/logs/list` 均已验证通过。
 - 当前已具备工作台、认证、权限、查询管理、system 通用模块、菜单/权限分配、系统配置、Redis 缓存、双 Token 会话控制、基础日志链路、字典、参数和文件上传的最小联调能力。
 
 ## 下一步任务
 
-1. 启动本地 MySQL 后，重新执行 `sql/init.sql` 与 `sql/seed-data.sql` 完整导入，并执行公告、部门、用户角色分配接口冒烟验证。
-2. 在 `/Users/salty/codeProject/ai/react-admin-starter/src/services/` 将 mock service 切换为真实 `request` 调用，并补充 `refreshToken` 本地存储与 401 自动刷新逻辑。
-3. notice 页面与 todolist 提醒能力已完成，后续主要补齐真实接口联调和端到端验证。
-4. 如需进一步治理，可继续把异常日志等少量特例日志按场景拆分优化。
+1. 联动 react-admin-starter 做一次完整前后端联调冒烟，重点验证登录、refresh token、权限 bootstrap、公告页面、邮箱注册与工作台提醒。
+2. 继续补充端到端测试与自动化验证脚本，减少手工冒烟成本。
+3. 如需上线前加固，可继续优化审计日志脱敏和异常日志摘要策略。
 
 ## 完成记录
 
@@ -456,4 +455,4 @@ Deliverable：
 - 2026-04-18：已完成参数配置模块，新增 `sys_config` 表映射和 `/api/system/params/list`、`/api/system/params/detail`、`/api/system/params/save`、`/api/system/params/status`、`/api/system/params/cache/refresh`。
 - 2026-04-18：已完成文件上传模块，新增 `sys_file` 表映射和 `/api/file/upload`、`/api/file/list`、`/api/file/{id}/download`、`/api/file/{id}/delete`、`/api/file/{id}/status`，支持白名单、10MB 限制、唯一文件名和软删除。
 - 2026-04-18：已新增 `sql/init.sql`、`sql/seed-data.sql`、`resources/sql/V9__init_dict_param_file_schema.sql`、`resources/sql/V10__seed_dict_param_file_data.sql`，并更新 README。
-- 2026-04-18：继续收口手工日志埋点，给部门、公告、系统管理和权限分配控制器补齐 AuditLog 注解，删除 service 层重复的手工日志写入逻辑，仅保留异常日志等必要特例。claude-opus-4-7
+- 2026-04-18：完成本地 SQL 导入与接口冒烟验证，并修复日志描述过长导致的审计写入失败、系统日志列表 UNION 列数不一致问题。claude-opus-4-7

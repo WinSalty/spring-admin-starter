@@ -24,17 +24,17 @@ public interface SystemMapper {
             + "d.name AS department, u.department_id AS departmentId, "
             + "(SELECT GROUP_CONCAT(DISTINCT r.role_name ORDER BY r.id SEPARATOR ',') FROM sys_user_role ur INNER JOIN sys_role r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.deleted = 0) AS roleNames, "
             + "(SELECT GROUP_CONCAT(DISTINCT r.role_code ORDER BY r.id SEPARATOR ',') FROM sys_user_role ur INNER JOIN sys_role r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.deleted = 0) AS roleCodes, DATE_FORMAT(u.last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt, "
-            + "NULL AS dataScope, NULL AS userCount, NULL AS dictType, NULL AS itemCount, NULL AS cacheKey, NULL AS logType, NULL AS target, NULL AS ipAddress, NULL AS result, NULL AS durationMs, "
+            + "NULL AS dataScope, NULL AS userCount, NULL AS dictType, NULL AS itemCount, NULL AS cacheKey, NULL AS logType, NULL AS target, NULL AS ipAddress, NULL AS deviceInfo, NULL AS requestInfo, NULL AS responseInfo, NULL AS result, NULL AS durationMs, "
             + "DATE_FORMAT(u.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(u.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "
             + "FROM sys_user u LEFT JOIN sys_department d ON d.id = u.department_id WHERE u.deleted = 0 ";
 
     String ROLES_SELECT = "SELECT r.id, r.record_code AS recordCode, 'roles' AS moduleKey, r.role_name AS name, r.role_code AS code, r.status, r.owner, r.description, "
-            + "NULL AS department, NULL AS departmentId, NULL AS roleNames, NULL AS roleCodes, NULL AS lastLoginAt, r.data_scope AS dataScope, (SELECT COUNT(1) FROM sys_user_role ur WHERE ur.role_id = r.id) AS userCount, NULL AS dictType, NULL AS itemCount, NULL AS cacheKey, NULL AS logType, NULL AS target, NULL AS ipAddress, NULL AS result, NULL AS durationMs, "
+            + "NULL AS department, NULL AS departmentId, NULL AS roleNames, NULL AS roleCodes, NULL AS lastLoginAt, r.data_scope AS dataScope, (SELECT COUNT(1) FROM sys_user_role ur WHERE ur.role_id = r.id) AS userCount, NULL AS dictType, NULL AS itemCount, NULL AS cacheKey, NULL AS logType, NULL AS target, NULL AS ipAddress, NULL AS deviceInfo, NULL AS requestInfo, NULL AS responseInfo, NULL AS result, NULL AS durationMs, "
             + "DATE_FORMAT(r.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(r.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "
             + "FROM sys_role r WHERE r.deleted = 0 ";
 
     String DICTS_SELECT = "SELECT d.id, d.record_code AS recordCode, 'dicts' AS moduleKey, d.name, d.code, d.status, d.owner, d.description, "
-            + "NULL AS department, NULL AS departmentId, NULL AS roleNames, NULL AS roleCodes, NULL AS lastLoginAt, NULL AS dataScope, NULL AS userCount, d.dict_type AS dictType, d.item_count AS itemCount, d.cache_key AS cacheKey, NULL AS logType, NULL AS target, NULL AS ipAddress, NULL AS result, NULL AS durationMs, "
+            + "NULL AS department, NULL AS departmentId, NULL AS roleNames, NULL AS roleCodes, NULL AS lastLoginAt, NULL AS dataScope, NULL AS userCount, d.dict_type AS dictType, d.item_count AS itemCount, d.cache_key AS cacheKey, NULL AS logType, NULL AS target, NULL AS ipAddress, NULL AS deviceInfo, NULL AS requestInfo, NULL AS responseInfo, NULL AS result, NULL AS durationMs, "
             + "DATE_FORMAT(d.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(d.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "
             + "FROM sys_dict_record d WHERE d.deleted = 0 ";
 
