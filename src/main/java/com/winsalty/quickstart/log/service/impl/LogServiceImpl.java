@@ -1,5 +1,6 @@
 package com.winsalty.quickstart.log.service.impl;
 
+import com.winsalty.quickstart.common.constant.SystemConstants;
 import com.winsalty.quickstart.log.dto.OperationLogRequest;
 import com.winsalty.quickstart.log.mapper.LogMapper;
 import com.winsalty.quickstart.log.service.LogService;
@@ -29,10 +30,10 @@ public class LogServiceImpl implements LogService {
     @Override
     public void record(OperationLogRequest request) {
         if (!StringUtils.hasText(request.getOwner())) {
-            request.setOwner("system");
+            request.setOwner(SystemConstants.SYSTEM_OPERATOR);
         }
         if (!StringUtils.hasText(request.getResult())) {
-            request.setResult("成功");
+            request.setResult(SystemConstants.RESULT_SUCCESS);
         }
         if (request.getDurationMs() == null) {
             request.setDurationMs(0L);

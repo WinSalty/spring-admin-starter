@@ -6,6 +6,8 @@ import com.winsalty.quickstart.dashboard.vo.DashboardMetricVo;
 import com.winsalty.quickstart.dashboard.vo.DashboardOverviewVo;
 import com.winsalty.quickstart.dashboard.vo.DashboardStatusVo;
 import com.winsalty.quickstart.dashboard.vo.DashboardTrendPointVo;
+import com.winsalty.quickstart.system.entity.SystemRecordEntity;
+import com.winsalty.quickstart.system.mapper.SystemMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -23,23 +25,36 @@ public class DashboardServiceImpl implements DashboardService {
 
     private static final Logger log = LoggerFactory.getLogger(DashboardServiceImpl.class);
 
+    private final SystemMapper systemMapper;
+
+    public DashboardServiceImpl(SystemMapper systemMapper) {
+        this.systemMapper = systemMapper;
+    }
+
     @Override
     public DashboardOverviewVo getOverview() {
         log.info("dashboard overview loaded");
         DashboardOverviewVo response = new DashboardOverviewVo();
-        response.setMetrics(buildMetrics());
-        response.setTrend(buildTrend());
-        response.setCategories(buildCategories());
-        response.setStatusDistribution(buildStatusDistribution());
+        List<SystemRecordEntity> users = systemMapper.findPage("users", null, null, null, 0, 200);
+        List<SystemRecordEntity> roles = systemMapper.findPage("roles", null, null, null, 0, 200);
+        List<SystemRecordEntity> dicts = systemMapper.findPage("dicts", null, null, null, 0, 200);
+        List<SystemRecordEntity> logs = systemMapper.findPage("logs", null, null, null, 0, 200);
+        response.setMetrics(buildMetrics(users, roles, dicts, logs));
+        response.setTrend(buildTrend(logs));
+        response.setCategories(buildCategories(users, roles, dicts, logs));
+        response.setStatusDistribution(buildStatusDistribution(users, logs));
         return response;
     }
 
-    private List<DashboardMetricVo> buildMetrics() {
+    private List<DashboardMetricVo> buildMetrics(List<SystemRecordEntity> users,
+                                                 List<SystemRecordEntity> roles,
+                                                 List<SystemRecordEntity> dicts,
+                                                 List<SystemRecordEntity> logs) {
         List<DashboardMetricVo> metrics = new ArrayList<DashboardMetricVo>();
-        metrics.add(buildMetric("visits", "今日访问", 12860L, "次", null, "较昨日", "+12.4%", "up"));
-        metrics.add(buildMetric("orders", "有效订单", 864L, "单", null, "转化率", "8.2%", "stable"));
-        metrics.add(buildMetric("revenue", "交易金额", 326800L, "元", null, "较上周", "+6.8%", "up"));
-        metrics.add(buildMetric("alerts", "待处理告警", 18L, "条", null, "较昨日", "-9.1%", "down"));
+        metrics.add(buildMetric("users", "有效用户", (long) users.size(), "人", null, "启用用户", String.valueOf(countByStatus(users, "active")), "up"));
+        metrics.add(buildMetric("roles", "角色数量", (long) roles.size(), "个", null, "启用角色", String.valueOf(countByStatus(roles, "active")), "stable"));
+        metrics.add(buildMetric("dicts", "字典数量", (long) dicts.size(), "个", null, "启用字典", String.valueOf(countByStatus(dicts, "active")), "up"));
+        metrics.add(buildMetric("logs", "审计日志", (long) logs.size(), "条", null, "成功日志", String.valueOf(countSuccessLogs(logs)), countFailureLogs(logs) > 0 ? "down" : "up"));
         return metrics;
     }
 
@@ -63,15 +78,17 @@ public class DashboardServiceImpl implements DashboardService {
         return metric;
     }
 
-    private List<DashboardTrendPointVo> buildTrend() {
+    private List<DashboardTrendPointVo> buildTrend(List<SystemRecordEntity> logs) {
         List<DashboardTrendPointVo> trend = new ArrayList<DashboardTrendPointVo>();
-        trend.add(buildTrendPoint("04-10", 8600L, 520L));
-        trend.add(buildTrendPoint("04-11", 9400L, 610L));
-        trend.add(buildTrendPoint("04-12", 10200L, 680L));
-        trend.add(buildTrendPoint("04-13", 9800L, 640L));
-        trend.add(buildTrendPoint("04-14", 11600L, 720L));
-        trend.add(buildTrendPoint("04-15", 12100L, 790L));
-        trend.add(buildTrendPoint("04-16", 12860L, 864L));
+        int size = Math.min(logs.size(), 7);
+        for (int index = size - 1; index >= 0; index--) {
+            SystemRecordEntity entity = logs.get(index);
+            String date = entity.getCreatedAt() == null || entity.getCreatedAt().length() < 10 ? "未知" : entity.getCreatedAt().substring(5, 10);
+            trend.add(buildTrendPoint(date, safeLong(entity.getDurationMs()), "成功".equals(entity.getResult()) ? 1L : 0L));
+        }
+        if (trend.isEmpty()) {
+            trend.add(buildTrendPoint("暂无", 0L, 0L));
+        }
         return trend;
     }
 
@@ -83,13 +100,15 @@ public class DashboardServiceImpl implements DashboardService {
         return point;
     }
 
-    private List<DashboardCategoryVo> buildCategories() {
+    private List<DashboardCategoryVo> buildCategories(List<SystemRecordEntity> users,
+                                                      List<SystemRecordEntity> roles,
+                                                      List<SystemRecordEntity> dicts,
+                                                      List<SystemRecordEntity> logs) {
         List<DashboardCategoryVo> categories = new ArrayList<DashboardCategoryVo>();
-        categories.add(buildCategory("查询管理", 246L));
-        categories.add(buildCategory("数据统计", 198L));
-        categories.add(buildCategory("权限目录", 126L));
-        categories.add(buildCategory("系统配置", 92L));
-        categories.add(buildCategory("消息中心", 78L));
+        categories.add(buildCategory("用户管理", (long) users.size()));
+        categories.add(buildCategory("角色管理", (long) roles.size()));
+        categories.add(buildCategory("字典管理", (long) dicts.size()));
+        categories.add(buildCategory("日志管理", (long) logs.size()));
         return categories;
     }
 
@@ -100,12 +119,13 @@ public class DashboardServiceImpl implements DashboardService {
         return category;
     }
 
-    private List<DashboardStatusVo> buildStatusDistribution() {
+    private List<DashboardStatusVo> buildStatusDistribution(List<SystemRecordEntity> users,
+                                                            List<SystemRecordEntity> logs) {
         List<DashboardStatusVo> statusDistribution = new ArrayList<DashboardStatusVo>();
-        statusDistribution.add(buildStatus("运行中", 62L));
-        statusDistribution.add(buildStatus("待处理", 18L));
-        statusDistribution.add(buildStatus("已完成", 138L));
-        statusDistribution.add(buildStatus("异常", 7L));
+        statusDistribution.add(buildStatus("启用", countByStatus(users, "active")));
+        statusDistribution.add(buildStatus("停用", countByStatus(users, "disabled")));
+        statusDistribution.add(buildStatus("成功日志", countSuccessLogs(logs)));
+        statusDistribution.add(buildStatus("失败日志", countFailureLogs(logs)));
         return statusDistribution;
     }
 
@@ -114,5 +134,39 @@ public class DashboardServiceImpl implements DashboardService {
         status.setName(name);
         status.setValue(value);
         return status;
+    }
+
+    private Long countByStatus(List<SystemRecordEntity> records, String status) {
+        long count = 0L;
+        for (SystemRecordEntity record : records) {
+            if (status.equals(record.getStatus())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private Long countSuccessLogs(List<SystemRecordEntity> logs) {
+        long count = 0L;
+        for (SystemRecordEntity logRecord : logs) {
+            if ("成功".equals(logRecord.getResult())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private Long countFailureLogs(List<SystemRecordEntity> logs) {
+        long count = 0L;
+        for (SystemRecordEntity logRecord : logs) {
+            if ("失败".equals(logRecord.getResult()) || "拒绝".equals(logRecord.getResult())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private Long safeLong(Long value) {
+        return value == null ? 0L : value;
     }
 }

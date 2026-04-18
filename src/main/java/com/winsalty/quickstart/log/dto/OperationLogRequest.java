@@ -14,6 +14,9 @@ public class OperationLogRequest {
     private String description;
     private String target;
     private String ipAddress;
+    private String deviceInfo;
+    private String requestInfo;
+    private String responseInfo;
     private String result;
     private Long durationMs;
 
@@ -71,6 +74,30 @@ public class OperationLogRequest {
 
     public void setIpAddress(String ipAddress) {
         this.ipAddress = ipAddress;
+    }
+
+    public String getDeviceInfo() {
+        return deviceInfo;
+    }
+
+    public void setDeviceInfo(String deviceInfo) {
+        this.deviceInfo = deviceInfo;
+    }
+
+    public String getRequestInfo() {
+        return requestInfo;
+    }
+
+    public void setRequestInfo(String requestInfo) {
+        this.requestInfo = requestInfo;
+    }
+
+    public String getResponseInfo() {
+        return responseInfo;
+    }
+
+    public void setResponseInfo(String responseInfo) {
+        this.responseInfo = responseInfo;
     }
 
     public String getResult() {

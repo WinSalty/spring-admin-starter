@@ -129,10 +129,10 @@ INSERT INTO sys_dict_record (record_code, name, code, status, owner, description
 ('D1002', '日志类型', 'log_type', 'active', '安全中心', '登录日志、操作日志和接口日志分类。', '业务字典', 3, 'dict:log_type', '2026-03-04 11:28:00', '2026-04-14 16:48:00'),
 ('D1003', '审批状态', 'approval_status', 'disabled', '流程中心', '待提交、审批中、已通过、已驳回等审批状态。', '业务字典', 4, 'dict:approval_status', '2026-03-08 14:16:00', '2026-04-02 13:22:00');
 
-INSERT INTO sys_log_record (record_code, name, code, status, owner, description, log_type, target, ip_address, result, duration_ms, created_at, updated_at) VALUES
-('L1001', 'admin 登录成功', 'login_admin_success', 'active', 'admin', '管理员从可信设备登录系统。', 'login', '认证中心', '192.168.1.10', '成功', 86, '2026-04-16 20:18:00', '2026-04-16 20:18:00'),
-('L1002', '编辑查询配置', 'query_config_update', 'active', 'admin', '更新客户基础信息查询配置说明。', 'operation', '查询管理', '192.168.1.10', '成功', 132, '2026-04-16 19:44:00', '2026-04-16 19:44:00'),
-('L1003', '权限接口访问', 'permission_bootstrap_api', 'disabled', 'viewer', '访客账号请求权限 bootstrap 接口。', 'api', '/api/permission/bootstrap', '192.168.1.22', '拒绝', 48, '2026-04-16 18:42:00', '2026-04-16 18:42:00');
+INSERT INTO sys_log_record (record_code, name, code, status, owner, description, log_type, target, ip_address, device_info, request_info, response_info, result, duration_ms, created_at, updated_at) VALUES
+('L1001', 'admin 登录成功', 'login_admin_success', 'active', 'admin', '管理员从可信设备登录系统。', 'login', '认证中心', '192.168.1.10', 'Chrome on macOS', '{"method":"POST","uri":"/api/auth/login"}', '{"message":"登录成功"}', '成功', 86, '2026-04-16 20:18:00', '2026-04-16 20:18:00'),
+('L1002', '编辑查询配置', 'query_config_update', 'active', 'admin', '更新客户基础信息查询配置说明。', 'operation', '查询管理', '192.168.1.10', 'Chrome on macOS', '{"method":"POST","uri":"/api/query/save"}', '{"message":"保存成功"}', '成功', 132, '2026-04-16 19:44:00', '2026-04-16 19:44:00'),
+('L1003', '权限接口访问', 'permission_bootstrap_api', 'disabled', 'viewer', '访客账号请求权限 bootstrap 接口。', 'api', '/api/permission/bootstrap', '192.168.1.22', 'Safari on iPhone', '{"method":"GET","uri":"/api/permission/bootstrap"}', '{"message":"无权限访问该资源"}', '拒绝', 48, '2026-04-16 18:42:00', '2026-04-16 18:42:00');
 
 -- resources/sql/V8__seed_config_data.sql
 DELETE FROM sys_config_record;

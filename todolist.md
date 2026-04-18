@@ -440,7 +440,8 @@ Deliverable：
 1. 启动本地 MySQL 后，重新执行 `sql/init.sql` 与 `sql/seed-data.sql` 完整导入，并执行公告、部门、用户角色分配接口冒烟验证。
 2. 在 `/Users/salty/codeProject/ai/react-admin-starter/src/services/` 将 mock service 切换为真实 `request` 调用，并补充 `refreshToken` 本地存储与 401 自动刷新逻辑。
 3. 前端新增公告通知、部门管理页面或路由后，接入本次新增的 `/api/system/notices/*`、`/api/system/departments/*` 接口。
-4. 阶段 2 将继续落地统一审计日志、注册邮箱验证码与 dashboard 去写死数据。
+4. 前端注册页需要适配邮箱验证码发送与校验，注册请求需增加 `verifyCode` 字段。
+5. notice 页面与 todolist 提醒能力将在下一阶段接入 react-admin-starter。
 
 ## 完成记录
 
@@ -456,4 +457,4 @@ Deliverable：
 - 2026-04-18：已完成参数配置模块，新增 `sys_config` 表映射和 `/api/system/params/list`、`/api/system/params/detail`、`/api/system/params/save`、`/api/system/params/status`、`/api/system/params/cache/refresh`。
 - 2026-04-18：已完成文件上传模块，新增 `sys_file` 表映射和 `/api/file/upload`、`/api/file/list`、`/api/file/{id}/download`、`/api/file/{id}/delete`、`/api/file/{id}/status`，支持白名单、10MB 限制、唯一文件名和软删除。
 - 2026-04-18：已新增 `sql/init.sql`、`sql/seed-data.sql`、`resources/sql/V9__init_dict_param_file_schema.sql`、`resources/sql/V10__seed_dict_param_file_data.sql`，并更新 README。
-- 2026-04-18：完成阶段 1 基础治理，新增统一错误码、状态与安全常量、BaseController/BaseService 当前登录人能力，清理认证/文件/公告模块关键魔法值并补齐实体字段注释。claude-opus-4-7
+- 2026-04-18：完成阶段 2，新增 AuditLog 审计切面、日志请求/响应/设备信息字段、邮箱验证码发送与校验接口，并将 dashboard 改为基于真实系统数据聚合；同时记录前端邮箱注册页适配事项。claude-opus-4-7

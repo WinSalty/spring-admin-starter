@@ -195,10 +195,13 @@ CREATE TABLE IF NOT EXISTS sys_log_record (
     code VARCHAR(60) NOT NULL COMMENT '日志编码',
     status VARCHAR(16) NOT NULL DEFAULT 'active' COMMENT '状态',
     owner VARCHAR(30) NOT NULL COMMENT '操作人',
-    description VARCHAR(160) NOT NULL COMMENT '描述',
+    description VARCHAR(255) NOT NULL COMMENT '描述',
     log_type VARCHAR(16) NOT NULL COMMENT '日志类型',
     target VARCHAR(180) NOT NULL DEFAULT '' COMMENT '目标对象',
     ip_address VARCHAR(32) NOT NULL DEFAULT '' COMMENT 'IP 地址',
+    device_info VARCHAR(255) NOT NULL DEFAULT '' COMMENT '设备信息',
+    request_info TEXT COMMENT '请求信息',
+    response_info TEXT COMMENT '响应信息',
     result VARCHAR(20) NOT NULL DEFAULT '' COMMENT '结果',
     duration_ms BIGINT NOT NULL DEFAULT 0 COMMENT '耗时',
     deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记',
@@ -206,6 +209,19 @@ CREATE TABLE IF NOT EXISTS sys_log_record (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     UNIQUE KEY uk_sys_log_record_record_code (record_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统日志记录表';
+
+CREATE TABLE IF NOT EXISTS sys_email_verify_code (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    email VARCHAR(120) NOT NULL COMMENT '邮箱地址',
+    verify_code VARCHAR(6) NOT NULL COMMENT '验证码',
+    scene VARCHAR(32) NOT NULL COMMENT '业务场景',
+    status VARCHAR(16) NOT NULL DEFAULT 'active' COMMENT '状态',
+    expire_at DATETIME NOT NULL COMMENT '过期时间',
+    used_at DATETIME DEFAULT NULL COMMENT '使用时间',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    KEY idx_sys_email_verify_code_email_scene (email, scene)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='邮箱验证码记录表';
 
 -- resources/sql/V7__init_config_schema.sql
 CREATE TABLE IF NOT EXISTS sys_config_record (

@@ -1,5 +1,6 @@
 package com.winsalty.quickstart.dashboard.controller;
 
+import com.winsalty.quickstart.auth.annotation.AuditLog;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.dashboard.service.DashboardService;
 import com.winsalty.quickstart.dashboard.vo.DashboardOverviewVo;
@@ -22,6 +23,7 @@ public class DashboardController {
         this.dashboardService = dashboardService;
     }
 
+    @AuditLog(logType = "api", code = "dashboard_overview", name = "工作台概览", recordResponse = false)
     @GetMapping("/overview")
     public ApiResponse<DashboardOverviewVo> overview() {
         return ApiResponse.success("获取成功", dashboardService.getOverview());

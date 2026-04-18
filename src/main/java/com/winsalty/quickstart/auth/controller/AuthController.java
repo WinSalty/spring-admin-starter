@@ -1,5 +1,6 @@
 package com.winsalty.quickstart.auth.controller;
 
+import com.winsalty.quickstart.auth.annotation.AuditLog;
 import com.winsalty.quickstart.auth.dto.LoginRequest;
 import com.winsalty.quickstart.auth.dto.RefreshTokenRequest;
 import com.winsalty.quickstart.auth.dto.RegisterRequest;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -38,16 +40,19 @@ public class AuthController extends BaseController {
         this.authService = authService;
     }
 
+    @AuditLog(logType = "login", code = "auth_login", name = "用户登录")
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Validated @RequestBody LoginRequest request) {
         return ApiResponse.success("登录成功", authService.login(request));
     }
 
+    @AuditLog(logType = "api", code = "auth_refresh_token", name = "刷新令牌")
     @PostMapping("/refresh-token")
     public ApiResponse<RefreshTokenResponse> refreshToken(@Validated @RequestBody RefreshTokenRequest request) {
         return ApiResponse.success("刷新成功", authService.refreshToken(request));
     }
 
+    @AuditLog(logType = "operation", code = "auth_logout", name = "用户退出")
     @PostMapping("/logout")
     public ApiResponse<Object> logout() {
         AuthUser authUser = requireCurrentUser();
@@ -55,6 +60,7 @@ public class AuthController extends BaseController {
         return ApiResponse.success("退出成功", null);
     }
 
+    @AuditLog(logType = "operation", code = "auth_register", name = "用户注册")
     @PostMapping("/register")
     public ApiResponse<Object> register(@Validated @RequestBody RegisterRequest request) {
         if (!registerEnabled) {
@@ -62,6 +68,11 @@ public class AuthController extends BaseController {
         }
         authService.register(request);
         return ApiResponse.success("注册成功", null);
+    }
+
+    @GetMapping("/register/verify-code")
+    public ApiResponse<String> registerVerifyCode(@RequestParam("email") String email) {
+        return ApiResponse.success("发送成功", authService.generateRegisterVerifyCode(email));
     }
 
     @GetMapping("/profile")

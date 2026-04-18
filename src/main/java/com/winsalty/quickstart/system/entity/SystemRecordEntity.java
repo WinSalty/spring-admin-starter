@@ -49,6 +49,12 @@ public class SystemRecordEntity {
     private String target;
     /** IP 地址。 */
     private String ipAddress;
+    /** 设备信息。 */
+    private String deviceInfo;
+    /** 请求信息。 */
+    private String requestInfo;
+    /** 响应信息。 */
+    private String responseInfo;
     /** 操作结果。 */
     private String result;
     /** 耗时毫秒数。 */
@@ -224,6 +230,30 @@ public class SystemRecordEntity {
 
     public void setIpAddress(String ipAddress) {
         this.ipAddress = ipAddress;
+    }
+
+    public String getDeviceInfo() {
+        return deviceInfo;
+    }
+
+    public void setDeviceInfo(String deviceInfo) {
+        this.deviceInfo = deviceInfo;
+    }
+
+    public String getRequestInfo() {
+        return requestInfo;
+    }
+
+    public void setRequestInfo(String requestInfo) {
+        this.requestInfo = requestInfo;
+    }
+
+    public String getResponseInfo() {
+        return responseInfo;
+    }
+
+    public void setResponseInfo(String responseInfo) {
+        this.responseInfo = responseInfo;
     }
 
     public String getResult() {

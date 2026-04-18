@@ -9,6 +9,7 @@ import com.winsalty.quickstart.auth.security.JwtTokenProvider;
 import com.winsalty.quickstart.auth.security.TokenPayload;
 import com.winsalty.quickstart.auth.service.AuthService;
 import com.winsalty.quickstart.auth.service.AuthSessionService;
+import com.winsalty.quickstart.auth.service.support.RegisterVerificationService;
 import com.winsalty.quickstart.auth.vo.LoginResponse;
 import com.winsalty.quickstart.auth.vo.ProfileResponse;
 import com.winsalty.quickstart.auth.vo.RefreshTokenResponse;
@@ -31,8 +32,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import javax.servlet.http.HttpServletRequest;
-
 /**
  * 认证服务实现。
  * 创建日期：2026-04-17
@@ -42,10 +41,7 @@ import javax.servlet.http.HttpServletRequest;
 public class AuthServiceImpl extends BaseService implements AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
-
-    // 默认注册用户所属部门 ID（运营中心），如需调整请修改数据库或配置
     private static final long DEFAULT_DEPARTMENT_ID = 2L;
-    // 默认注册用户角色 ID（viewer 角色）
     private static final long DEFAULT_VIEWER_ROLE_ID = 2L;
 
     private final UserMapper userMapper;
@@ -53,6 +49,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final BCryptPasswordEncoder passwordEncoder;
     private final AuthSessionService authSessionService;
+    private final RegisterVerificationService registerVerificationService;
     private final LogService logService;
 
     public AuthServiceImpl(UserMapper userMapper,
@@ -60,12 +57,14 @@ public class AuthServiceImpl extends BaseService implements AuthService {
                            JwtTokenProvider jwtTokenProvider,
                            BCryptPasswordEncoder passwordEncoder,
                            AuthSessionService authSessionService,
+                           RegisterVerificationService registerVerificationService,
                            LogService logService) {
         this.userMapper = userMapper;
         this.permissionMapper = permissionMapper;
         this.jwtTokenProvider = jwtTokenProvider;
         this.passwordEncoder = passwordEncoder;
         this.authSessionService = authSessionService;
+        this.registerVerificationService = registerVerificationService;
         this.logService = logService;
     }
 
@@ -86,7 +85,6 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUsername(), roleCode, sessionId);
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId(), user.getUsername(), roleCode, sessionId);
         authSessionService.createSession(sessionId, refreshToken, jwtTokenProvider.getRefreshExpireSeconds());
-        recordAuthLog(SystemConstants.LOGIN_LOG_TYPE, user.getUsername(), "auth_login_success", "用户登录成功", SystemConstants.AUTH_CENTER, SystemConstants.RESULT_SUCCESS);
         log.info("user login success, username={}, roleCode={}, sessionId={}", user.getUsername(), roleCode, sessionId);
         LoginResponse response = new LoginResponse(accessToken, accessToken, refreshToken,
                 jwtTokenProvider.getAccessExpireSeconds(), jwtTokenProvider.getRefreshExpireSeconds(), SecurityConstants.TOKEN_PREFIX_BEARER);
@@ -108,7 +106,6 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         String accessToken = jwtTokenProvider.createAccessToken(payload.getUserId(), payload.getUsername(), payload.getRoleCode(), payload.getSessionId());
         String refreshToken = jwtTokenProvider.createRefreshToken(payload.getUserId(), payload.getUsername(), payload.getRoleCode(), payload.getSessionId());
         authSessionService.refreshSession(payload.getSessionId(), refreshToken, jwtTokenProvider.getRefreshExpireSeconds());
-        recordAuthLog(SystemConstants.API_LOG_TYPE, payload.getUsername(), "auth_refresh_token", "刷新 access token 成功", "/api/auth/refresh-token", SystemConstants.RESULT_SUCCESS);
         RefreshTokenResponse response = new RefreshTokenResponse();
         response.setAccessToken(accessToken);
         response.setRefreshToken(refreshToken);
@@ -122,13 +119,13 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     @Override
     public void logout(Long userId, String sessionId) {
         authSessionService.deleteSession(sessionId);
-        recordAuthLog(SystemConstants.OPERATION_LOG_TYPE, String.valueOf(userId), "auth_logout", "用户退出登录", SystemConstants.AUTH_CENTER, SystemConstants.RESULT_SUCCESS);
         log.info("user logout success, userId={}, sessionId={}", userId, sessionId);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void register(RegisterRequest request) {
+        registerVerificationService.verifyCode(request.getEmail(), request.getVerifyCode());
         UserEntity existedUser = userMapper.findByUsername(request.getUsername());
         if (existedUser != null) {
             throw new BusinessException(ErrorCode.USERNAME_ALREADY_EXISTS);
@@ -146,8 +143,12 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         user.setDeleted(0);
         userMapper.insert(user);
         userMapper.insertUserRole(user.getId(), DEFAULT_VIEWER_ROLE_ID);
-        recordAuthLog(SystemConstants.OPERATION_LOG_TYPE, user.getUsername(), "auth_register", "新用户注册成功", SystemConstants.AUTH_CENTER, SystemConstants.RESULT_SUCCESS);
-        log.info("user register success, username={}, roleCode=viewer", user.getUsername());
+        log.info("user register success, username={}, roleCode={}", user.getUsername(), SystemConstants.VIEWER_ROLE_CODE);
+    }
+
+    @Override
+    public String generateRegisterVerifyCode(String email) {
+        return registerVerificationService.generateCode(email);
     }
 
     @Override

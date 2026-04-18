@@ -13,6 +13,6 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface LogMapper {
 
-    @Insert("INSERT INTO sys_log_record(record_code, name, code, status, owner, description, log_type, target, ip_address, result, duration_ms, deleted) VALUES(#{recordCode}, #{request.name}, #{request.code}, 'active', #{request.owner}, #{request.description}, #{request.logType}, #{request.target}, #{request.ipAddress}, #{request.result}, #{request.durationMs}, 0)")
+    @Insert("INSERT INTO sys_log_record(record_code, name, code, status, owner, description, log_type, target, ip_address, device_info, request_info, response_info, result, duration_ms, deleted) VALUES(#{recordCode}, #{request.name}, #{request.code}, 'active', #{request.owner}, #{request.description}, #{request.logType}, #{request.target}, #{request.ipAddress}, #{request.deviceInfo}, #{request.requestInfo}, #{request.responseInfo}, #{request.result}, #{request.durationMs}, 0)")
     int insertLog(@Param("recordCode") String recordCode, @Param("request") OperationLogRequest request);
 }

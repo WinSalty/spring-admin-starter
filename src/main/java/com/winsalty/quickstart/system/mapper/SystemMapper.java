@@ -39,7 +39,7 @@ public interface SystemMapper {
             + "FROM sys_dict_record d WHERE d.deleted = 0 ";
 
     String LOGS_SELECT = "SELECT l.id, l.record_code AS recordCode, 'logs' AS moduleKey, l.name, l.code, l.status, l.owner, l.description, "
-            + "NULL AS department, NULL AS departmentId, NULL AS roleNames, NULL AS roleCodes, NULL AS lastLoginAt, NULL AS dataScope, NULL AS userCount, NULL AS dictType, NULL AS itemCount, NULL AS cacheKey, l.log_type AS logType, l.target AS target, l.ip_address AS ipAddress, l.result AS result, l.duration_ms AS durationMs, "
+            + "NULL AS department, NULL AS departmentId, NULL AS roleNames, NULL AS roleCodes, NULL AS lastLoginAt, NULL AS dataScope, NULL AS userCount, NULL AS dictType, NULL AS itemCount, NULL AS cacheKey, l.log_type AS logType, l.target AS target, l.ip_address AS ipAddress, l.device_info AS deviceInfo, l.request_info AS requestInfo, l.response_info AS responseInfo, l.result AS result, l.duration_ms AS durationMs, "
             + "DATE_FORMAT(l.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(l.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "
             + "FROM sys_log_record l WHERE l.deleted = 0 ";
 

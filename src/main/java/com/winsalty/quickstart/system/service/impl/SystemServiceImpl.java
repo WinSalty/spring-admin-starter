@@ -499,6 +499,9 @@ public class SystemServiceImpl implements SystemService {
         vo.setTarget(entity.getTarget());
         vo.setIpAddress(entity.getIpAddress());
         vo.setResult(entity.getResult());
+        vo.setDeviceInfo(entity.getDeviceInfo());
+        vo.setRequestInfo(entity.getRequestInfo());
+        vo.setResponseInfo(entity.getResponseInfo());
         vo.setDurationMs(entity.getDurationMs());
         vo.setCreatedAt(entity.getCreatedAt());
         vo.setUpdatedAt(entity.getUpdatedAt());
