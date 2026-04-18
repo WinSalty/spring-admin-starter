@@ -22,7 +22,7 @@ public interface AuthService {
 
     void register(RegisterRequest request);
 
-    String generateRegisterVerifyCode(String email);
+    void sendRegisterVerifyCode(String email);
 
     ProfileResponse getProfile(Long userId);
 }

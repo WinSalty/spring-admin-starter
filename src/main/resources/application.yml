@@ -7,6 +7,21 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
+            required: ${MAIL_SMTP_STARTTLS_REQUIRED:false}
+          ssl:
+            enable: ${MAIL_SMTP_SSL_ENABLE:false}
 
 server:
   port: 8080
@@ -29,3 +44,8 @@ springdoc:
 app:
   file:
     upload-dir: uploads
+  mail:
+    register:
+      enabled: ${MAIL_REGISTER_ENABLED:true}
+      from: ${MAIL_FROM:${MAIL_USERNAME:}}
+      subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 注册验证码}

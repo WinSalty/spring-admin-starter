@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.validation.ConstraintViolation;
+import javax.validation.ConstraintViolationException;
 
 /**
  * 全局异常处理器。
@@ -62,6 +64,17 @@ public class GlobalExceptionHandler {
                 : exception.getBindingResult().getFieldError().getDefaultMessage();
         log.error("bind exception, uri={}, message={}", request.getRequestURI(), message);
         return ApiResponse.failure(ErrorCode.REQUEST_BIND_INVALID.getCode(), message);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ApiResponse<Object> handleConstraintViolationException(ConstraintViolationException exception,
+                                                                  HttpServletRequest request) {
+        String message = exception.getConstraintViolations().stream()
+                .findFirst()
+                .map(ConstraintViolation::getMessage)
+                .orElse("请求参数校验失败");
+        log.error("constraint violation, uri={}, message={}", request.getRequestURI(), message);
+        return ApiResponse.failure(ErrorCode.REQUEST_PARAM_INVALID.getCode(), message);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

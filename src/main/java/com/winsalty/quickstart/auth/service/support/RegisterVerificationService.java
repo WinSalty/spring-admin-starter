@@ -7,7 +7,7 @@ package com.winsalty.quickstart.auth.service.support;
  */
 public interface RegisterVerificationService {
 
-    String generateCode(String email);
+    void sendCode(String email);
 
     void verifyCode(String email, String code);
 }

@@ -154,11 +154,11 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     }
 
     /**
-     * 生成注册验证码并写入 Redis。当前返回验证码用于本地联调。
+     * 发送注册验证码并写入 Redis。验证码只通过邮件送达，不再返回给前端。
      */
     @Override
-    public String generateRegisterVerifyCode(String email) {
-        return registerVerificationService.generateCode(email);
+    public void sendRegisterVerifyCode(String email) {
+        registerVerificationService.sendCode(email);
     }
 
     /**

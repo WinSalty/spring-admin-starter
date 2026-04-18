@@ -22,6 +22,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.validation.constraints.Email;
+import javax.validation.constraints.NotBlank;
+
 /**
  * 认证控制器。
  * 暴露登录、刷新令牌、登出、注册和个人资料接口。
@@ -31,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/auth")
+@Validated
 public class AuthController extends BaseController {
 
     private final AuthService authService;
@@ -85,11 +89,14 @@ public class AuthController extends BaseController {
     }
 
     /**
-     * 开发阶段直接返回验证码，后续接入邮件服务时可改为只返回发送结果。
+     * 注册验证码发送入口。未注册用户必须能匿名访问，验证码只通过邮件送达。
      */
     @GetMapping("/register/verify-code")
-    public ApiResponse<String> registerVerifyCode(@RequestParam("email") String email) {
-        return ApiResponse.success("发送成功", authService.generateRegisterVerifyCode(email));
+    public ApiResponse<Object> registerVerifyCode(@NotBlank(message = "邮箱不能为空")
+                                                  @Email(message = "邮箱格式不正确")
+                                                  @RequestParam("email") String email) {
+        authService.sendRegisterVerifyCode(email);
+        return ApiResponse.success("发送成功", null);
     }
 
     @GetMapping("/profile")

@@ -36,6 +36,7 @@ public enum ErrorCode {
     ACCESS_DENIED(4030, "无权限访问该资源"),
     REGISTER_DISABLED(4031, "当前环境不开放注册"),
     REGISTER_VERIFY_CODE_INVALID(4032, "邮箱验证码无效"),
+    REGISTER_VERIFY_CODE_SEND_FAILED(4033, "邮箱验证码发送失败"),
     USER_NOT_FOUND(4040, "用户不存在"),
     QUERY_NOT_FOUND(4041, "查询配置不存在"),
     SYSTEM_RECORD_NOT_FOUND(4042, "系统记录不存在"),

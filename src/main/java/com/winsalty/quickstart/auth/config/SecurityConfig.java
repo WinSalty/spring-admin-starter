@@ -34,7 +34,8 @@ public class SecurityConfig {
             new AntPathRequestMatcher("/api/common/demo"),
             new AntPathRequestMatcher("/api/auth/login"),
             new AntPathRequestMatcher("/api/auth/refresh-token"),
-            new AntPathRequestMatcher("/api/auth/register")
+            new AntPathRequestMatcher("/api/auth/register"),
+            new AntPathRequestMatcher("/api/auth/register/verify-code")
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;

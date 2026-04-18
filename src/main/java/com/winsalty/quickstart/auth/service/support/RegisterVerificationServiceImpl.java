@@ -8,7 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.Random;
+import java.security.SecureRandom;
 
 /**
  * 注册验证码服务实现。
@@ -24,21 +24,27 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
     private static final String CACHE_KEY_PREFIX = "sa:register:verify:";
 
     private final RedisCacheService redisCacheService;
-    private final Random random = new Random();
+    private final RegisterMailService registerMailService;
+    private final SecureRandom random = new SecureRandom();
 
-    public RegisterVerificationServiceImpl(RedisCacheService redisCacheService) {
+    public RegisterVerificationServiceImpl(RedisCacheService redisCacheService,
+                                           RegisterMailService registerMailService) {
         this.redisCacheService = redisCacheService;
+        this.registerMailService = registerMailService;
     }
 
     /**
-     * 生成 6 位数字验证码并缓存 5 分钟。
+     * 生成 6 位数字验证码，邮件发送成功后再缓存 5 分钟。
      */
     @Override
-    public String generateCode(String email) {
+    public void sendCode(String email) {
+        if (!StringUtils.hasText(email)) {
+            throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "邮箱不能为空");
+        }
         String code = String.format("%06d", random.nextInt(1000000));
+        registerMailService.sendVerifyCode(email.trim(), code, CODE_TTL_SECONDS);
         redisCacheService.set(buildKey(email), code, CODE_TTL_SECONDS);
-        log.info("register verify code generated, email={}, code={}", email, code);
-        return code;
+        log.info("register verify code sent, email={}", email);
     }
 
     /**
