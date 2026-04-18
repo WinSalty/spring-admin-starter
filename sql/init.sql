@@ -1,24 +1,58 @@
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS sys_notice;
+DROP TABLE IF EXISTS sys_department;
+DROP TABLE IF EXISTS sys_file;
+DROP TABLE IF EXISTS sys_config;
+DROP TABLE IF EXISTS sys_dict_data;
+DROP TABLE IF EXISTS sys_dict_type;
+DROP TABLE IF EXISTS sys_config_record;
+DROP TABLE IF EXISTS sys_log_record;
+DROP TABLE IF EXISTS sys_dict_record;
+DROP TABLE IF EXISTS sys_role_record;
+DROP TABLE IF EXISTS sys_user_record;
+DROP TABLE IF EXISTS biz_query_record;
+DROP TABLE IF EXISTS sys_role_route;
+DROP TABLE IF EXISTS sys_role_action;
+DROP TABLE IF EXISTS sys_role_menu;
+DROP TABLE IF EXISTS sys_user_role;
+DROP TABLE IF EXISTS sys_menu;
+DROP TABLE IF EXISTS sys_role;
+DROP TABLE IF EXISTS sys_user;
+SET FOREIGN_KEY_CHECKS = 1;
+
 -- resources/sql/V1__init_rbac_schema.sql
 CREATE TABLE IF NOT EXISTS sys_user (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    record_code VARCHAR(32) NOT NULL COMMENT '展示编号',
     username VARCHAR(64) NOT NULL COMMENT '用户名',
     email VARCHAR(128) DEFAULT NULL COMMENT '邮箱',
     password VARCHAR(255) NOT NULL COMMENT '密码密文',
     nickname VARCHAR(64) DEFAULT NULL COMMENT '昵称',
     status VARCHAR(16) NOT NULL DEFAULT 'active' COMMENT '状态',
+    owner VARCHAR(64) NOT NULL DEFAULT '平台技术部' COMMENT '负责人',
+    description VARCHAR(255) NOT NULL DEFAULT '' COMMENT '描述',
+    department_id BIGINT DEFAULT NULL COMMENT '部门ID',
+    last_login_at DATETIME NULL COMMENT '最近登录时间',
     deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_sys_user_record_code (record_code),
     UNIQUE KEY uk_sys_user_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 
 CREATE TABLE IF NOT EXISTS sys_role (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    record_code VARCHAR(32) NOT NULL COMMENT '展示编号',
     role_code VARCHAR(64) NOT NULL COMMENT '角色编码',
     role_name VARCHAR(64) NOT NULL COMMENT '角色名称',
     status VARCHAR(16) NOT NULL DEFAULT 'active' COMMENT '状态',
+    owner VARCHAR(64) NOT NULL DEFAULT '平台技术部' COMMENT '负责人',
+    description VARCHAR(255) NOT NULL DEFAULT '' COMMENT '描述',
+    data_scope VARCHAR(60) NOT NULL DEFAULT '全部数据' COMMENT '数据范围',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_sys_role_record_code (record_code),
     UNIQUE KEY uk_sys_role_role_code (role_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色表';
 
@@ -262,3 +296,39 @@ CREATE TABLE IF NOT EXISTS sys_file (
     UNIQUE KEY uk_sys_file_stored_name (stored_name),
     KEY idx_sys_file_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文件记录表';
+
+CREATE TABLE IF NOT EXISTS sys_notice (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    title VARCHAR(100) NOT NULL COMMENT '公告标题',
+    content TEXT NOT NULL COMMENT '公告内容',
+    notice_type VARCHAR(32) NOT NULL COMMENT '公告类型',
+    priority VARCHAR(16) NOT NULL DEFAULT 'normal' COMMENT '优先级',
+    publisher_id BIGINT DEFAULT NULL COMMENT '发布人ID',
+    publish_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发布时间',
+    expire_time DATETIME DEFAULT NULL COMMENT '过期时间',
+    status VARCHAR(16) NOT NULL DEFAULT 'active' COMMENT '状态',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '排序号',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    KEY idx_sys_notice_status_type (status, notice_type),
+    KEY idx_sys_notice_time (publish_time, expire_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='公告通知表';
+
+CREATE TABLE IF NOT EXISTS sys_department (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    name VARCHAR(64) NOT NULL COMMENT '部门名称',
+    code VARCHAR(64) NOT NULL COMMENT '部门编码',
+    parent_id BIGINT DEFAULT NULL COMMENT '父级部门ID',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '排序号',
+    leader VARCHAR(64) NOT NULL DEFAULT '' COMMENT '负责人',
+    phone VARCHAR(32) NOT NULL DEFAULT '' COMMENT '联系电话',
+    email VARCHAR(128) NOT NULL DEFAULT '' COMMENT '邮箱',
+    status VARCHAR(16) NOT NULL DEFAULT 'active' COMMENT '状态',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_sys_department_code (code),
+    KEY idx_sys_department_parent (parent_id),
+    KEY idx_sys_department_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='部门表';

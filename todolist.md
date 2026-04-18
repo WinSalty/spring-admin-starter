@@ -428,13 +428,18 @@ Deliverable：
 - 2026-04-17：已完成阶段 6 第一阶段，登录接口升级为双 Token，新增 `/api/auth/refresh-token`、`/api/auth/logout` 和基于 Redis 的会话失效控制，并验证 refresh 后刷新、logout 后 refresh 失效。
 - 2026-04-17：已完成阶段 6 第二阶段，新增登录日志、操作日志、异常日志写入链路，并验证登录、权限分配、system 保存和异常场景会落入 `/system/logs` 列表。
 - 2026-04-18：已完成阶段 6 后续模块，新增新版字典类型/字典项接口、参数配置接口、文件上传下载接口、`sql/init.sql`、`sql/seed-data.sql` 和 README 接口说明；保留旧 `/api/system/dicts` 通用接口不动。
+- 2026-04-18：已补齐公告通知模块，新增 `sys_notice` 表和 `/api/system/notices/list`、`/api/system/notices/detail`、`/api/system/notices/save`、`/api/system/notices/status`、`/api/system/notices/active`。
+- 2026-04-18：已补齐部门管理模块，新增 `sys_department` 表和 `/api/system/departments/tree`、`/api/system/departments/save`、`/api/system/departments/status`，并为用户表增加 `department_id` 关联。
+- 2026-04-18：已将系统用户/角色列表与保存切到 `sys_user`、`sys_role`、`sys_user_role` 真实关系，新增 `/api/system/users/assign-roles`，角色变更会刷新 bootstrap 缓存版本。
+- 2026-04-18：已核对前端 `services/` 目录，当前前端 `auth/dashboard/query/permission/system` service 仍使用 mock；后端已覆盖现有 service 注释中声明的真实接口，双 Token 后端响应保留 `token` 字段兼容旧登录逻辑。
+- 2026-04-18：已执行 `mvn -q -DskipTests compile` 通过；本地 MySQL `127.0.0.1:3306` 当前无法连接，`sql/init.sql` 和 `sql/seed-data.sql` 的实际导入冒烟需要 MySQL 启动后重试。
 - 当前已具备工作台、认证、权限、查询管理、system 通用模块、菜单/权限分配、系统配置、Redis 缓存、双 Token 会话控制、基础日志链路、字典、参数和文件上传的最小联调能力。
 
 ## 下一步任务
 
-1. 阶段 1 收尾：完成前端实际页面联调验证，确认路由守卫和按钮权限控制生效，并适配双 Token 登录。
-2. 使用 `sql/init.sql` 与 `sql/seed-data.sql` 在本地库完整重建一次，执行新版字典、参数、文件接口的冒烟验证。
-3. 后续可继续扩展公告通知、部门管理、用户角色真实联动和前端真实接口替换。
+1. 启动本地 MySQL 后，重新执行 `sql/init.sql` 与 `sql/seed-data.sql` 完整导入，并执行公告、部门、用户角色分配接口冒烟验证。
+2. 在 `/Users/salty/codeProject/ai/react-admin-starter/src/services/` 将 mock service 切换为真实 `request` 调用，并补充 `refreshToken` 本地存储与 401 自动刷新逻辑。
+3. 前端新增公告通知、部门管理页面或路由后，接入本次新增的 `/api/system/notices/*`、`/api/system/departments/*` 接口。
 
 ## 完成记录
 
@@ -450,3 +455,4 @@ Deliverable：
 - 2026-04-18：已完成参数配置模块，新增 `sys_config` 表映射和 `/api/system/params/list`、`/api/system/params/detail`、`/api/system/params/save`、`/api/system/params/status`、`/api/system/params/cache/refresh`。
 - 2026-04-18：已完成文件上传模块，新增 `sys_file` 表映射和 `/api/file/upload`、`/api/file/list`、`/api/file/{id}/download`、`/api/file/{id}/delete`、`/api/file/{id}/status`，支持白名单、10MB 限制、唯一文件名和软删除。
 - 2026-04-18：已新增 `sql/init.sql`、`sql/seed-data.sql`、`resources/sql/V9__init_dict_param_file_schema.sql`、`resources/sql/V10__seed_dict_param_file_data.sql`，并更新 README。
+- 2026-04-18：已完成公告通知模块、部门管理模块、用户角色真实联动，更新 `sql/init.sql`、`sql/seed-data.sql`、README，并完成后端编译验证。

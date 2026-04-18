@@ -55,6 +55,10 @@ public class PermissionServiceImpl implements PermissionService {
     @Override
     @SuppressWarnings("unchecked")
     public PermissionBootstrapVo getBootstrap(Long userId, String roleCode) {
+        String actualRoleCode = permissionMapper.findRoleCodeByUserId(userId);
+        if (StringUtils.hasText(actualRoleCode)) {
+            roleCode = actualRoleCode;
+        }
         long version = currentVersion(BOOTSTRAP_VERSION_KEY);
         String cacheKey = BOOTSTRAP_CACHE_KEY_PREFIX + version + ":role:" + roleCode;
         Object cached = redisCacheService.get(cacheKey);
@@ -307,6 +311,24 @@ public class PermissionServiceImpl implements PermissionService {
         }
         if ("system:config:edit".equals(actionCode)) {
             return "编辑系统配置";
+        }
+        if ("system:department:add".equals(actionCode)) {
+            return "新增部门";
+        }
+        if ("system:department:edit".equals(actionCode)) {
+            return "编辑部门";
+        }
+        if ("system:department:status".equals(actionCode)) {
+            return "切换部门状态";
+        }
+        if ("system:notice:add".equals(actionCode)) {
+            return "新增公告";
+        }
+        if ("system:notice:edit".equals(actionCode)) {
+            return "编辑公告";
+        }
+        if ("system:notice:status".equals(actionCode)) {
+            return "切换公告状态";
         }
         return actionCode;
     }

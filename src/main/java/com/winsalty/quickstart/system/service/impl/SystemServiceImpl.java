@@ -10,6 +10,7 @@ import com.winsalty.quickstart.system.dto.SystemMenuListRequest;
 import com.winsalty.quickstart.system.dto.SystemMenuSaveRequest;
 import com.winsalty.quickstart.system.dto.SystemSaveRequest;
 import com.winsalty.quickstart.system.dto.SystemStatusRequest;
+import com.winsalty.quickstart.system.dto.UserRoleAssignRequest;
 import com.winsalty.quickstart.system.entity.SystemMenuEntity;
 import com.winsalty.quickstart.system.entity.SystemRecordEntity;
 import com.winsalty.quickstart.system.mapper.SystemMapper;
@@ -18,6 +19,7 @@ import com.winsalty.quickstart.system.vo.SystemMenuVo;
 import com.winsalty.quickstart.system.vo.SystemRecordVo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -44,13 +46,16 @@ public class SystemServiceImpl implements SystemService {
     private final SystemMapper systemMapper;
     private final RedisCacheService redisCacheService;
     private final LogService logService;
+    private final BCryptPasswordEncoder passwordEncoder;
 
     public SystemServiceImpl(SystemMapper systemMapper,
                              RedisCacheService redisCacheService,
-                             LogService logService) {
+                             LogService logService,
+                             BCryptPasswordEncoder passwordEncoder) {
         this.systemMapper = systemMapper;
         this.redisCacheService = redisCacheService;
         this.logService = logService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -112,6 +117,9 @@ public class SystemServiceImpl implements SystemService {
             applyCommonFields(existed, request);
             applyModuleFields(existed, request);
             updateWritable(existed);
+            if ("users".equals(existed.getModuleKey())) {
+                assignRoles(existed.getId(), resolveRequestedRoleCodes(request));
+            }
             if ("dicts".equals(existed.getModuleKey())) {
                 long version = nextVersion(DICT_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
                 log.info("system dict cache version bumped after save, id={}, version={}", existed.getRecordCode(), version);
@@ -130,6 +138,9 @@ public class SystemServiceImpl implements SystemService {
         applyCommonFields(entity, request);
         applyModuleFields(entity, request);
         insertWritable(entity);
+        if ("users".equals(entity.getModuleKey())) {
+            assignRoles(entity.getId(), resolveRequestedRoleCodes(request));
+        }
         if ("dicts".equals(entity.getModuleKey())) {
             long version = nextVersion(DICT_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
             log.info("system dict cache version bumped after create, id={}, version={}", entity.getRecordCode(), version);
@@ -219,6 +230,20 @@ public class SystemServiceImpl implements SystemService {
         log.info("system menu status updated, id={}, status={}, bootstrapCacheVersion={}", existed.getId(), request.getStatus(), version);
         recordSystemLog("operation", existed.getOwner(), existed.getCode(), "菜单状态更新成功", "menus", "成功");
         return toMenuVo(loadMenuById(existed.getId()));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public SystemRecordVo assignUserRoles(UserRoleAssignRequest request) {
+        SystemRecordEntity user = loadWritableRecord(request.getUserId());
+        if (!"users".equals(user.getModuleKey())) {
+            throw new BusinessException(4050, "只能为用户分配角色");
+        }
+        assignRoles(user.getId(), request.getRoleCodes());
+        long version = nextVersion(BOOTSTRAP_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
+        log.info("user roles assigned, userId={}, roleCodes={}, bootstrapCacheVersion={}", user.getId(), request.getRoleCodes(), version);
+        recordSystemLog("operation", user.getOwner(), user.getCode(), "用户角色分配成功", "users", "成功");
+        return toVo(loadWritableRecord(user.getRecordCode()));
     }
 
     private long currentVersion(String versionKey, long ttlSeconds) {
@@ -399,10 +424,8 @@ public class SystemServiceImpl implements SystemService {
 
     private void applyModuleFields(SystemRecordEntity entity, SystemSaveRequest request) {
         if ("users".equals(request.getModuleKey())) {
-            if (!StringUtils.hasText(entity.getDepartment())) {
-                entity.setDepartment(request.getOwner());
-            }
-            entity.setRoleNames(defaultText(request.getExtraValue()));
+            entity.setDepartmentId(resolveDepartmentId(request.getDepartmentId(), request.getOwner()));
+            entity.setRoleCodes(passwordEncoder.encode("SpringAdmin@2026"));
             return;
         }
         if ("roles".equals(request.getModuleKey())) {
@@ -463,7 +486,9 @@ public class SystemServiceImpl implements SystemService {
         vo.setOwner(entity.getOwner());
         vo.setDescription(entity.getDescription());
         vo.setDepartment(entity.getDepartment());
+        vo.setDepartmentId(entity.getDepartmentId() == null ? "" : String.valueOf(entity.getDepartmentId()));
         vo.setRoleNames(entity.getRoleNames());
+        vo.setRoleCodes(entity.getRoleCodes());
         vo.setLastLoginAt(entity.getLastLoginAt());
         vo.setDataScope(entity.getDataScope());
         vo.setUserCount(entity.getUserCount());
@@ -548,5 +573,72 @@ public class SystemServiceImpl implements SystemService {
         request.setResult(result);
         request.setDurationMs(0L);
         logService.record(request);
+    }
+
+    private Long resolveDepartmentId(String departmentId, String owner) {
+        if (StringUtils.hasText(departmentId)) {
+            try {
+                Long id = Long.valueOf(departmentId.trim());
+                if (systemMapper.findDepartmentIdById(id) == null) {
+                    throw new BusinessException(4045, "部门不存在");
+                }
+                return id;
+            } catch (NumberFormatException exception) {
+                throw new BusinessException(4001, "部门ID不合法");
+            }
+        }
+        if (StringUtils.hasText(owner)) {
+            return systemMapper.findDepartmentIdByKeyword(owner.trim());
+        }
+        return null;
+    }
+
+    private List<String> resolveRequestedRoleCodes(SystemSaveRequest request) {
+        if (request.getRoleCodes() != null && !request.getRoleCodes().isEmpty()) {
+            return request.getRoleCodes();
+        }
+        List<String> roleCodes = new ArrayList<String>();
+        if (StringUtils.hasText(request.getExtraValue())) {
+            String[] values = request.getExtraValue().split(",");
+            for (String value : values) {
+                if (StringUtils.hasText(value)) {
+                    roleCodes.add(value.trim());
+                }
+            }
+        }
+        if (roleCodes.isEmpty()) {
+            roleCodes.add("viewer");
+        }
+        return roleCodes;
+    }
+
+    private void assignRoles(Long userId, List<String> roleCodes) {
+        if (roleCodes == null || roleCodes.isEmpty()) {
+            throw new BusinessException(4049, "至少需要分配一个角色");
+        }
+        List<Long> roleIds = new ArrayList<Long>();
+        for (String roleCode : roleCodes) {
+            if (!StringUtils.hasText(roleCode)) {
+                continue;
+            }
+            Long roleId = systemMapper.findRoleIdByCode(roleCode.trim());
+            if (roleId == null) {
+                roleId = systemMapper.findRoleIdByName(roleCode.trim());
+            }
+            if (roleId == null) {
+                throw new BusinessException(4043, "角色不存在：" + roleCode);
+            }
+            if (!roleIds.contains(roleId)) {
+                roleIds.add(roleId);
+            }
+        }
+        if (roleIds.isEmpty()) {
+            throw new BusinessException(4049, "至少需要分配一个角色");
+        }
+        systemMapper.deleteUserRoles(userId);
+        for (Long roleId : roleIds) {
+            systemMapper.insertUserRole(userId, roleId);
+        }
+        nextVersion(BOOTSTRAP_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
     }
 }

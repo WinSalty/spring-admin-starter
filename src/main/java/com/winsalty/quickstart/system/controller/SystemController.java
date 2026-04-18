@@ -8,6 +8,7 @@ import com.winsalty.quickstart.system.dto.SystemMenuListRequest;
 import com.winsalty.quickstart.system.dto.SystemMenuSaveRequest;
 import com.winsalty.quickstart.system.dto.SystemSaveRequest;
 import com.winsalty.quickstart.system.dto.SystemStatusRequest;
+import com.winsalty.quickstart.system.dto.UserRoleAssignRequest;
 import com.winsalty.quickstart.system.service.SystemConfigService;
 import com.winsalty.quickstart.system.service.SystemService;
 import com.winsalty.quickstart.system.vo.SystemConfigVo;
@@ -95,5 +96,11 @@ public class SystemController {
     @PostMapping("/menus/status")
     public ApiResponse<SystemMenuVo> updateMenuStatus(@Validated @RequestBody SystemStatusRequest request) {
         return ApiResponse.success("状态已更新", systemService.updateMenuStatus(request));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/users/assign-roles")
+    public ApiResponse<SystemRecordVo> assignUserRoles(@Validated @RequestBody UserRoleAssignRequest request) {
+        return ApiResponse.success("角色已分配", systemService.assignUserRoles(request));
     }
 }

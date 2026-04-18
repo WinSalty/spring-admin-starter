@@ -16,11 +16,16 @@ public class UserEntity {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    private String recordCode;
     private String username;
     private String email;
     private String password;
     private String nickname;
     private String status;
+    private String owner;
+    private String description;
+    private Long departmentId;
+    private LocalDateTime lastLoginAt;
     private Integer deleted;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -31,6 +36,14 @@ public class UserEntity {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getRecordCode() {
+        return recordCode;
+    }
+
+    public void setRecordCode(String recordCode) {
+        this.recordCode = recordCode;
     }
 
     public String getUsername() {
@@ -71,6 +84,38 @@ public class UserEntity {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getOwner() {
+        return owner;
+    }
+
+    public void setOwner(String owner) {
+        this.owner = owner;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public Long getDepartmentId() {
+        return departmentId;
+    }
+
+    public void setDepartmentId(Long departmentId) {
+        this.departmentId = departmentId;
+    }
+
+    public LocalDateTime getLastLoginAt() {
+        return lastLoginAt;
+    }
+
+    public void setLastLoginAt(LocalDateTime lastLoginAt) {
+        this.lastLoginAt = lastLoginAt;
     }
 
     public Integer getDeleted() {

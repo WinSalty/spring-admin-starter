@@ -2,6 +2,7 @@ package com.winsalty.quickstart.system.mapper;
 
 import com.winsalty.quickstart.system.entity.SystemMenuEntity;
 import com.winsalty.quickstart.system.entity.SystemRecordEntity;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
@@ -19,24 +20,26 @@ import java.util.List;
 @Mapper
 public interface SystemMapper {
 
-    String USERS_SELECT = "SELECT u.id, u.record_code AS recordCode, 'users' AS moduleKey, u.name, u.code, u.status, u.owner, u.description, "
-            + "u.department AS department, u.role_names AS roleNames, DATE_FORMAT(u.last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt, "
+    String USERS_SELECT = "SELECT u.id, u.record_code AS recordCode, 'users' AS moduleKey, IFNULL(u.nickname, u.username) AS name, u.username AS code, u.status, u.owner, u.description, "
+            + "d.name AS department, u.department_id AS departmentId, "
+            + "(SELECT GROUP_CONCAT(DISTINCT r.role_name ORDER BY r.id SEPARATOR ',') FROM sys_user_role ur INNER JOIN sys_role r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.deleted = 0) AS roleNames, "
+            + "(SELECT GROUP_CONCAT(DISTINCT r.role_code ORDER BY r.id SEPARATOR ',') FROM sys_user_role ur INNER JOIN sys_role r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.deleted = 0) AS roleCodes, DATE_FORMAT(u.last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt, "
             + "NULL AS dataScope, NULL AS userCount, NULL AS dictType, NULL AS itemCount, NULL AS cacheKey, NULL AS logType, NULL AS target, NULL AS ipAddress, NULL AS result, NULL AS durationMs, "
             + "DATE_FORMAT(u.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(u.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "
-            + "FROM sys_user_record u WHERE u.deleted = 0 ";
+            + "FROM sys_user u LEFT JOIN sys_department d ON d.id = u.department_id WHERE u.deleted = 0 ";
 
-    String ROLES_SELECT = "SELECT r.id, r.record_code AS recordCode, 'roles' AS moduleKey, r.name, r.code, r.status, r.owner, r.description, "
-            + "NULL AS department, NULL AS roleNames, NULL AS lastLoginAt, r.data_scope AS dataScope, r.user_count AS userCount, NULL AS dictType, NULL AS itemCount, NULL AS cacheKey, NULL AS logType, NULL AS target, NULL AS ipAddress, NULL AS result, NULL AS durationMs, "
+    String ROLES_SELECT = "SELECT r.id, r.record_code AS recordCode, 'roles' AS moduleKey, r.role_name AS name, r.role_code AS code, r.status, r.owner, r.description, "
+            + "NULL AS department, NULL AS departmentId, NULL AS roleNames, NULL AS roleCodes, NULL AS lastLoginAt, r.data_scope AS dataScope, (SELECT COUNT(1) FROM sys_user_role ur WHERE ur.role_id = r.id) AS userCount, NULL AS dictType, NULL AS itemCount, NULL AS cacheKey, NULL AS logType, NULL AS target, NULL AS ipAddress, NULL AS result, NULL AS durationMs, "
             + "DATE_FORMAT(r.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(r.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "
-            + "FROM sys_role_record r WHERE r.deleted = 0 ";
+            + "FROM sys_role r WHERE r.deleted = 0 ";
 
     String DICTS_SELECT = "SELECT d.id, d.record_code AS recordCode, 'dicts' AS moduleKey, d.name, d.code, d.status, d.owner, d.description, "
-            + "NULL AS department, NULL AS roleNames, NULL AS lastLoginAt, NULL AS dataScope, NULL AS userCount, d.dict_type AS dictType, d.item_count AS itemCount, d.cache_key AS cacheKey, NULL AS logType, NULL AS target, NULL AS ipAddress, NULL AS result, NULL AS durationMs, "
+            + "NULL AS department, NULL AS departmentId, NULL AS roleNames, NULL AS roleCodes, NULL AS lastLoginAt, NULL AS dataScope, NULL AS userCount, d.dict_type AS dictType, d.item_count AS itemCount, d.cache_key AS cacheKey, NULL AS logType, NULL AS target, NULL AS ipAddress, NULL AS result, NULL AS durationMs, "
             + "DATE_FORMAT(d.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(d.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "
             + "FROM sys_dict_record d WHERE d.deleted = 0 ";
 
     String LOGS_SELECT = "SELECT l.id, l.record_code AS recordCode, 'logs' AS moduleKey, l.name, l.code, l.status, l.owner, l.description, "
-            + "NULL AS department, NULL AS roleNames, NULL AS lastLoginAt, NULL AS dataScope, NULL AS userCount, NULL AS dictType, NULL AS itemCount, NULL AS cacheKey, l.log_type AS logType, l.target AS target, l.ip_address AS ipAddress, l.result AS result, l.duration_ms AS durationMs, "
+            + "NULL AS department, NULL AS departmentId, NULL AS roleNames, NULL AS roleCodes, NULL AS lastLoginAt, NULL AS dataScope, NULL AS userCount, NULL AS dictType, NULL AS itemCount, NULL AS cacheKey, l.log_type AS logType, l.target AS target, l.ip_address AS ipAddress, l.result AS result, l.duration_ms AS durationMs, "
             + "DATE_FORMAT(l.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(l.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "
             + "FROM sys_log_record l WHERE l.deleted = 0 ";
 
@@ -133,24 +136,24 @@ public interface SystemMapper {
     @Select(MENUS_SELECT + "WHERE m.id = #{id} LIMIT 1")
     SystemMenuEntity findMenuById(@Param("id") Long id);
 
-    @Insert("INSERT INTO sys_user_record(record_code, name, code, status, owner, description, department, role_names, last_login_at, deleted) VALUES(#{recordCode}, #{name}, #{code}, #{status}, #{owner}, #{description}, #{department}, #{roleNames}, NULL, 0)")
+    @Insert("INSERT INTO sys_user(record_code, username, email, password, nickname, status, owner, description, department_id, deleted) VALUES(#{recordCode}, #{code}, CONCAT(#{code}, '@example.com'), #{roleCodes}, #{name}, #{status}, #{owner}, #{description}, #{departmentId}, 0)")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insertUser(SystemRecordEntity entity);
 
-    @Update("UPDATE sys_user_record SET name = #{name}, code = #{code}, status = #{status}, owner = #{owner}, description = #{description}, role_names = #{roleNames} WHERE id = #{id} AND deleted = 0")
+    @Update("UPDATE sys_user SET nickname = #{name}, username = #{code}, status = #{status}, owner = #{owner}, description = #{description}, department_id = #{departmentId} WHERE id = #{id} AND deleted = 0")
     int updateUser(SystemRecordEntity entity);
 
-    @Update("UPDATE sys_user_record SET status = #{status} WHERE id = #{id} AND deleted = 0")
+    @Update("UPDATE sys_user SET status = #{status} WHERE id = #{id} AND deleted = 0")
     int updateUserStatus(@Param("id") Long id, @Param("status") String status);
 
-    @Insert("INSERT INTO sys_role_record(record_code, name, code, status, owner, description, data_scope, user_count, deleted) VALUES(#{recordCode}, #{name}, #{code}, #{status}, #{owner}, #{description}, #{dataScope}, #{userCount}, 0)")
+    @Insert("INSERT INTO sys_role(record_code, role_code, role_name, status, owner, description, data_scope, deleted) VALUES(#{recordCode}, #{code}, #{name}, #{status}, #{owner}, #{description}, #{dataScope}, 0)")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insertRole(SystemRecordEntity entity);
 
-    @Update("UPDATE sys_role_record SET name = #{name}, code = #{code}, status = #{status}, owner = #{owner}, description = #{description}, data_scope = #{dataScope} WHERE id = #{id} AND deleted = 0")
+    @Update("UPDATE sys_role SET role_name = #{name}, role_code = #{code}, status = #{status}, owner = #{owner}, description = #{description}, data_scope = #{dataScope} WHERE id = #{id} AND deleted = 0")
     int updateRole(SystemRecordEntity entity);
 
-    @Update("UPDATE sys_role_record SET status = #{status} WHERE id = #{id} AND deleted = 0")
+    @Update("UPDATE sys_role SET status = #{status} WHERE id = #{id} AND deleted = 0")
     int updateRoleStatus(@Param("id") Long id, @Param("status") String status);
 
     @Insert("INSERT INTO sys_dict_record(record_code, name, code, status, owner, description, dict_type, item_count, cache_key, deleted) VALUES(#{recordCode}, #{name}, #{code}, #{status}, #{owner}, #{description}, #{dictType}, #{itemCount}, #{cacheKey}, 0)")
@@ -172,4 +175,25 @@ public interface SystemMapper {
 
     @Update("UPDATE sys_menu SET status = #{status} WHERE id = #{id}")
     int updateMenuStatus(@Param("id") Long id, @Param("status") String status);
+
+    @Select("SELECT id FROM sys_role WHERE role_code = #{roleCode} AND deleted = 0 LIMIT 1")
+    Long findRoleIdByCode(@Param("roleCode") String roleCode);
+
+    @Select("SELECT id FROM sys_role WHERE role_name = #{roleName} AND deleted = 0 LIMIT 1")
+    Long findRoleIdByName(@Param("roleName") String roleName);
+
+    @Select("SELECT role_code FROM sys_role WHERE id IN (SELECT role_id FROM sys_user_role WHERE user_id = #{userId}) ORDER BY id ASC")
+    List<String> findRoleCodesByUserId(@Param("userId") Long userId);
+
+    @Delete("DELETE FROM sys_user_role WHERE user_id = #{userId}")
+    int deleteUserRoles(@Param("userId") Long userId);
+
+    @Insert("INSERT INTO sys_user_role(user_id, role_id) VALUES(#{userId}, #{roleId})")
+    int insertUserRole(@Param("userId") Long userId, @Param("roleId") Long roleId);
+
+    @Select("SELECT id FROM sys_department WHERE id = #{id} AND deleted = 0 LIMIT 1")
+    Long findDepartmentIdById(@Param("id") Long id);
+
+    @Select("SELECT id FROM sys_department WHERE (code = #{keyword} OR name = #{keyword}) AND deleted = 0 ORDER BY id ASC LIMIT 1")
+    Long findDepartmentIdByKeyword(@Param("keyword") String keyword);
 }

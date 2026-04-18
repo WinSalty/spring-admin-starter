@@ -15,7 +15,9 @@ public class SystemRecordVo {
     private String owner;
     private String description;
     private String department;
+    private String departmentId;
     private String roleNames;
+    private String roleCodes;
     private String lastLoginAt;
     private String dataScope;
     private Long userCount;
@@ -94,12 +96,28 @@ public class SystemRecordVo {
         this.department = department;
     }
 
+    public String getDepartmentId() {
+        return departmentId;
+    }
+
+    public void setDepartmentId(String departmentId) {
+        this.departmentId = departmentId;
+    }
+
     public String getRoleNames() {
         return roleNames;
     }
 
     public void setRoleNames(String roleNames) {
         this.roleNames = roleNames;
+    }
+
+    public String getRoleCodes() {
+        return roleCodes;
+    }
+
+    public void setRoleCodes(String roleCodes) {
+        this.roleCodes = roleCodes;
     }
 
     public String getLastLoginAt() {

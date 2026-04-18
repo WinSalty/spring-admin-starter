@@ -6,6 +6,7 @@ import com.winsalty.quickstart.system.dto.SystemMenuListRequest;
 import com.winsalty.quickstart.system.dto.SystemMenuSaveRequest;
 import com.winsalty.quickstart.system.dto.SystemStatusRequest;
 import com.winsalty.quickstart.system.dto.SystemSaveRequest;
+import com.winsalty.quickstart.system.dto.UserRoleAssignRequest;
 import com.winsalty.quickstart.system.vo.SystemMenuVo;
 import com.winsalty.quickstart.system.vo.SystemRecordVo;
 
@@ -31,4 +32,6 @@ public interface SystemService {
     SystemMenuVo saveMenu(SystemMenuSaveRequest request);
 
     SystemMenuVo updateMenuStatus(SystemStatusRequest request);
+
+    SystemRecordVo assignUserRoles(UserRoleAssignRequest request);
 }

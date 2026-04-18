@@ -40,6 +40,10 @@ public class SystemSaveRequest {
     @Size(max = 60, message = "扩展值长度不能超过 60")
     private String extraValue;
 
+    private String departmentId;
+
+    private java.util.List<String> roleCodes;
+
     public String getId() {
         return id;
     }
@@ -102,5 +106,21 @@ public class SystemSaveRequest {
 
     public void setExtraValue(String extraValue) {
         this.extraValue = extraValue;
+    }
+
+    public String getDepartmentId() {
+        return departmentId;
+    }
+
+    public void setDepartmentId(String departmentId) {
+        this.departmentId = departmentId;
+    }
+
+    public java.util.List<String> getRoleCodes() {
+        return roleCodes;
+    }
+
+    public void setRoleCodes(java.util.List<String> roleCodes) {
+        this.roleCodes = roleCodes;
     }
 }

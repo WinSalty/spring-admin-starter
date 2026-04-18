@@ -1,0 +1,167 @@
+package com.winsalty.quickstart.notice.service.impl;
+
+import com.winsalty.quickstart.auth.security.AuthContext;
+import com.winsalty.quickstart.auth.security.AuthUser;
+import com.winsalty.quickstart.common.api.PageResponse;
+import com.winsalty.quickstart.common.exception.BusinessException;
+import com.winsalty.quickstart.log.dto.OperationLogRequest;
+import com.winsalty.quickstart.log.service.LogService;
+import com.winsalty.quickstart.notice.dto.NoticeListRequest;
+import com.winsalty.quickstart.notice.dto.NoticeSaveRequest;
+import com.winsalty.quickstart.notice.dto.NoticeStatusRequest;
+import com.winsalty.quickstart.notice.entity.NoticeEntity;
+import com.winsalty.quickstart.notice.mapper.NoticeMapper;
+import com.winsalty.quickstart.notice.service.NoticeService;
+import com.winsalty.quickstart.notice.vo.NoticeVo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 公告通知服务实现。
+ * 创建日期：2026-04-18
+ * author：sunshengxian
+ */
+@Service
+public class NoticeServiceImpl implements NoticeService {
+
+    private static final Logger log = LoggerFactory.getLogger(NoticeServiceImpl.class);
+
+    private final NoticeMapper noticeMapper;
+    private final LogService logService;
+
+    public NoticeServiceImpl(NoticeMapper noticeMapper, LogService logService) {
+        this.noticeMapper = noticeMapper;
+        this.logService = logService;
+    }
+
+    @Override
+    public PageResponse<NoticeVo> getPage(NoticeListRequest request) {
+        int pageNo = request.getPageNo() == null ? 1 : request.getPageNo();
+        int pageSize = request.getPageSize() == null ? 10 : request.getPageSize();
+        int offset = (pageNo - 1) * pageSize;
+        List<NoticeEntity> entities = noticeMapper.findPage(request.getKeyword(), request.getStatus(), request.getNoticeType(), offset, pageSize);
+        long total = noticeMapper.countPage(request.getKeyword(), request.getStatus(), request.getNoticeType());
+        log.info("notice page loaded, pageNo={}, pageSize={}, total={}", pageNo, pageSize, total);
+        return new PageResponse<NoticeVo>(toVoList(entities), pageNo, pageSize, total);
+    }
+
+    @Override
+    public NoticeVo getDetail(String id) {
+        NoticeEntity entity = load(parseId(id));
+        log.info("notice detail loaded, id={}", id);
+        return toVo(entity);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public NoticeVo save(NoticeSaveRequest request) {
+        NoticeEntity entity = StringUtils.hasText(request.getId()) ? load(parseId(request.getId())) : new NoticeEntity();
+        applyFields(entity, request);
+        if (entity.getPublisherId() == null) {
+            AuthUser authUser = AuthContext.get();
+            entity.setPublisherId(authUser == null ? 1L : authUser.getUserId());
+        }
+        if (entity.getId() == null) {
+            noticeMapper.insert(entity);
+            recordLog("notice_create", "公告创建成功", entity.getTitle());
+            log.info("notice created, id={}, title={}", entity.getId(), entity.getTitle());
+        } else {
+            noticeMapper.update(entity);
+            recordLog("notice_update", "公告更新成功", entity.getTitle());
+            log.info("notice updated, id={}, title={}", entity.getId(), entity.getTitle());
+        }
+        return toVo(load(entity.getId()));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public NoticeVo updateStatus(NoticeStatusRequest request) {
+        Long id = parseId(request.getId());
+        NoticeEntity existed = load(id);
+        noticeMapper.updateStatus(id, request.getStatus());
+        recordLog("notice_status_update", "公告状态更新成功", existed.getTitle());
+        log.info("notice status updated, id={}, status={}", id, request.getStatus());
+        return toVo(load(id));
+    }
+
+    @Override
+    public List<NoticeVo> getActiveNotices() {
+        List<NoticeEntity> entities = noticeMapper.findActive();
+        log.info("active notices loaded, size={}", entities.size());
+        return toVoList(entities);
+    }
+
+    private void applyFields(NoticeEntity entity, NoticeSaveRequest request) {
+        entity.setTitle(request.getTitle());
+        entity.setContent(request.getContent());
+        entity.setNoticeType(request.getNoticeType());
+        entity.setPriority(request.getPriority());
+        entity.setPublisherId(request.getPublisherId());
+        entity.setPublishTime(request.getPublishTime());
+        entity.setExpireTime(request.getExpireTime());
+        entity.setStatus(request.getStatus());
+        entity.setSortOrder(request.getSortOrder() == null ? 0 : request.getSortOrder());
+    }
+
+    private NoticeEntity load(Long id) {
+        NoticeEntity entity = noticeMapper.findById(id);
+        if (entity == null) {
+            throw new BusinessException(4044, "公告不存在");
+        }
+        return entity;
+    }
+
+    private Long parseId(String id) {
+        try {
+            return Long.valueOf(id);
+        } catch (Exception exception) {
+            throw new BusinessException(4001, "id 不合法");
+        }
+    }
+
+    private List<NoticeVo> toVoList(List<NoticeEntity> entities) {
+        List<NoticeVo> records = new ArrayList<NoticeVo>();
+        for (NoticeEntity entity : entities) {
+            records.add(toVo(entity));
+        }
+        return records;
+    }
+
+    private NoticeVo toVo(NoticeEntity entity) {
+        NoticeVo vo = new NoticeVo();
+        vo.setId(String.valueOf(entity.getId()));
+        vo.setTitle(entity.getTitle());
+        vo.setContent(entity.getContent());
+        vo.setNoticeType(entity.getNoticeType());
+        vo.setPriority(entity.getPriority());
+        vo.setPublisherId(entity.getPublisherId() == null ? "" : String.valueOf(entity.getPublisherId()));
+        vo.setPublisherName(entity.getPublisherName());
+        vo.setPublishTime(entity.getPublishTime());
+        vo.setExpireTime(entity.getExpireTime());
+        vo.setStatus(entity.getStatus());
+        vo.setSortOrder(entity.getSortOrder());
+        vo.setCreatedAt(entity.getCreatedAt());
+        vo.setUpdatedAt(entity.getUpdatedAt());
+        return vo;
+    }
+
+    private void recordLog(String code, String description, String target) {
+        OperationLogRequest request = new OperationLogRequest();
+        request.setLogType("operation");
+        request.setOwner("system");
+        request.setName(description);
+        request.setCode(code);
+        request.setDescription(description);
+        request.setTarget(target);
+        request.setIpAddress("127.0.0.1");
+        request.setResult("成功");
+        request.setDurationMs(0L);
+        logService.record(request);
+    }
+}

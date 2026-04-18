@@ -16,7 +16,9 @@ public class SystemRecordEntity {
     private String owner;
     private String description;
     private String department;
+    private Long departmentId;
     private String roleNames;
+    private String roleCodes;
     private String lastLoginAt;
     private String dataScope;
     private Long userCount;
@@ -103,12 +105,28 @@ public class SystemRecordEntity {
         this.department = department;
     }
 
+    public Long getDepartmentId() {
+        return departmentId;
+    }
+
+    public void setDepartmentId(Long departmentId) {
+        this.departmentId = departmentId;
+    }
+
     public String getRoleNames() {
         return roleNames;
     }
 
     public void setRoleNames(String roleNames) {
         this.roleNames = roleNames;
+    }
+
+    public String getRoleCodes() {
+        return roleCodes;
+    }
+
+    public void setRoleCodes(String roleCodes) {
+        this.roleCodes = roleCodes;
     }
 
     public String getLastLoginAt() {

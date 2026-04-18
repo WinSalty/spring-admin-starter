@@ -18,13 +18,13 @@ import java.util.List;
 @Mapper
 public interface PermissionMapper {
 
-    @Select("SELECT r.id FROM sys_role r WHERE r.role_code = #{roleCode} LIMIT 1")
+    @Select("SELECT r.id FROM sys_role r WHERE r.role_code = #{roleCode} AND r.deleted = 0 LIMIT 1")
     Long findRoleIdByRoleCode(@Param("roleCode") String roleCode);
 
-    @Select("SELECT r.role_code FROM sys_role r INNER JOIN sys_user_role ur ON ur.role_id = r.id WHERE ur.user_id = #{userId} ORDER BY r.id LIMIT 1")
+    @Select("SELECT r.role_code FROM sys_role r INNER JOIN sys_user_role ur ON ur.role_id = r.id WHERE ur.user_id = #{userId} AND r.deleted = 0 AND r.status = 'active' ORDER BY r.id LIMIT 1")
     String findRoleCodeByUserId(@Param("userId") Long userId);
 
-    @Select("SELECT r.role_name FROM sys_role r INNER JOIN sys_user_role ur ON ur.role_id = r.id WHERE ur.user_id = #{userId} ORDER BY r.id LIMIT 1")
+    @Select("SELECT r.role_name FROM sys_role r INNER JOIN sys_user_role ur ON ur.role_id = r.id WHERE ur.user_id = #{userId} AND r.deleted = 0 ORDER BY r.id LIMIT 1")
     String findRoleNameByUserId(@Param("userId") Long userId);
 
     @Select("SELECT m.id, m.parent_id AS parentId, m.title, m.path, m.icon, m.order_no AS orderNo, m.menu_type AS menuType, m.route_code AS routeCode, m.permission_code AS permissionCode, m.hidden_in_menu AS hiddenInMenu, m.redirect, m.keep_alive AS keepAlive, m.external_link AS externalLink, m.badge, m.disabled, m.status FROM sys_menu m INNER JOIN sys_role_menu rm ON rm.menu_id = m.id INNER JOIN sys_role r ON r.id = rm.role_id WHERE r.role_code = #{roleCode} AND m.status = 'active' ORDER BY m.order_no ASC, m.id ASC")

@@ -116,11 +116,15 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(4007, "用户名已存在");
         }
         UserEntity user = new UserEntity();
+        user.setRecordCode("U" + System.currentTimeMillis());
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setNickname(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setStatus("active");
+        user.setOwner("运营中心");
+        user.setDescription("注册用户账号。");
+        user.setDepartmentId(2L);
         user.setDeleted(0);
         userMapper.insert(user);
         userMapper.insertUserRole(user.getId(), 2L);
