@@ -69,6 +69,147 @@ mvn clean compile -DskipTests
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
+## 生产部署说明
+
+后端生产部署的目标是使用 `prod` profile 运行打包后的 Spring Boot JAR，并把 MySQL、Redis、JWT 密钥、CORS 域名、文件存储目录等配置全部外部化。生产环境不要使用 `dev` profile，也不要继续使用 README 中的本地数据库账号和开发 JWT 密钥。
+
+### 部署前准备
+
+1. 准备 JDK 8 运行环境。
+2. 准备 MySQL 5.7/8.0，并创建生产数据库和专用账号。
+3. 准备 Redis，用于登录会话、权限 bootstrap、字典和系统配置缓存。
+4. 准备文件上传目录，确保运行用户有读写权限。
+5. 准备足够长且不可提交到仓库的 `JWT_SECRET`。
+6. 确认前端生产域名，例如 `https://admin.example.com`，用于 CORS 白名单。
+7. 确认是否由 Nginx 或网关统一暴露 `/api`，建议后端只监听内网地址或受控端口。
+
+### 初始化生产数据库
+
+首次部署时，在生产 MySQL 中执行初始化脚本：
+
+```bash
+mysql -u <prod_user> -p <prod_database> < sql/init.sql
+mysql -u <prod_user> -p <prod_database> < sql/seed-data.sql
+```
+
+`seed-data.sql` 会创建演示账号和初始权限。正式上线前必须修改或禁用默认账号 `admin / 123456`、`viewer / 123456`，并按实际组织重新分配角色权限。
+
+### 配置生产环境变量
+
+当前 `application-prod.yml` 已读取 Redis 和 JWT 相关环境变量，但生产仍需要补齐或通过外部配置注入 MySQL 数据源。推荐通过环境变量或独立配置文件管理敏感配置，不要把生产密码写入仓库。
+
+推荐环境变量：
+
+```bash
+export SPRING_PROFILES_ACTIVE=prod
+export SERVER_PORT=8080
+
+export DB_HOST=127.0.0.1
+export DB_PORT=3306
+export DB_NAME=spring_admin
+export DB_USERNAME=spring_admin_prod
+export DB_PASSWORD='replace-with-strong-password'
+
+export REDIS_HOST=127.0.0.1
+export REDIS_PORT=6379
+export JWT_SECRET='replace-with-a-long-random-secret'
+export APP_FILE_UPLOAD_DIR=/data/spring-admin-starter/uploads
+```
+
+如果使用外部配置文件，至少需要覆盖：
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  redis:
+    host: ${REDIS_HOST}
+    port: ${REDIS_PORT}
+
+app:
+  cors:
+    allowed-origins:
+      - https://admin.example.com
+  security:
+    jwt-secret: ${JWT_SECRET}
+    register-enabled: false
+  file:
+    upload-dir: ${APP_FILE_UPLOAD_DIR}
+```
+
+注意：`app.cors.allowed-origins` 生产环境必须填写明确域名，不要使用通配符；`register-enabled` 建议保持 `false`。
+
+### 打包与启动
+
+在项目根目录打包：
+
+```bash
+cd /Users/salty/codeProject/ai/spring-admin-starter
+mvn clean package -DskipTests
+```
+
+启动 JAR：
+
+```bash
+java -jar target/spring-admin-starter-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
+```
+
+也可以把外部配置文件放到服务器固定目录：
+
+```bash
+java -jar target/spring-admin-starter-0.0.1-SNAPSHOT.jar \
+  --spring.profiles.active=prod \
+  --spring.config.additional-location=file:/etc/spring-admin-starter/
+```
+
+建议用 systemd、Supervisor、Docker 或 Kubernetes 托管进程，确保异常退出后能自动拉起，并把日志输出接入服务器日志系统。
+
+### Nginx 反向代理示例
+
+如果前端和后端同域部署，可由 Nginx 把 `/api` 转发到后端：
+
+```nginx
+location /api/ {
+    proxy_pass http://127.0.0.1:8080/api/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location /actuator/health {
+    proxy_pass http://127.0.0.1:8080/actuator/health;
+}
+```
+
+生产环境建议只对内网或监控系统开放 `/actuator/health`，不要公开 Swagger 和详细 Actuator 信息。
+
+### 上线后验证
+
+上线后按顺序验证：
+
+- `GET /actuator/health` 返回 `UP`。
+- Redis 可写入会话，登录后 refresh token 和 logout 正常。
+- `POST /api/auth/login` 能登录生产账号。
+- `GET /api/permission/bootstrap` 返回菜单、路由和按钮权限。
+- `GET /api/dashboard/overview`、`GET /api/query/list`、`GET /api/system/users/list` 返回正常。
+- 文件上传目录可写，上传、下载、删除接口正常。
+- 前端生产域名请求后端接口无 CORS 报错。
+- 日志中没有数据库连接失败、Redis 连接失败、JWT secret 过短或权限初始化失败等错误。
+
+### 生产安全 Checklist
+
+- 修改或禁用默认演示账号密码。
+- 使用强随机 `JWT_SECRET`，不要使用仓库中的示例值。
+- 生产数据库、Redis 密码只通过环境变量、密钥管理或外部配置注入。
+- CORS 只允许明确的前端生产域名。
+- 关闭生产注册入口，除非业务明确需要开放。
+- 限制 Swagger、Actuator、数据库和 Redis 的公网访问。
+- 文件上传目录放在独立数据盘或持久卷，并配置备份和容量监控。
+- 配置 HTTPS、访问日志、错误日志、进程守护和告警。
+
 ## 接口入口
 
 - 健康检查：`/actuator/health`

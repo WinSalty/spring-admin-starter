@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.UUID;
+
 /**
  * 日志服务实现。
  * 创建日期：2026-04-17
@@ -35,7 +37,7 @@ public class LogServiceImpl implements LogService {
         if (request.getDurationMs() == null) {
             request.setDurationMs(0L);
         }
-        String recordCode = "L" + System.currentTimeMillis();
+        String recordCode = "L" + UUID.randomUUID().toString().replace("-", "").substring(0, 31);
         logMapper.insertLog(recordCode, request);
         log.info("operation log recorded, type={}, owner={}, code={}", request.getLogType(), request.getOwner(), request.getCode());
     }

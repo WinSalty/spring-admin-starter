@@ -67,6 +67,5 @@ CREATE TABLE IF NOT EXISTS sys_log_record (
     deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    UNIQUE KEY uk_sys_log_record_record_code (record_code),
-    UNIQUE KEY uk_sys_log_record_code (code)
+    UNIQUE KEY uk_sys_log_record_record_code (record_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统日志记录表';
