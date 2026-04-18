@@ -1,20 +1,22 @@
 spring:
   redis:
-    host: 127.0.0.1
-    port: 6379
+    host: ${REDIS_HOST:127.0.0.1}
+    port: ${REDIS_PORT:6379}
     database: 2
-    timeout: 3000
-
-logging:
-  level:
-    root: info
-    com.winsalty.quickstart: info
+    timeout: 3000ms
+    lettuce:
+      pool:
+        max-active: 20
+        max-idle: 10
+        min-idle: 5
+        max-wait: 3000ms
 
 app:
   cors:
     allowed-origins: []
   security:
-    jwt-secret: winsalty-quickstart-prod-jwt-secret-2026-secure-key
+    # 生产环境请通过环境变量注入，例如：jwt-secret: ${JWT_SECRET}
+    jwt-secret: ${JWT_SECRET:winsalty-quickstart-prod-jwt-secret-2026-secure-key}
     jwt-expire-seconds: 7200
     jwt-refresh-expire-seconds: 604800
     register-enabled: false

@@ -16,12 +16,17 @@ import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.log.dto.OperationLogRequest;
 import com.winsalty.quickstart.log.service.LogService;
 import com.winsalty.quickstart.permission.mapper.PermissionMapper;
+import com.winsalty.quickstart.common.util.IpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import javax.servlet.http.HttpServletRequest;
 
 /**
  * 认证服务实现。
@@ -32,6 +37,11 @@ import org.springframework.util.StringUtils;
 public class AuthServiceImpl implements AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
+
+    // 默认注册用户所属部门 ID（运营中心），如需调整请修改数据库或配置
+    private static final long DEFAULT_DEPARTMENT_ID = 2L;
+    // 默认注册用户角色 ID（viewer 角色）
+    private static final long DEFAULT_VIEWER_ROLE_ID = 2L;
 
     private final UserMapper userMapper;
     private final PermissionMapper permissionMapper;
@@ -124,10 +134,10 @@ public class AuthServiceImpl implements AuthService {
         user.setStatus("active");
         user.setOwner("运营中心");
         user.setDescription("注册用户账号。");
-        user.setDepartmentId(2L);
+        user.setDepartmentId(DEFAULT_DEPARTMENT_ID);
         user.setDeleted(0);
         userMapper.insert(user);
-        userMapper.insertUserRole(user.getId(), 2L);
+        userMapper.insertUserRole(user.getId(), DEFAULT_VIEWER_ROLE_ID);
         recordAuthLog("operation", user.getUsername(), "auth_register", "新用户注册成功", "认证中心", "成功");
         log.info("user register success, username={}, roleCode=viewer", user.getUsername());
     }
@@ -155,9 +165,21 @@ public class AuthServiceImpl implements AuthService {
         request.setCode(code);
         request.setDescription(description);
         request.setTarget(target);
-        request.setIpAddress("127.0.0.1");
+        request.setIpAddress(resolveCurrentIp());
         request.setResult(result);
         request.setDurationMs(0L);
         logService.record(request);
+    }
+
+    private String resolveCurrentIp() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs == null) {
+                return "";
+            }
+            return IpUtils.getClientIp(attrs.getRequest());
+        } catch (Exception e) {
+            return "";
+        }
     }
 }

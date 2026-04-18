@@ -36,6 +36,9 @@ public class JwtTokenProvider {
 
     @PostConstruct
     public void init() {
+        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
+            throw new IllegalStateException("app.security.jwt-secret 长度不足 32 字节，请检查配置");
+        }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 

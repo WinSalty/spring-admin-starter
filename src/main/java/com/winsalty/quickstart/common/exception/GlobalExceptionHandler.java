@@ -3,6 +3,7 @@ package com.winsalty.quickstart.common.exception;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.log.dto.OperationLogRequest;
 import com.winsalty.quickstart.log.service.LogService;
+import com.winsalty.quickstart.common.util.IpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -33,7 +34,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ApiResponse<Object> handleBusinessException(BusinessException exception, HttpServletRequest request) {
         log.error("business exception, uri={}, message={}", request.getRequestURI(), exception.getMessage());
-        recordExceptionLog(request.getRequestURI(), exception.getMessage(), "business");
+        recordExceptionLog(request.getRequestURI(), exception.getMessage(), "business", IpUtils.getClientIp(request));
         return ApiResponse.failure(exception.getCode(), exception.getMessage());
     }
 
@@ -72,11 +73,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ApiResponse<Object> handleException(Exception exception, HttpServletRequest request) {
         log.error("system exception, uri={}, message={}", request.getRequestURI(), exception.getMessage(), exception);
-        recordExceptionLog(request.getRequestURI(), exception.getMessage(), "system");
+        recordExceptionLog(request.getRequestURI(), exception.getMessage(), "system", IpUtils.getClientIp(request));
         return ApiResponse.failure(5000, "系统繁忙，请稍后重试");
     }
 
-    private void recordExceptionLog(String target, String description, String logType) {
+    private void recordExceptionLog(String target, String description, String logType, String ipAddress) {
         OperationLogRequest request = new OperationLogRequest();
         request.setLogType(logType);
         request.setOwner("system");
@@ -84,7 +85,7 @@ public class GlobalExceptionHandler {
         request.setCode("exception_log");
         request.setDescription(description);
         request.setTarget(target);
-        request.setIpAddress("127.0.0.1");
+        request.setIpAddress(ipAddress);
         request.setResult("失败");
         request.setDurationMs(0L);
         logService.record(request);

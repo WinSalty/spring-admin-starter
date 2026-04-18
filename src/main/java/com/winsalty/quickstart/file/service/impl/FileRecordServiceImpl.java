@@ -22,8 +22,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -31,9 +33,31 @@ import java.util.UUID;
 public class FileRecordServiceImpl implements FileRecordService {
 
     private static final long MAX_FILE_SIZE = 10L * 1024L * 1024L;
+    private static final int DEFAULT_PAGE_NO = 1;
+    private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int MAX_PAGE_SIZE = 100;
+
     private static final Set<String> ALLOWED_EXTENSIONS = new HashSet<String>(Arrays.asList(
             "jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "csv", "xls", "xlsx", "doc", "docx", "zip"
     ));
+
+    // 扩展名与允许的 MIME type 映射，用于双重校验防止伪造扩展名绕过
+    private static final Map<String, String> EXTENSION_MIME_MAP = new HashMap<String, String>();
+    static {
+        EXTENSION_MIME_MAP.put("jpg", "image/jpeg");
+        EXTENSION_MIME_MAP.put("jpeg", "image/jpeg");
+        EXTENSION_MIME_MAP.put("png", "image/png");
+        EXTENSION_MIME_MAP.put("gif", "image/gif");
+        EXTENSION_MIME_MAP.put("webp", "image/webp");
+        EXTENSION_MIME_MAP.put("pdf", "application/pdf");
+        EXTENSION_MIME_MAP.put("txt", "text/plain");
+        EXTENSION_MIME_MAP.put("csv", "text/csv");
+        EXTENSION_MIME_MAP.put("xls", "application/vnd.ms-excel");
+        EXTENSION_MIME_MAP.put("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        EXTENSION_MIME_MAP.put("doc", "application/msword");
+        EXTENSION_MIME_MAP.put("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        EXTENSION_MIME_MAP.put("zip", "application/zip");
+    }
 
     private final FileRecordMapper fileRecordMapper;
     private final String uploadDir;
@@ -56,6 +80,12 @@ public class FileRecordServiceImpl implements FileRecordService {
         String originalName = StringUtils.cleanPath(file.getOriginalFilename() == null ? "file" : file.getOriginalFilename());
         String extension = resolveExtension(originalName);
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
+            throw new BusinessException(4043, "文件类型不支持");
+        }
+        // 校验 Content-Type 与扩展名是否匹配，防止伪造扩展名绕过校验
+        String expectedMime = EXTENSION_MIME_MAP.get(extension);
+        String actualMime = file.getContentType();
+        if (expectedMime != null && !expectedMime.equals(actualMime)) {
             throw new BusinessException(4043, "文件类型不支持");
         }
         File directory = new File(uploadDir);
@@ -85,8 +115,9 @@ public class FileRecordServiceImpl implements FileRecordService {
 
     @Override
     public PageResponse<FileRecordVo> getPage(FileListRequest request) {
-        int pageNo = request.getPageNo() == null ? 1 : request.getPageNo();
-        int pageSize = request.getPageSize() == null ? 10 : request.getPageSize();
+        int pageNo = (request.getPageNo() == null || request.getPageNo() < 1) ? DEFAULT_PAGE_NO : request.getPageNo();
+        int pageSize = (request.getPageSize() == null || request.getPageSize() < 1) ? DEFAULT_PAGE_SIZE
+                : Math.min(request.getPageSize(), MAX_PAGE_SIZE);
         int offset = (pageNo - 1) * pageSize;
         List<FileRecordEntity> entities = fileRecordMapper.findPage(request.getKeyword(), request.getStatus(), offset, pageSize);
         long total = fileRecordMapper.countPage(request.getKeyword(), request.getStatus());
