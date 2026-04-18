@@ -382,17 +382,17 @@ Deliverable：
 - [x] 登录接口升级为双 Token 方案，并同步规划前端适配。
 - [x] 增加 refresh token、登出、会话失效控制。
 - [x] 增加登录日志、操作日志、异常日志。
-- [ ] 增加字典模块、参数模块更完整的数据结构。
-- [ ] 增加文件上传模块，支持本地文件存储。
-- [ ] 增加基础 SQL 初始化脚本与二次开发说明。
-- [ ] 增加本地开发 README 或启动说明。
+- [x] 增加字典模块、参数模块更完整的数据结构。
+- [x] 增加文件上传模块，支持本地文件存储。
+- [x] 增加基础 SQL 初始化脚本与二次开发说明。
+- [x] 增加本地开发 README 或启动说明。
 
 验收标准：
 
 - [ ] 保留对现有前端联调的平滑迁移路径。
 - [ ] 日志能覆盖登录、修改、保存、权限分配等关键动作。
-- [ ] 文件模块具备本地存储能力。
-- [ ] 项目具备二次开发基础。
+- [x] 文件模块具备本地存储能力。
+- [x] 项目具备二次开发基础。
 
 ## 数据与权限初始化要求
 
@@ -427,13 +427,14 @@ Deliverable：
 - 2026-04-17：已完成阶段 5 的系统配置接口与 Redis 缓存能力，新增 `/api/system/configs`、`/api/system/configs/save`、配置表与种子数据，并完成 bootstrap、dict、config 三类缓存命中与刷新验证。
 - 2026-04-17：已完成阶段 6 第一阶段，登录接口升级为双 Token，新增 `/api/auth/refresh-token`、`/api/auth/logout` 和基于 Redis 的会话失效控制，并验证 refresh 后刷新、logout 后 refresh 失效。
 - 2026-04-17：已完成阶段 6 第二阶段，新增登录日志、操作日志、异常日志写入链路，并验证登录、权限分配、system 保存和异常场景会落入 `/system/logs` 列表。
-- 当前已具备工作台、认证、权限、查询管理、system 通用模块、菜单/权限分配、系统配置、Redis 缓存、双 Token 会话控制和基础日志链路的最小联调能力。
+- 2026-04-18：已完成阶段 6 后续模块，新增新版字典类型/字典项接口、参数配置接口、文件上传下载接口、`sql/init.sql`、`sql/seed-data.sql` 和 README 接口说明；保留旧 `/api/system/dicts` 通用接口不动。
+- 当前已具备工作台、认证、权限、查询管理、system 通用模块、菜单/权限分配、系统配置、Redis 缓存、双 Token 会话控制、基础日志链路、字典、参数和文件上传的最小联调能力。
 
 ## 下一步任务
 
 1. 阶段 1 收尾：完成前端实际页面联调验证，确认路由守卫和按钮权限控制生效，并适配双 Token 登录。
-2. 阶段 6 下一步：补字典模块、参数模块更完整的数据结构。
-3. 继续阶段 6：增加文件上传模块、本地开发 README 和初始化脚本说明。
+2. 使用 `sql/init.sql` 与 `sql/seed-data.sql` 在本地库完整重建一次，执行新版字典、参数、文件接口的冒烟验证。
+3. 后续可继续扩展公告通知、部门管理、用户角色真实联动和前端真实接口替换。
 
 ## 完成记录
 
@@ -445,3 +446,7 @@ Deliverable：
 - 2026-04-17：已完成阶段 3，新增 users/roles/dicts/logs 四类真实数据表与通用 system 接口，并验证 admin token 下的分页、详情、保存与状态切换。
 - 2026-04-17：已完成阶段 4，新增菜单树、菜单保存、菜单状态切换、角色权限分配接口，补充 `sys_role_route` 路由权限关系表，并验证权限分配对 bootstrap 的联动生效。
 - 2026-04-17：已完成阶段 5，新增系统配置表、配置种子数据、`/api/system/configs`、`/api/system/configs/save` 和 Redis 缓存基础设施，并验证 bootstrap、dict、config 三类缓存 key 与版本刷新。
+- 2026-04-18：已完成阶段 6 后续模块，新增 `/api/system/dict/types/list`、`/api/system/dict/types/save`、`/api/system/dict/types/status`、`/api/system/dict/data/list`、`/api/system/dict/data/detail`、`/api/system/dict/data/save`、`/api/system/dict/data/status`、`/api/system/dict/cache/refresh`。
+- 2026-04-18：已完成参数配置模块，新增 `sys_config` 表映射和 `/api/system/params/list`、`/api/system/params/detail`、`/api/system/params/save`、`/api/system/params/status`、`/api/system/params/cache/refresh`。
+- 2026-04-18：已完成文件上传模块，新增 `sys_file` 表映射和 `/api/file/upload`、`/api/file/list`、`/api/file/{id}/download`、`/api/file/{id}/delete`、`/api/file/{id}/status`，支持白名单、10MB 限制、唯一文件名和软删除。
+- 2026-04-18：已新增 `sql/init.sql`、`sql/seed-data.sql`、`resources/sql/V9__init_dict_param_file_schema.sql`、`resources/sql/V10__seed_dict_param_file_data.sql`，并更新 README。
