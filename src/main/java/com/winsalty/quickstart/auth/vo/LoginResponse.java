@@ -13,6 +13,8 @@ public class LoginResponse {
     private Long expiresIn;
     private Long refreshExpiresIn;
     private String tokenType;
+    private String roleCode;
+    private String roleName;
 
     public LoginResponse() {
     }
@@ -72,5 +74,21 @@ public class LoginResponse {
 
     public void setTokenType(String tokenType) {
         this.tokenType = tokenType;
+    }
+
+    public String getRoleCode() {
+        return roleCode;
+    }
+
+    public void setRoleCode(String roleCode) {
+        this.roleCode = roleCode;
+    }
+
+    public String getRoleName() {
+        return roleName;
+    }
+
+    public void setRoleName(String roleName) {
+        this.roleName = roleName;
     }
 }

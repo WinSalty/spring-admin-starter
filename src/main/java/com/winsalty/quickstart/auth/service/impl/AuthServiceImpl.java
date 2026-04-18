@@ -83,8 +83,11 @@ public class AuthServiceImpl implements AuthService {
         authSessionService.createSession(sessionId, refreshToken, jwtTokenProvider.getRefreshExpireSeconds());
         recordAuthLog("login", user.getUsername(), "auth_login_success", "用户登录成功", "认证中心", "成功");
         log.info("user login success, username={}, roleCode={}, sessionId={}", user.getUsername(), roleCode, sessionId);
-        return new LoginResponse(accessToken, accessToken, refreshToken,
+        LoginResponse response = new LoginResponse(accessToken, accessToken, refreshToken,
                 jwtTokenProvider.getAccessExpireSeconds(), jwtTokenProvider.getRefreshExpireSeconds(), "Bearer");
+        response.setRoleCode(roleCode);
+        response.setRoleName(permissionMapper.findRoleNameByUserId(user.getId()));
+        return response;
     }
 
     @Override

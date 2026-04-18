@@ -75,6 +75,13 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 - 基础联调接口：`/api/common/ping`
 - OpenAPI：`/swagger-ui.html`
 
+## 前端联调说明
+
+- 后端 dev 环境默认允许 `http://localhost:5173` 跨域访问，并在 Spring Security 中启用 CORS。
+- 前端可通过 Vite `/api` 代理访问本服务，也可配置 `VITE_API_BASE_URL=http://localhost:8080` 直连。
+- 登录接口 `POST /api/auth/login` 返回 `token/accessToken/refreshToken` 以及 `roleCode/roleName`，前端使用 Bearer Token 访问受保护接口。
+- 权限初始化接口 `GET /api/permission/bootstrap` 基于当前登录用户和角色返回菜单、路由、按钮权限。
+
 ## 已验证接口
 
 - `GET /api/dashboard/overview`
