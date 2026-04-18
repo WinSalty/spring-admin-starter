@@ -1,6 +1,7 @@
 package com.winsalty.quickstart;
 
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
@@ -8,7 +9,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
-@SpringBootApplication
+@SpringBootApplication(exclude = UserDetailsServiceAutoConfiguration.class)
 public class SpringAdminStarterApplication {
 
     public static void main(String[] args) {

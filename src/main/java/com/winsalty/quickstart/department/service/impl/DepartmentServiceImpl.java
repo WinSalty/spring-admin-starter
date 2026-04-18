@@ -20,6 +20,7 @@ import java.util.Map;
 
 /**
  * 部门服务实现。
+ * 维护部门树结构，并为用户管理提供部门归属数据。
  * 创建日期：2026-04-18
  * author：sunshengxian
  */
@@ -34,6 +35,9 @@ public class DepartmentServiceImpl implements DepartmentService {
         this.departmentMapper = departmentMapper;
     }
 
+    /**
+     * 查询部门树。过滤后若子节点父级不在结果集中，会提升为根节点。
+     */
     @Override
     public List<DepartmentVo> getTree(String keyword, String status) {
         List<DepartmentEntity> entities = departmentMapper.findAll(keyword, status);
@@ -41,6 +45,9 @@ public class DepartmentServiceImpl implements DepartmentService {
         return buildTree(entities);
     }
 
+    /**
+     * 新增或编辑部门，校验父级存在、自身不能作为父级、部门编码唯一。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DepartmentVo save(DepartmentSaveRequest request) {
@@ -62,6 +69,9 @@ public class DepartmentServiceImpl implements DepartmentService {
         return toVo(load(entity.getId()));
     }
 
+    /**
+     * 更新部门状态，不级联修改子部门，保留给业务侧自行控制。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DepartmentVo updateStatus(DepartmentStatusRequest request) {
@@ -72,6 +82,9 @@ public class DepartmentServiceImpl implements DepartmentService {
         return toVo(load(id));
     }
 
+    /**
+     * 校验父部门合法性，避免形成直接自引用。
+     */
     private void validateParent(Long parentId, String currentId) {
         if (parentId == null) {
             return;
@@ -85,6 +98,9 @@ public class DepartmentServiceImpl implements DepartmentService {
         }
     }
 
+    /**
+     * 保存部门实体字段，空联系方式统一落空字符串。
+     */
     private void applyFields(DepartmentEntity entity, DepartmentSaveRequest request, Long parentId) {
         entity.setName(request.getName());
         entity.setCode(request.getCode());
@@ -96,6 +112,9 @@ public class DepartmentServiceImpl implements DepartmentService {
         entity.setStatus(request.getStatus());
     }
 
+    /**
+     * 将扁平部门列表组装为树。
+     */
     private List<DepartmentVo> buildTree(List<DepartmentEntity> entities) {
         Map<String, DepartmentVo> map = new LinkedHashMap<String, DepartmentVo>();
         List<DepartmentVo> roots = new ArrayList<DepartmentVo>();

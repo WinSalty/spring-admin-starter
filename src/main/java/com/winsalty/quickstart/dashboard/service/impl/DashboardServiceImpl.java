@@ -17,6 +17,7 @@ import java.util.List;
 
 /**
  * 工作台服务实现。
+ * 当前从系统管理的用户、角色、字典、日志数据中聚合看板指标。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -31,6 +32,9 @@ public class DashboardServiceImpl implements DashboardService {
         this.systemMapper = systemMapper;
     }
 
+    /**
+     * 组装前端 DashboardOverview 数据结构。后续接入真实业务统计时可替换各 build 方法。
+     */
     @Override
     public DashboardOverviewVo getOverview() {
         log.info("dashboard overview loaded");
@@ -46,6 +50,9 @@ public class DashboardServiceImpl implements DashboardService {
         return response;
     }
 
+    /**
+     * 构建顶部指标卡片，保持 key 与前端图表配置稳定。
+     */
     private List<DashboardMetricVo> buildMetrics(List<SystemRecordEntity> users,
                                                  List<SystemRecordEntity> roles,
                                                  List<SystemRecordEntity> dicts,
@@ -92,6 +99,9 @@ public class DashboardServiceImpl implements DashboardService {
         return trend;
     }
 
+    /**
+     * 使用最近日志的日期和耗时构造趋势数据，避免空数据时前端图表无坐标轴。
+     */
     private DashboardTrendPointVo buildTrendPoint(String date, Long visits, Long orders) {
         DashboardTrendPointVo point = new DashboardTrendPointVo();
         point.setDate(date);
@@ -100,6 +110,9 @@ public class DashboardServiceImpl implements DashboardService {
         return point;
     }
 
+    /**
+     * 构造模块使用排行，当前以各模块记录数量作为排行值。
+     */
     private List<DashboardCategoryVo> buildCategories(List<SystemRecordEntity> users,
                                                       List<SystemRecordEntity> roles,
                                                       List<SystemRecordEntity> dicts,
@@ -136,6 +149,9 @@ public class DashboardServiceImpl implements DashboardService {
         return status;
     }
 
+    /**
+     * 统计指定状态记录数，输入列表来自不同系统模块，因此只依赖通用 status 字段。
+     */
     private Long countByStatus(List<SystemRecordEntity> records, String status) {
         long count = 0L;
         for (SystemRecordEntity record : records) {

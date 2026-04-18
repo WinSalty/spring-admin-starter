@@ -28,6 +28,8 @@ import java.util.Map;
 
 /**
  * 审计日志切面。
+ * 拦截标注 @AuditLog 的业务方法，在方法成功或失败后记录操作日志。
+ * 该切面只负责采集上下文和脱敏摘要，不参与业务事务决策。
  * 创建日期：2026-04-18
  * author：sunshengxian
  */
@@ -45,6 +47,9 @@ public class AuditLogAspect {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * Around 通知包住业务方法，确保成功和异常分支都会尝试落审计日志。
+     */
     @Around("@annotation(com.winsalty.quickstart.auth.annotation.AuditLog)")
     public Object around(ProceedingJoinPoint joinPoint) throws Throwable {
         long startedAt = System.currentTimeMillis();
@@ -61,6 +66,9 @@ public class AuditLogAspect {
         }
     }
 
+    /**
+     * 构造日志 DTO 并写入日志服务。请求、响应是否入库由注解参数控制。
+     */
     private void record(ProceedingJoinPoint joinPoint,
                         AuditLog auditLog,
                         HttpServletRequest request,
@@ -117,6 +125,9 @@ public class AuditLogAspect {
         return payload;
     }
 
+    /**
+     * 对审计内容做最低限度脱敏，避免密码、token、验证码进入操作日志。
+     */
     private Object sanitize(Object value) {
         if (value == null) {
             return null;

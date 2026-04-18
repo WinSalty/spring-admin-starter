@@ -29,6 +29,7 @@ import java.util.Map;
 
 /**
  * 系统管理服务实现。
+ * 通过 moduleKey 统一承接前端系统管理页，同时把用户、角色、字典、日志落到真实业务表。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -53,6 +54,9 @@ public class SystemServiceImpl implements SystemService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    /**
+     * 通用分页查询。字典模块使用 Redis 缓存全量列表后在内存中过滤分页。
+     */
     @Override
     @SuppressWarnings("unchecked")
     public PageResponse<SystemRecordVo> getPage(SystemListRequest request) {
@@ -84,6 +88,9 @@ public class SystemServiceImpl implements SystemService {
         return new PageResponse<SystemRecordVo>(toVoList(entities), pageNo, pageSize, total);
     }
 
+    /**
+     * 按统一 record_code 读取详情，隐藏各业务表自增主键。
+     */
     @Override
     public SystemRecordVo getDetail(String id) {
         SystemRecordEntity entity = systemMapper.findByRecordCode(id);
@@ -94,6 +101,9 @@ public class SystemServiceImpl implements SystemService {
         return toVo(entity);
     }
 
+    /**
+     * 通用保存入口：带 id 为编辑，不带 id 为新增。不同 moduleKey 会分发到不同真实表。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SystemRecordVo save(SystemSaveRequest request) {
@@ -143,6 +153,9 @@ public class SystemServiceImpl implements SystemService {
         return toVo(loadWritableRecord(entity.getRecordCode()));
     }
 
+    /**
+     * 状态切换入口。会根据模块刷新对应缓存版本，例如字典缓存。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SystemRecordVo updateStatus(SystemStatusRequest request) {
@@ -162,6 +175,9 @@ public class SystemServiceImpl implements SystemService {
         return toVo(loadWritableRecord(existed.getRecordCode()));
     }
 
+    /**
+     * 查询菜单树，支持关键字和状态过滤。
+     */
     @Override
     public List<SystemMenuVo> getMenuTree(SystemMenuListRequest request) {
         List<SystemMenuEntity> menus = systemMapper.findMenus(request.getKeyword(), request.getStatus());
@@ -169,6 +185,9 @@ public class SystemServiceImpl implements SystemService {
         return buildMenuTree(menus);
     }
 
+    /**
+     * 保存菜单并刷新 bootstrap 缓存版本。菜单路由码会从 routePath 末段自动推导。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SystemMenuVo saveMenu(SystemMenuSaveRequest request) {
@@ -209,6 +228,9 @@ public class SystemServiceImpl implements SystemService {
         return toMenuVo(loadMenuById(entity.getId()));
     }
 
+    /**
+     * 更新菜单状态并刷新 bootstrap 缓存版本，使动态菜单和路由权限重新计算。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SystemMenuVo updateMenuStatus(SystemStatusRequest request) {
@@ -222,6 +244,9 @@ public class SystemServiceImpl implements SystemService {
         return toMenuVo(loadMenuById(existed.getId()));
     }
 
+    /**
+     * 保存用户角色关系，并递增 bootstrap 缓存版本。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SystemRecordVo assignUserRoles(UserRoleAssignRequest request) {
@@ -235,6 +260,9 @@ public class SystemServiceImpl implements SystemService {
         return toVo(loadWritableRecord(user.getRecordCode()));
     }
 
+    /**
+     * 获取缓存版本；首次使用时初始化，避免 key 不存在导致缓存 key 不稳定。
+     */
     private long currentVersion(String versionKey, long ttlSeconds) {
         Object cached = redisCacheService.get(versionKey);
         if (cached instanceof Number) {
@@ -244,6 +272,9 @@ public class SystemServiceImpl implements SystemService {
         return 1L;
     }
 
+    /**
+     * 递增缓存版本。旧版本缓存不立即删除，依赖 TTL 自然过期。
+     */
     private long nextVersion(String versionKey, long ttlSeconds) {
         Long version = redisCacheService.increment(versionKey);
         if (version == null) {
@@ -253,6 +284,9 @@ public class SystemServiceImpl implements SystemService {
         return version.longValue();
     }
 
+    /**
+     * 字典缓存命中后在内存中过滤分页，减少小数据量字典列表对数据库的重复访问。
+     */
     private List<SystemRecordVo> filterDictPage(List<SystemRecordVo> records, String keyword, String status) {
         List<SystemRecordVo> filtered = new ArrayList<SystemRecordVo>();
         for (SystemRecordVo record : records) {
@@ -289,6 +323,9 @@ public class SystemServiceImpl implements SystemService {
         }
     }
 
+    /**
+     * 将菜单保存请求映射到菜单实体，保持 owner 等脚手架默认字段一致。
+     */
     private void applyMenuFields(SystemMenuEntity entity, SystemMenuSaveRequest request) {
         entity.setName(request.getName());
         entity.setCode(request.getCode());
@@ -371,6 +408,9 @@ public class SystemServiceImpl implements SystemService {
         throw new BusinessException(4009, "模块类型不支持保存");
     }
 
+    /**
+     * 根据 moduleKey 更新真实业务表，logs 模块不支持写操作。
+     */
     private void updateWritable(SystemRecordEntity entity) {
         if ("users".equals(entity.getModuleKey())) {
             systemMapper.updateUser(entity);
@@ -403,6 +443,9 @@ public class SystemServiceImpl implements SystemService {
         throw new BusinessException(4009, "模块类型不支持状态变更");
     }
 
+    /**
+     * 写入所有系统模块共有字段。
+     */
     private void applyCommonFields(SystemRecordEntity entity, SystemSaveRequest request) {
         entity.setName(request.getName());
         entity.setCode(request.getCode());
@@ -411,6 +454,9 @@ public class SystemServiceImpl implements SystemService {
         entity.setDescription(request.getDescription());
     }
 
+    /**
+     * 写入各 moduleKey 的差异字段。用户新增时会设置默认密码哈希。
+     */
     private void applyModuleFields(SystemRecordEntity entity, SystemSaveRequest request) {
         if ("users".equals(request.getModuleKey())) {
             entity.setDepartmentId(resolveDepartmentId(request.getDepartmentId(), request.getOwner()));
@@ -465,6 +511,9 @@ public class SystemServiceImpl implements SystemService {
         return records;
     }
 
+    /**
+     * 将通用实体转换为前端 SystemRecord，合并用户、角色、字典、日志所需字段。
+     */
     private SystemRecordVo toVo(SystemRecordEntity entity) {
         SystemRecordVo vo = new SystemRecordVo();
         vo.setId(entity.getRecordCode());
@@ -497,6 +546,9 @@ public class SystemServiceImpl implements SystemService {
         return vo;
     }
 
+    /**
+     * 将扁平菜单列表组装成前端可渲染的树；父节点缺失时提升为根节点。
+     */
     private List<SystemMenuVo> buildMenuTree(List<SystemMenuEntity> entities) {
         Map<String, SystemMenuVo> menuMap = new LinkedHashMap<String, SystemMenuVo>();
         List<SystemMenuVo> roots = new ArrayList<SystemMenuVo>();
@@ -571,6 +623,9 @@ public class SystemServiceImpl implements SystemService {
         return null;
     }
 
+    /**
+     * 从新字段 roleCodes 或兼容字段 extraValue 中解析用户角色，默认给 viewer。
+     */
     private List<String> resolveRequestedRoleCodes(SystemSaveRequest request) {
         if (request.getRoleCodes() != null && !request.getRoleCodes().isEmpty()) {
             return request.getRoleCodes();
@@ -590,6 +645,9 @@ public class SystemServiceImpl implements SystemService {
         return roleCodes;
     }
 
+    /**
+     * 重建用户与角色关系，支持按角色 code 或角色名称分配。
+     */
     private void assignRoles(Long userId, List<String> roleCodes) {
         if (roleCodes == null || roleCodes.isEmpty()) {
             throw new BusinessException(4049, "至少需要分配一个角色");

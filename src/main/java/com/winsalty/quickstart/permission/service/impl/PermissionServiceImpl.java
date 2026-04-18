@@ -27,6 +27,7 @@ import java.util.Set;
 
 /**
  * 权限服务实现。
+ * 负责将数据库中的角色菜单、路由码和按钮权限组装成前端可消费的权限模型。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -47,6 +48,10 @@ public class PermissionServiceImpl implements PermissionService {
         this.redisCacheService = redisCacheService;
     }
 
+    /**
+     * 构建登录用户的权限 bootstrap 数据。
+     * 缓存 key 按角色和版本号组织，角色权限保存后递增版本，旧缓存自然过期。
+     */
     @Override
     @SuppressWarnings("unchecked")
     public PermissionBootstrapVo getBootstrap(Long userId, String roleCode) {
@@ -75,6 +80,9 @@ public class PermissionServiceImpl implements PermissionService {
         return response;
     }
 
+    /**
+     * 读取角色当前权限分配，用于权限分配页面回显。
+     */
     @Override
     public PermissionAssignmentVo getAssignment(String roleCode) {
         Long roleId = permissionMapper.findRoleIdByRoleCode(roleCode);
@@ -91,6 +99,9 @@ public class PermissionServiceImpl implements PermissionService {
         return response;
     }
 
+    /**
+     * 保存角色权限分配。菜单 ID、路由码会先校验有效性，再整体删除旧关系并重建。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public PermissionAssignmentVo saveAssignment(PermissionAssignmentSaveRequest request) {
@@ -128,6 +139,9 @@ public class PermissionServiceImpl implements PermissionService {
         return getAssignment(request.getRoleCode());
     }
 
+    /**
+     * 获取当前缓存版本；首次使用时初始化为 1。
+     */
     private long currentVersion(String versionKey) {
         Object cached = redisCacheService.get(versionKey);
         if (cached instanceof Number) {
@@ -137,11 +151,17 @@ public class PermissionServiceImpl implements PermissionService {
         return 1L;
     }
 
+    /**
+     * 权限保存后递增版本号，使后续 bootstrap 命中新 key。
+     */
     private long nextVersion(String versionKey) {
         Long version = redisCacheService.increment(versionKey);
         return version == null ? 1L : version.longValue();
     }
 
+    /**
+     * 去除空字符串和重复值，保持请求顺序，避免重复插入关系表。
+     */
     private List<String> distinctNonBlank(List<String> values) {
         Set<String> result = new LinkedHashSet<String>();
         if (values == null) {
@@ -155,6 +175,9 @@ public class PermissionServiceImpl implements PermissionService {
         return new ArrayList<String>(result);
     }
 
+    /**
+     * 前端传入的是字符串 ID，这里统一转换为 Long 并去重。
+     */
     private List<Long> parseMenuIds(List<String> menuIds) {
         List<Long> result = new ArrayList<Long>();
         if (menuIds == null) {
@@ -191,6 +214,9 @@ public class PermissionServiceImpl implements PermissionService {
         return result;
     }
 
+    /**
+     * 将扁平菜单列表组装成树。若父节点缺失，则把该菜单提升为根节点，避免前端丢菜单。
+     */
     private List<PermissionMenuVo> buildMenuTree(List<MenuEntity> menus) {
         Map<String, PermissionMenuVo> menuMap = new LinkedHashMap<String, PermissionMenuVo>();
         List<PermissionMenuVo> roots = new ArrayList<PermissionMenuVo>();
@@ -227,6 +253,9 @@ public class PermissionServiceImpl implements PermissionService {
         return roots;
     }
 
+    /**
+     * 将按钮权限码转换为展示名。未登记的权限码原样返回，保证扩展权限不会被丢弃。
+     */
     private String resolveActionName(String actionCode) {
         if ("query:add".equals(actionCode)) {
             return "新增查询";

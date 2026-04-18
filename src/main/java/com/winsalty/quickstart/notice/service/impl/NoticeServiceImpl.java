@@ -23,6 +23,7 @@ import java.util.List;
 
 /**
  * 公告通知服务实现。
+ * 管理公告的分页、详情、保存、状态切换，并提供工作台生效公告查询。
  * 创建日期：2026-04-18
  * author：sunshengxian
  */
@@ -37,6 +38,9 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         this.noticeMapper = noticeMapper;
     }
 
+    /**
+     * 公告分页查询，默认页码和页大小与前端列表保持一致。
+     */
     @Override
     public PageResponse<NoticeVo> getPage(NoticeListRequest request) {
         int pageNo = request.getPageNo() == null ? 1 : request.getPageNo();
@@ -55,6 +59,9 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         return toVo(entity);
     }
 
+    /**
+     * 保存公告。未显式传 publisherId 时使用当前登录用户作为发布人。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public NoticeVo save(NoticeSaveRequest request) {
@@ -73,6 +80,9 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         return toVo(load(entity.getId()));
     }
 
+    /**
+     * 更新公告状态，例如启用、禁用或下线。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public NoticeVo updateStatus(NoticeStatusRequest request) {
@@ -83,6 +93,9 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         return toVo(load(id));
     }
 
+    /**
+     * 查询当前生效公告，供工作台轻量展示。
+     */
     @Override
     public List<NoticeVo> getActiveNotices() {
         List<NoticeEntity> entities = noticeMapper.findActive();
@@ -90,6 +103,9 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         return toVoList(entities);
     }
 
+    /**
+     * 保存公告实体字段，排序为空时默认 0。
+     */
     private void applyFields(NoticeEntity entity, NoticeSaveRequest request) {
         entity.setTitle(request.getTitle());
         entity.setContent(request.getContent());

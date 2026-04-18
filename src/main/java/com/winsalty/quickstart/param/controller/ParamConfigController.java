@@ -18,6 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import javax.validation.Valid;
 
+/**
+ * 参数配置控制器。
+ * 提供系统运行参数的分页、详情、保存、状态切换和缓存刷新接口。
+ */
 @Validated
 @RestController
 @RequestMapping("/api/system/params")
@@ -29,16 +33,25 @@ public class ParamConfigController {
         this.paramConfigService = paramConfigService;
     }
 
+    /**
+     * 参数配置分页列表。
+     */
     @GetMapping("/list")
     public ApiResponse<PageResponse<ParamConfigVo>> list(@Validated ParamListRequest request) {
         return ApiResponse.success("获取成功", paramConfigService.getPage(request));
     }
 
+    /**
+     * 参数配置详情。
+     */
     @GetMapping("/detail")
     public ApiResponse<ParamConfigVo> detail(@RequestParam("id") String id) {
         return ApiResponse.success("获取成功", paramConfigService.getDetail(id));
     }
 
+    /**
+     * 新增或编辑参数配置，保存前会按 valueType 校验值类型。
+     */
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/save")
     public ApiResponse<ParamConfigVo> save(@Valid @RequestBody ParamSaveRequest request) {
@@ -51,6 +64,9 @@ public class ParamConfigController {
         return ApiResponse.success("状态已更新", paramConfigService.updateStatus(request));
     }
 
+    /**
+     * 刷新参数配置缓存，把当前启用参数写入 Redis。
+     */
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/cache/refresh")
     public ApiResponse<Boolean> refreshCache() {

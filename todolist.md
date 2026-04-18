@@ -433,6 +433,7 @@ Deliverable：
 - 2026-04-18：已将系统用户/角色列表与保存切到 `sys_user`、`sys_role`、`sys_user_role` 真实关系，新增 `/api/system/users/assign-roles`，角色变更会刷新 bootstrap 缓存版本。
 - 2026-04-18：已核对前端 `services/` 目录，当前前端 `auth/dashboard/query/permission/system` service 仍使用 mock；后端已覆盖现有 service 注释中声明的真实接口，双 Token 后端响应保留 `token` 字段兼容旧登录逻辑。
 - 2026-04-18：已执行 `mvn -q -DskipTests compile` 通过，并已完成本地 SQL 导入、服务启动与关键接口冒烟验证：`/api/auth/login`、`/api/permission/bootstrap`、`/api/system/notices/list`、`/api/system/notices/active`、`/api/system/departments/tree`、`/api/system/users/assign-roles`、`/api/auth/register`、`/api/auth/refresh-token`、`/api/system/logs/list` 均已验证通过。
+- 2026-04-18：已按模块完成后端注释补充专项，覆盖 common/infra、auth、permission、dashboard/query、system、dict/param、notice/department/file，并执行 `mvn test` 通过。
 - 当前已具备工作台、认证、权限、查询管理、system 通用模块、菜单/权限分配、系统配置、Redis 缓存、双 Token 会话控制、基础日志链路、字典、参数和文件上传的最小联调能力。
 
 ## 下一步任务
@@ -440,6 +441,19 @@ Deliverable：
 1. 联动 react-admin-starter 做一次完整前后端联调冒烟，重点验证登录、refresh token、权限 bootstrap、公告页面、邮箱注册与工作台提醒。
 2. 继续补充端到端测试与自动化验证脚本，减少手工冒烟成本。
 3. 如需上线前加固，可继续优化审计日志脱敏和异常日志摘要策略。
+
+## 注释补充专项计划
+
+目标：按模块补齐后端脚手架的可维护性注释，让二次开发者能快速理解接口入口、核心服务、缓存和安全链路。注释重点放在业务意图、边界条件、缓存/鉴权/审计副作用和跨模块约定，不对简单字段访问器做机械注释。
+
+- [x] `common`、`infra` 基础模块：统一响应、分页、异常处理、审计切面、Redis 缓存、CORS/OpenAPI 配置、工具类。
+- [x] `auth` 认证安全模块：登录/注册/刷新/登出接口、JWT 生成解析、请求过滤器、认证上下文、会话失效与注册校验。
+- [x] `permission` 权限模块：bootstrap 构建、菜单树、角色权限分配、Redis 缓存版本刷新。
+- [x] `dashboard`、`query` 业务示例模块：工作台统计聚合、查询列表分页、详情、新增/编辑。
+- [x] `system` 系统管理模块：用户/角色/字典/日志通用接口，菜单管理，系统配置缓存。
+- [x] `dict`、`param` 扩展配置模块：新版字典、参数配置、缓存刷新约定。
+- [x] `notice`、`department`、`file` 通用能力模块：公告、部门树、文件上传下载、软删除和状态控制。
+- [x] 注释补充后执行 `mvn test` 或至少 `mvn -DskipTests compile`，确认纯注释和少量签名整理不破坏编译。
 
 ## 完成记录
 
@@ -456,3 +470,4 @@ Deliverable：
 - 2026-04-18：已完成文件上传模块，新增 `sys_file` 表映射和 `/api/file/upload`、`/api/file/list`、`/api/file/{id}/download`、`/api/file/{id}/delete`、`/api/file/{id}/status`，支持白名单、10MB 限制、唯一文件名和软删除。
 - 2026-04-18：已新增 `sql/init.sql`、`sql/seed-data.sql`、`resources/sql/V9__init_dict_param_file_schema.sql`、`resources/sql/V10__seed_dict_param_file_data.sql`，并更新 README。
 - 2026-04-18：完成本地 SQL 导入与接口冒烟验证，并修复日志描述过长导致的审计写入失败、系统日志列表 UNION 列数不一致问题。claude-opus-4-7
+- 2026-04-18：完成后端注释补充专项，按模块为核心控制器、服务、安全链路、缓存版本、审计切面、文件上传和树结构构建补充维护性注释，并通过 `mvn test` 验证。

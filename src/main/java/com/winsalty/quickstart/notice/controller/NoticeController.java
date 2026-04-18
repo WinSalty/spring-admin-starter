@@ -22,6 +22,7 @@ import java.util.List;
 
 /**
  * 公告通知控制器。
+ * 提供公告管理页和工作台公告提醒所需接口。
  * 创建日期：2026-04-18
  * author：sunshengxian
  */
@@ -36,6 +37,9 @@ public class NoticeController {
         this.noticeService = noticeService;
     }
 
+    /**
+     * 公告分页列表，支持关键字、状态和公告类型筛选。
+     */
     @GetMapping("/list")
     public ApiResponse<PageResponse<NoticeVo>> list(@Validated NoticeListRequest request) {
         return ApiResponse.success("获取成功", noticeService.getPage(request));
@@ -46,6 +50,9 @@ public class NoticeController {
         return ApiResponse.success("获取成功", noticeService.getDetail(id));
     }
 
+    /**
+     * 新增或编辑公告，管理员操作会写入审计日志。
+     */
     @AuditLog(logType = "operation", code = "notice_save", name = "保存公告")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/save")
@@ -60,6 +67,9 @@ public class NoticeController {
         return ApiResponse.success("状态已更新", noticeService.updateStatus(request));
     }
 
+    /**
+     * 当前生效公告列表，工作台用于展示提醒。
+     */
     @GetMapping("/active")
     public ApiResponse<List<NoticeVo>> active() {
         return ApiResponse.success("获取成功", noticeService.getActiveNotices());

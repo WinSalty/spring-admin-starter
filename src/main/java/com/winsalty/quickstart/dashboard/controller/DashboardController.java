@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 工作台控制器。
+ * 提供首页统计卡片、趋势图、分类图和状态分布所需的聚合数据。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -23,6 +24,9 @@ public class DashboardController {
         this.dashboardService = dashboardService;
     }
 
+    /**
+     * 首页概览接口，响应体较大且可重复计算，审计日志不记录完整响应。
+     */
     @AuditLog(logType = "api", code = "dashboard_overview", name = "工作台概览", recordResponse = false)
     @GetMapping("/overview")
     public ApiResponse<DashboardOverviewVo> overview() {

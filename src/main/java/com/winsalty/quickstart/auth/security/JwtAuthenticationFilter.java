@@ -16,6 +16,7 @@ import java.util.Collections;
 
 /**
  * JWT 认证过滤器。
+ * 从 Authorization: Bearer 请求头解析 access token，并把用户写入 Spring Security 与 AuthContext。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -28,6 +29,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
+    /**
+     * 每个请求只执行一次。finally 中清理上下文，避免 Tomcat 线程复用导致用户串号。
+     */
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -51,6 +55,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 
+    /**
+     * 只接受 Bearer token，其他认证头一律忽略并交给后续安全链路处理。
+     */
     private String resolveToken(HttpServletRequest request) {
         String authorization = request.getHeader("Authorization");
         if (!StringUtils.hasText(authorization) || !authorization.startsWith("Bearer ")) {

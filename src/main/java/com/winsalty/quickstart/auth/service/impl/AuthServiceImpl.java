@@ -30,6 +30,7 @@ import org.springframework.util.StringUtils;
 
 /**
  * 认证服务实现。
+ * 负责账号校验、令牌签发、Redis 会话维护、注册初始化和个人资料查询。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -61,6 +62,9 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         this.registerVerificationService = registerVerificationService;
     }
 
+    /**
+     * 登录主流程：校验账号密码 -> 校验账号状态 -> 查询角色 -> 签发双 Token -> 写入 Redis 会话。
+     */
     @Override
     public LoginResponse login(LoginRequest request) {
         UserEntity user = userMapper.findByUsername(request.getUsername());
@@ -86,6 +90,10 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         return response;
     }
 
+    /**
+     * Refresh token 轮换：旧 refresh token 必须与 Redis 中当前 session 记录一致。
+     * 轮换后旧 refresh token 立即失效，可降低泄露后的可用窗口。
+     */
     @Override
     public RefreshTokenResponse refreshToken(RefreshTokenRequest request) {
         TokenPayload payload = jwtTokenProvider.parseToken(request.getRefreshToken());
@@ -109,12 +117,18 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         return response;
     }
 
+    /**
+     * 删除当前会话的 Redis key，使该 refresh token 后续无法继续换取新令牌。
+     */
     @Override
     public void logout(Long userId, String sessionId) {
         authSessionService.deleteSession(sessionId);
         log.info("user logout success, userId={}, sessionId={}", userId, sessionId);
     }
 
+    /**
+     * 注册用户默认分配 viewer 角色和运营中心部门，保证注册后可直接按只读权限登录。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void register(RegisterRequest request) {
@@ -139,11 +153,17 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         log.info("user register success, username={}, roleCode={}", user.getUsername(), SystemConstants.VIEWER_ROLE_CODE);
     }
 
+    /**
+     * 生成注册验证码并写入 Redis。当前返回验证码用于本地联调。
+     */
     @Override
     public String generateRegisterVerifyCode(String email) {
         return registerVerificationService.generateCode(email);
     }
 
+    /**
+     * 查询当前用户基础资料和角色信息，供前端刷新页面后恢复用户信息使用。
+     */
     @Override
     public ProfileResponse getProfile(Long userId) {
         UserEntity user = userMapper.selectById(userId);

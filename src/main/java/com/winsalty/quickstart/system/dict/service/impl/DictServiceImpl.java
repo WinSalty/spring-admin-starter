@@ -23,6 +23,10 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 新版字典服务实现。
+ * 负责字典类型、字典项维护，以及按版本号控制的字典项缓存。
+ */
 @Service
 public class DictServiceImpl implements DictService {
 
@@ -39,6 +43,9 @@ public class DictServiceImpl implements DictService {
         this.redisCacheService = redisCacheService;
     }
 
+    /**
+     * 查询字典类型分页列表。
+     */
     @Override
     public PageResponse<DictTypeVo> getTypePage(DictTypeListRequest request) {
         int pageNo = request.getPageNo() == null ? 1 : request.getPageNo();
@@ -49,6 +56,9 @@ public class DictServiceImpl implements DictService {
         return new PageResponse<DictTypeVo>(toTypeVoList(entities), pageNo, pageSize, total);
     }
 
+    /**
+     * 保存字典类型。编辑类型编码时，同步更新已有字典项的 dictType。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DictTypeVo saveType(DictTypeSaveRequest request) {
@@ -84,6 +94,9 @@ public class DictServiceImpl implements DictService {
         return toTypeVo(loadType(entity.getId()));
     }
 
+    /**
+     * 切换字典类型状态并刷新字典缓存版本。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DictTypeVo updateTypeStatus(DictStatusRequest request) {
@@ -94,6 +107,9 @@ public class DictServiceImpl implements DictService {
         return toTypeVo(loadType(id));
     }
 
+    /**
+     * 字典项分页查询。无关键字/状态筛选时，按 dictType 缓存启用项。
+     */
     @Override
     @SuppressWarnings("unchecked")
     public PageResponse<DictDataVo> getDataPage(DictDataListRequest request) {
@@ -124,6 +140,9 @@ public class DictServiceImpl implements DictService {
         return toDataVo(loadData(parseId(id)));
     }
 
+    /**
+     * 保存字典项，并保证同一字典类型下 value 不重复。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DictDataVo saveData(DictDataSaveRequest request) {
@@ -153,6 +172,9 @@ public class DictServiceImpl implements DictService {
         return toDataVo(loadData(entity.getId()));
     }
 
+    /**
+     * 切换字典项状态后递增缓存版本。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DictDataVo updateDataStatus(DictStatusRequest request) {
@@ -163,6 +185,9 @@ public class DictServiceImpl implements DictService {
         return toDataVo(loadData(id));
     }
 
+    /**
+     * 手动刷新缓存版本。旧缓存由 TTL 自然淘汰。
+     */
     @Override
     public Boolean refreshCache() {
         long version = bumpVersion();
@@ -170,6 +195,9 @@ public class DictServiceImpl implements DictService {
         return Boolean.TRUE;
     }
 
+    /**
+     * 字典项保存时补齐类型 ID、类型编码和展示字段。
+     */
     private void applyDataFields(DictDataEntity entity, DictTypeEntity type, DictDataSaveRequest request) {
         entity.setDictTypeId(type.getId());
         entity.setDictType(type.getDictType());
@@ -213,6 +241,9 @@ public class DictServiceImpl implements DictService {
         return 1L;
     }
 
+    /**
+     * 递增字典缓存版本，所有按旧版本号组织的字典项缓存自动失效。
+     */
     private long bumpVersion() {
         Long version = redisCacheService.increment(DICT_VERSION_KEY);
         if (version == null) {

@@ -12,6 +12,7 @@ import java.util.Random;
 
 /**
  * 注册验证码服务实现。
+ * 使用 Redis 保存邮箱验证码，验证码验证成功后立即删除，避免重复使用。
  * 创建日期：2026-04-18
  * author：sunshengxian
  */
@@ -29,6 +30,9 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
         this.redisCacheService = redisCacheService;
     }
 
+    /**
+     * 生成 6 位数字验证码并缓存 5 分钟。
+     */
     @Override
     public String generateCode(String email) {
         String code = String.format("%06d", random.nextInt(1000000));
@@ -37,6 +41,9 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
         return code;
     }
 
+    /**
+     * 校验验证码并删除缓存。验证码不存在、过期或不匹配都按同一业务码返回。
+     */
     @Override
     public void verifyCode(String email, String code) {
         Object cached = redisCacheService.get(buildKey(email));

@@ -9,6 +9,7 @@ import java.util.List;
 
 /**
  * 跨域配置。
+ * 读取 app.cors.allowed-origins 白名单；未配置时不主动开放跨域。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -18,6 +19,9 @@ public class CorsConfig implements WebMvcConfigurer {
     @Value("${app.cors.allowed-origins:}")
     private List<String> allowedOrigins;
 
+    /**
+     * 允许前端开发地址携带 Authorization 头和 Cookie 类凭据访问后端。
+     */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         if (allowedOrigins == null || allowedOrigins.isEmpty()) {

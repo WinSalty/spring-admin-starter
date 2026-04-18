@@ -21,6 +21,7 @@ import javax.validation.Valid;
 
 /**
  * 权限控制器。
+ * 为前端动态菜单、路由守卫和角色权限分配页提供接口。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -35,17 +36,26 @@ public class PermissionController extends BaseController {
         this.permissionService = permissionService;
     }
 
+    /**
+     * 当前登录用户权限初始化接口，前端登录后依赖该接口渲染菜单和按钮权限。
+     */
     @GetMapping("/bootstrap")
     public ApiResponse<PermissionBootstrapVo> bootstrap() {
         AuthUser authUser = requireCurrentUser();
         return ApiResponse.success(permissionService.getBootstrap(authUser.getUserId(), authUser.getRoleCode()));
     }
 
+    /**
+     * 查询指定角色已分配的菜单、路由和按钮权限。
+     */
     @GetMapping("/assignment")
     public ApiResponse<PermissionAssignmentVo> assignment(@RequestParam("roleCode") String roleCode) {
         return ApiResponse.success("获取成功", permissionService.getAssignment(roleCode));
     }
 
+    /**
+     * 保存角色权限分配，仅管理员可操作。保存后会触发 bootstrap 缓存版本刷新。
+     */
     @AuditLog(logType = "operation", code = "permission_assignment", name = "保存权限分配")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/assignment")

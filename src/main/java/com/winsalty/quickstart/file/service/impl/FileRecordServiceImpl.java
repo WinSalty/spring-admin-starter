@@ -30,6 +30,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * 文件记录服务实现。
+ * 使用本地目录保存文件，数据库只记录文件元数据和软删除状态。
+ */
 @Service
 public class FileRecordServiceImpl extends BaseService implements FileRecordService {
 
@@ -69,6 +73,9 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         this.uploadDir = uploadDir;
     }
 
+    /**
+     * 上传文件主流程：大小校验、扩展名白名单、MIME 校验、本地落盘、写入元数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo upload(MultipartFile file) {
@@ -114,6 +121,9 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         return toVo(load(entity.getId()));
     }
 
+    /**
+     * 文件分页列表，限制最大 pageSize，避免一次请求拉取过多记录。
+     */
     @Override
     public PageResponse<FileRecordVo> getPage(FileListRequest request) {
         int pageNo = (request.getPageNo() == null || request.getPageNo() < 1) ? DEFAULT_PAGE_NO : request.getPageNo();
@@ -130,6 +140,9 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         return toVo(load(parseId(id)));
     }
 
+    /**
+     * 加载可下载资源。若数据库记录存在但磁盘文件缺失，返回文件不存在业务错误。
+     */
     @Override
     public Resource loadDownloadResource(String id) {
         FileRecordEntity entity = load(parseId(id));
@@ -140,6 +153,9 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         return new FileSystemResource(file);
     }
 
+    /**
+     * 软删除文件记录，返回删除前的元数据供前端回显。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo delete(String id) {
@@ -149,6 +165,9 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         return vo;
     }
 
+    /**
+     * 更新文件状态。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo updateStatus(String id, FileStatusRequest request) {
@@ -158,6 +177,9 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         return toVo(load(fileId));
     }
 
+    /**
+     * 提取并小写化扩展名，无扩展名或空扩展名视为不支持类型。
+     */
     private String resolveExtension(String originalName) {
         int index = originalName.lastIndexOf('.');
         if (index < 0 || index == originalName.length() - 1) {

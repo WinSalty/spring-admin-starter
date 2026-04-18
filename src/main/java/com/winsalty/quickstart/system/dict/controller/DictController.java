@@ -21,6 +21,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import javax.validation.Valid;
 
+/**
+ * 新版字典控制器。
+ * 拆分字典类型和字典项接口，供后续更完整的字典管理页使用。
+ */
 @Validated
 @RestController
 @RequestMapping("/api/system/dict")
@@ -32,11 +36,17 @@ public class DictController {
         this.dictService = dictService;
     }
 
+    /**
+     * 字典类型分页列表。
+     */
     @GetMapping("/types/list")
     public ApiResponse<PageResponse<DictTypeVo>> typeList(@Validated DictTypeListRequest request) {
         return ApiResponse.success("获取成功", dictService.getTypePage(request));
     }
 
+    /**
+     * 新增或编辑字典类型，类型编码变化时会同步更新字典项归属。
+     */
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/types/save")
     public ApiResponse<DictTypeVo> saveType(@Valid @RequestBody DictTypeSaveRequest request) {
@@ -49,6 +59,9 @@ public class DictController {
         return ApiResponse.success("状态已更新", dictService.updateTypeStatus(request));
     }
 
+    /**
+     * 字典项分页列表；按 dictType 查询且无筛选条件时会使用缓存。
+     */
     @GetMapping("/data/list")
     public ApiResponse<PageResponse<DictDataVo>> dataList(@Validated DictDataListRequest request) {
         return ApiResponse.success("获取成功", dictService.getDataPage(request));
@@ -59,6 +72,9 @@ public class DictController {
         return ApiResponse.success("获取成功", dictService.getDataDetail(id));
     }
 
+    /**
+     * 新增或编辑字典项，同一 dictType 下 value 必须唯一。
+     */
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/data/save")
     public ApiResponse<DictDataVo> saveData(@Valid @RequestBody DictDataSaveRequest request) {
@@ -71,6 +87,9 @@ public class DictController {
         return ApiResponse.success("状态已更新", dictService.updateDataStatus(request));
     }
 
+    /**
+     * 手动刷新字典缓存版本，用于管理端立即清理旧缓存。
+     */
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/cache/refresh")
     public ApiResponse<Boolean> refreshCache() {

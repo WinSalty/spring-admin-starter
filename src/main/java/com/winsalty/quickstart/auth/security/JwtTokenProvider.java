@@ -19,6 +19,8 @@ import java.util.UUID;
 
 /**
  * JWT 令牌工具。
+ * 负责签发和解析 access/refresh token。token 中只放身份、角色、sessionId 和类型，
+ * refresh token 是否仍有效由 Redis 会话服务做二次校验。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -36,6 +38,9 @@ public class JwtTokenProvider {
 
     private Key key;
 
+    /**
+     * 启动时校验 HMAC 密钥长度，避免运行中签发弱密钥 token。
+     */
     @PostConstruct
     public void init() {
         if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
@@ -44,6 +49,9 @@ public class JwtTokenProvider {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * 生成无横线 sessionId，用于关联一组 access/refresh token。
+     */
     public String generateSessionId() {
         return UUID.randomUUID().toString().replace("-", "");
     }
@@ -56,6 +64,9 @@ public class JwtTokenProvider {
         return buildToken(userId, username, roleCode, sessionId, SecurityConstants.TOKEN_TYPE_REFRESH, refreshExpireSeconds);
     }
 
+    /**
+     * 解析 access token 并转换为过滤器可放入上下文的认证用户。
+     */
     public AuthUser parseAccessToken(String token) {
         TokenPayload payload = parseToken(token);
         if (!SecurityConstants.TOKEN_TYPE_ACCESS.equals(payload.getTokenType())) {
@@ -64,6 +75,9 @@ public class JwtTokenProvider {
         return new AuthUser(payload.getUserId(), payload.getUsername(), payload.getRoleCode(), payload.getSessionId());
     }
 
+    /**
+     * 解析 token 的通用 payload，签名、过期时间、格式错误都会统一转为业务异常。
+     */
     public TokenPayload parseToken(String token) {
         try {
             Jws<Claims> claimsJws = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);

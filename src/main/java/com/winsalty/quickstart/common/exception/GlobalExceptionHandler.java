@@ -19,6 +19,8 @@ import javax.servlet.http.HttpServletRequest;
 
 /**
  * 全局异常处理器。
+ * 负责把控制器抛出的异常统一收敛为 ApiResponse，保证前端错误处理稳定。
+ * 业务异常和系统异常会额外写入异常日志，参数校验失败只返回给调用方。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -33,6 +35,9 @@ public class GlobalExceptionHandler {
         this.logService = logService;
     }
 
+    /**
+     * 处理主动抛出的业务异常，保留业务码并记录异常日志。
+     */
     @ExceptionHandler(BusinessException.class)
     public ApiResponse<Object> handleBusinessException(BusinessException exception, HttpServletRequest request) {
         log.error("business exception, uri={}, message={}", request.getRequestURI(), exception.getMessage());
@@ -72,6 +77,9 @@ public class GlobalExceptionHandler {
         return ApiResponse.failure(ErrorCode.ACCESS_DENIED.getCode(), ErrorCode.ACCESS_DENIED.getMessage());
     }
 
+    /**
+     * 兜底处理未预期异常。对外只返回通用提示，详细堆栈保留在服务端日志。
+     */
     @ExceptionHandler(Exception.class)
     public ApiResponse<Object> handleException(Exception exception, HttpServletRequest request) {
         log.error("system exception, uri={}, message={}", request.getRequestURI(), exception.getMessage(), exception);
@@ -79,6 +87,9 @@ public class GlobalExceptionHandler {
         return ApiResponse.failure(5000, "系统繁忙，请稍后重试");
     }
 
+    /**
+     * 将异常事件写入系统日志模块。日志写入失败由 LogService 内部吞吐，不反向影响接口响应。
+     */
     private void recordExceptionLog(String target, String description, String logType, String ipAddress) {
         OperationLogRequest request = new OperationLogRequest();
         request.setLogType(logType);

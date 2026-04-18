@@ -19,6 +19,7 @@ import java.util.List;
 
 /**
  * 查询配置服务实现。
+ * 作为脚手架业务列表模板示例，演示分页、详情、唯一编码校验和新增/编辑。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -33,6 +34,9 @@ public class QueryServiceImpl implements QueryService {
         this.queryMapper = queryMapper;
     }
 
+    /**
+     * 分页查询，pageNo/pageSize 缺省时与前端默认值保持一致。
+     */
     @Override
     public PageResponse<QueryRecordVo> getPage(QueryListRequest request) {
         int pageNo = request.getPageNo() == null ? 1 : request.getPageNo();
@@ -44,6 +48,9 @@ public class QueryServiceImpl implements QueryService {
         return new PageResponse<QueryRecordVo>(toVoList(entities), pageNo, pageSize, total);
     }
 
+    /**
+     * 查询详情使用 record_code 作为外部 ID，避免暴露数据库自增主键。
+     */
     @Override
     public QueryRecordVo getDetail(String id) {
         QueryRecordEntity entity = queryMapper.findByRecordCode(id);
@@ -54,6 +61,9 @@ public class QueryServiceImpl implements QueryService {
         return toVo(entity);
     }
 
+    /**
+     * 保存接口兼容新增和编辑。带 id 表示编辑，不带 id 表示新增。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public QueryRecordVo save(QuerySaveRequest request) {
@@ -92,6 +102,9 @@ public class QueryServiceImpl implements QueryService {
         return toVo(queryMapper.findByRecordCode(entity.getRecordCode()));
     }
 
+    /**
+     * 生成前端可见的业务 ID。当前用时间戳满足脚手架本地开发唯一性。
+     */
     private String nextRecordCode() {
         return "Q" + System.currentTimeMillis();
     }
@@ -104,6 +117,9 @@ public class QueryServiceImpl implements QueryService {
         return records;
     }
 
+    /**
+     * Entity 到 VO 的字段映射，确保接口字段与 react-admin-starter 类型定义一致。
+     */
     private QueryRecordVo toVo(QueryRecordEntity entity) {
         QueryRecordVo vo = new QueryRecordVo();
         vo.setId(entity.getRecordCode());

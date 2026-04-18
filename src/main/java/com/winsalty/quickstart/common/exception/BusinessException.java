@@ -4,6 +4,8 @@ import com.winsalty.quickstart.common.constant.ErrorCode;
 
 /**
  * 业务异常。
+ * 用于可预期的业务失败，例如参数不合法、资源不存在、权限不足。
+ * 全局异常处理器会按业务码原样返回给前端。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */

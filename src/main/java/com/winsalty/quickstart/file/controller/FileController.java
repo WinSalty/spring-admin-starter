@@ -25,6 +25,10 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.validation.Valid;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * 文件管理控制器。
+ * 提供本地文件上传、列表、下载、软删除和状态切换接口。
+ */
 @Validated
 @RestController
 @RequestMapping("/api/file")
@@ -36,17 +40,26 @@ public class FileController {
         this.fileRecordService = fileRecordService;
     }
 
+    /**
+     * 文件上传仅管理员可用，文件类型和大小由服务层校验。
+     */
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<FileRecordVo> upload(@RequestParam("file") MultipartFile file) {
         return ApiResponse.success("上传成功", fileRecordService.upload(file));
     }
 
+    /**
+     * 文件记录分页列表。
+     */
     @GetMapping("/list")
     public ApiResponse<PageResponse<FileRecordVo>> list(@Validated FileListRequest request) {
         return ApiResponse.success("获取成功", fileRecordService.getPage(request));
     }
 
+    /**
+     * 文件下载会按原始文件名设置 attachment 响应头。
+     */
     @GetMapping("/{id}/download")
     public ResponseEntity<Resource> download(@PathVariable("id") String id) {
         FileRecordVo detail = fileRecordService.getDetail(id);
@@ -60,12 +73,18 @@ public class FileController {
                 .body(resource);
     }
 
+    /**
+     * 软删除文件记录，不直接删除磁盘文件。
+     */
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/{id}/delete")
     public ApiResponse<FileRecordVo> delete(@PathVariable("id") String id) {
         return ApiResponse.success("删除成功", fileRecordService.delete(id));
     }
 
+    /**
+     * 切换文件记录状态，例如启用或禁用下载入口。
+     */
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/{id}/status")
     public ApiResponse<FileRecordVo> status(@PathVariable("id") String id, @Valid @RequestBody FileStatusRequest request) {

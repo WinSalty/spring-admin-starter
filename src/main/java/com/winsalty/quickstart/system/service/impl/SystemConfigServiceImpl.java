@@ -18,6 +18,7 @@ import java.util.List;
 
 /**
  * 系统配置服务实现。
+ * 负责系统配置列表读取、类型归一化和配置缓存版本刷新。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -38,6 +39,9 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         this.redisCacheService = redisCacheService;
     }
 
+    /**
+     * 读取系统配置列表。缓存按版本号分组，配置保存后递增版本使旧缓存失效。
+     */
     @Override
     @SuppressWarnings("unchecked")
     public List<SystemConfigVo> getConfigs() {
@@ -55,6 +59,9 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         return records;
     }
 
+    /**
+     * 保存配置值前按 valueType 做类型校验，避免布尔/数字配置被写成任意字符串。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SystemConfigVo saveConfig(SystemConfigSaveRequest request) {
@@ -70,6 +77,9 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         return toVo(entity);
     }
 
+    /**
+     * 获取配置缓存版本；首次访问初始化为 1。
+     */
     private long currentVersion(String versionKey) {
         Object cached = redisCacheService.get(versionKey);
         if (cached instanceof Number) {
@@ -79,11 +89,17 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         return 1L;
     }
 
+    /**
+     * 保存配置后递增版本号，后续列表读取自动命中新缓存 key。
+     */
     private long nextVersion(String versionKey) {
         Long version = redisCacheService.increment(versionKey);
         return version == null ? 1L : version.longValue();
     }
 
+    /**
+     * 将前端提交的动态值转换为数据库字符串，同时做基础类型校验。
+     */
     private String normalizeValue(String valueType, Object value) {
         if ("boolean".equals(valueType)) {
             if (!(value instanceof Boolean)) {
@@ -108,6 +124,9 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         return records;
     }
 
+    /**
+     * 将配置字符串值恢复为前端表单需要的布尔、数字或文本类型。
+     */
     private SystemConfigVo toVo(SystemConfigEntity entity) {
         SystemConfigVo vo = new SystemConfigVo();
         vo.setId(entity.getRecordCode());

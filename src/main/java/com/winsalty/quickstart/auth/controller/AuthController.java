@@ -24,6 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 认证控制器。
+ * 暴露登录、刷新令牌、登出、注册和个人资料接口。
+ * 除登录/注册/刷新外，其余接口均依赖 JwtAuthenticationFilter 注入当前用户。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -40,18 +42,27 @@ public class AuthController extends BaseController {
         this.authService = authService;
     }
 
+    /**
+     * 登录成功后返回 access token、refresh token 和前端兼容字段 token。
+     */
     @AuditLog(logType = "login", code = "auth_login", name = "用户登录")
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Validated @RequestBody LoginRequest request) {
         return ApiResponse.success("登录成功", authService.login(request));
     }
 
+    /**
+     * 使用 refresh token 换取新的一组令牌，同时轮换 Redis 中保存的 refresh token。
+     */
     @AuditLog(logType = "api", code = "auth_refresh_token", name = "刷新令牌")
     @PostMapping("/refresh-token")
     public ApiResponse<RefreshTokenResponse> refreshToken(@Validated @RequestBody RefreshTokenRequest request) {
         return ApiResponse.success("刷新成功", authService.refreshToken(request));
     }
 
+    /**
+     * 登出只失效当前 sessionId，不影响同账号其他设备或浏览器会话。
+     */
     @AuditLog(logType = "operation", code = "auth_logout", name = "用户退出")
     @PostMapping("/logout")
     public ApiResponse<Object> logout() {
@@ -60,6 +71,9 @@ public class AuthController extends BaseController {
         return ApiResponse.success("退出成功", null);
     }
 
+    /**
+     * 注册入口由 app.security.register-enabled 控制，生产环境默认关闭。
+     */
     @AuditLog(logType = "operation", code = "auth_register", name = "用户注册")
     @PostMapping("/register")
     public ApiResponse<Object> register(@Validated @RequestBody RegisterRequest request) {
@@ -70,6 +84,9 @@ public class AuthController extends BaseController {
         return ApiResponse.success("注册成功", null);
     }
 
+    /**
+     * 开发阶段直接返回验证码，后续接入邮件服务时可改为只返回发送结果。
+     */
     @GetMapping("/register/verify-code")
     public ApiResponse<String> registerVerifyCode(@RequestParam("email") String email) {
         return ApiResponse.success("发送成功", authService.generateRegisterVerifyCode(email));

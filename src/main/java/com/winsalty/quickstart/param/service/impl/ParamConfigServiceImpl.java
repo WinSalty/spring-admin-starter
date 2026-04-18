@@ -22,6 +22,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 参数配置服务实现。
+ * 管理系统运行参数，并提供启用参数的 Redis 缓存刷新能力。
+ */
 @Service
 public class ParamConfigServiceImpl implements ParamConfigService {
 
@@ -38,6 +42,9 @@ public class ParamConfigServiceImpl implements ParamConfigService {
         this.redisCacheService = redisCacheService;
     }
 
+    /**
+     * 参数分页列表，支持关键字、配置类型和状态筛选。
+     */
     @Override
     public PageResponse<ParamConfigVo> getPage(ParamListRequest request) {
         int pageNo = request.getPageNo() == null ? 1 : request.getPageNo();
@@ -53,6 +60,9 @@ public class ParamConfigServiceImpl implements ParamConfigService {
         return toVo(load(parseId(id)));
     }
 
+    /**
+     * 新增或编辑参数配置。configKey 全局唯一，value 会按 valueType 归一化。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ParamConfigVo save(ParamSaveRequest request) {
@@ -79,6 +89,9 @@ public class ParamConfigServiceImpl implements ParamConfigService {
         return toVo(load(entity.getId()));
     }
 
+    /**
+     * 切换参数状态后递增缓存版本。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ParamConfigVo updateStatus(ParamStatusRequest request) {
@@ -89,6 +102,9 @@ public class ParamConfigServiceImpl implements ParamConfigService {
         return toVo(load(id));
     }
 
+    /**
+     * 主动刷新参数缓存，将所有启用参数按 configKey -> typed value 写入 Redis。
+     */
     @Override
     public Boolean refreshCache() {
         long version = bumpVersion();
@@ -101,6 +117,9 @@ public class ParamConfigServiceImpl implements ParamConfigService {
         return Boolean.TRUE;
     }
 
+    /**
+     * 保存参数字段，configValue 在落库前统一转为字符串。
+     */
     private void applyFields(ParamConfigEntity entity, ParamSaveRequest request) {
         entity.setConfigName(request.getConfigName());
         entity.setConfigKey(request.getConfigKey());
@@ -123,6 +142,9 @@ public class ParamConfigServiceImpl implements ParamConfigService {
         normalizeValue(valueType, value);
     }
 
+    /**
+     * 将前端输入归一化为数据库字符串，布尔和数字类型会做强校验。
+     */
     private String normalizeValue(String valueType, String value) {
         if ("boolean".equals(valueType)) {
             if (!"true".equalsIgnoreCase(value) && !"false".equalsIgnoreCase(value)) {
@@ -140,6 +162,9 @@ public class ParamConfigServiceImpl implements ParamConfigService {
         return value;
     }
 
+    /**
+     * 将数据库字符串恢复为业务可直接使用的类型。
+     */
     private Object resolveValue(String valueType, String value) {
         if ("boolean".equals(valueType)) {
             return Boolean.valueOf(value);
