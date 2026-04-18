@@ -1,9 +1,8 @@
 package com.winsalty.quickstart.permission.controller;
 
-import com.winsalty.quickstart.auth.security.AuthContext;
 import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.common.api.ApiResponse;
-import com.winsalty.quickstart.common.exception.BusinessException;
+import com.winsalty.quickstart.common.base.BaseController;
 import com.winsalty.quickstart.permission.dto.PermissionAssignmentSaveRequest;
 import com.winsalty.quickstart.permission.service.PermissionService;
 import com.winsalty.quickstart.permission.vo.PermissionAssignmentVo;
@@ -27,7 +26,7 @@ import javax.validation.Valid;
 @Validated
 @RestController
 @RequestMapping("/api/permission")
-public class PermissionController {
+public class PermissionController extends BaseController {
 
     private final PermissionService permissionService;
 
@@ -37,10 +36,7 @@ public class PermissionController {
 
     @GetMapping("/bootstrap")
     public ApiResponse<PermissionBootstrapVo> bootstrap() {
-        AuthUser authUser = AuthContext.get();
-        if (authUser == null) {
-            throw new BusinessException(4010, "未登录或登录已失效");
-        }
+        AuthUser authUser = requireCurrentUser();
         return ApiResponse.success(permissionService.getBootstrap(authUser.getUserId(), authUser.getRoleCode()));
     }
 

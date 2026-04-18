@@ -1,8 +1,9 @@
 package com.winsalty.quickstart.notice.service.impl;
 
-import com.winsalty.quickstart.auth.security.AuthContext;
-import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.common.api.PageResponse;
+import com.winsalty.quickstart.common.base.BaseService;
+import com.winsalty.quickstart.common.constant.ErrorCode;
+import com.winsalty.quickstart.common.constant.SystemConstants;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.log.dto.OperationLogRequest;
 import com.winsalty.quickstart.log.service.LogService;
@@ -28,7 +29,7 @@ import java.util.List;
  * author：sunshengxian
  */
 @Service
-public class NoticeServiceImpl implements NoticeService {
+public class NoticeServiceImpl extends BaseService implements NoticeService {
 
     private static final Logger log = LoggerFactory.getLogger(NoticeServiceImpl.class);
 
@@ -64,8 +65,7 @@ public class NoticeServiceImpl implements NoticeService {
         NoticeEntity entity = StringUtils.hasText(request.getId()) ? load(parseId(request.getId())) : new NoticeEntity();
         applyFields(entity, request);
         if (entity.getPublisherId() == null) {
-            AuthUser authUser = AuthContext.get();
-            entity.setPublisherId(authUser == null ? 1L : authUser.getUserId());
+            entity.setPublisherId(currentUserId());
         }
         if (entity.getId() == null) {
             noticeMapper.insert(entity);
@@ -112,7 +112,7 @@ public class NoticeServiceImpl implements NoticeService {
     private NoticeEntity load(Long id) {
         NoticeEntity entity = noticeMapper.findById(id);
         if (entity == null) {
-            throw new BusinessException(4044, "公告不存在");
+            throw new BusinessException(ErrorCode.NOTICE_NOT_FOUND);
         }
         return entity;
     }
@@ -121,7 +121,7 @@ public class NoticeServiceImpl implements NoticeService {
         try {
             return Long.valueOf(id);
         } catch (Exception exception) {
-            throw new BusinessException(4001, "id 不合法");
+            throw new BusinessException(ErrorCode.INVALID_ID);
         }
     }
 
@@ -153,14 +153,14 @@ public class NoticeServiceImpl implements NoticeService {
 
     private void recordLog(String code, String description, String target) {
         OperationLogRequest request = new OperationLogRequest();
-        request.setLogType("operation");
-        request.setOwner("system");
+        request.setLogType(SystemConstants.OPERATION_LOG_TYPE);
+        request.setOwner(SystemConstants.SYSTEM_OPERATOR);
         request.setName(description);
         request.setCode(code);
         request.setDescription(description);
         request.setTarget(target);
-        request.setIpAddress("127.0.0.1");
-        request.setResult("成功");
+        request.setIpAddress(SystemConstants.LOCALHOST_IP);
+        request.setResult(SystemConstants.RESULT_SUCCESS);
         request.setDurationMs(0L);
         logService.record(request);
     }

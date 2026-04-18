@@ -7,8 +7,11 @@ package com.winsalty.quickstart.permission.entity;
  */
 public class RoleActionEntity {
 
+    /** 角色ID。 */
     private Long roleId;
+    /** 动作权限编码。 */
     private String actionCode;
+    /** 动作权限名称。 */
     private String actionName;
 
     public Long getRoleId() {

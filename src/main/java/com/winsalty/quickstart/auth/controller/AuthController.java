@@ -3,13 +3,14 @@ package com.winsalty.quickstart.auth.controller;
 import com.winsalty.quickstart.auth.dto.LoginRequest;
 import com.winsalty.quickstart.auth.dto.RefreshTokenRequest;
 import com.winsalty.quickstart.auth.dto.RegisterRequest;
-import com.winsalty.quickstart.auth.security.AuthContext;
 import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.auth.service.AuthService;
 import com.winsalty.quickstart.auth.vo.LoginResponse;
 import com.winsalty.quickstart.auth.vo.ProfileResponse;
 import com.winsalty.quickstart.auth.vo.RefreshTokenResponse;
 import com.winsalty.quickstart.common.api.ApiResponse;
+import com.winsalty.quickstart.common.base.BaseController;
+import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.validation.annotation.Validated;
@@ -26,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/auth")
-public class AuthController {
+public class AuthController extends BaseController {
 
     private final AuthService authService;
 
@@ -49,10 +50,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ApiResponse<Object> logout() {
-        AuthUser authUser = AuthContext.get();
-        if (authUser == null) {
-            throw new BusinessException(4010, "未登录或登录已失效");
-        }
+        AuthUser authUser = requireCurrentUser();
         authService.logout(authUser.getUserId(), authUser.getSessionId());
         return ApiResponse.success("退出成功", null);
     }
@@ -60,7 +58,7 @@ public class AuthController {
     @PostMapping("/register")
     public ApiResponse<Object> register(@Validated @RequestBody RegisterRequest request) {
         if (!registerEnabled) {
-            throw new BusinessException(4031, "当前环境不开放注册");
+            throw new BusinessException(ErrorCode.REGISTER_DISABLED);
         }
         authService.register(request);
         return ApiResponse.success("注册成功", null);
@@ -68,10 +66,6 @@ public class AuthController {
 
     @GetMapping("/profile")
     public ApiResponse<ProfileResponse> profile() {
-        AuthUser authUser = AuthContext.get();
-        if (authUser == null) {
-            throw new BusinessException(4010, "未登录或登录已失效");
-        }
-        return ApiResponse.success(authService.getProfile(authUser.getUserId()));
+        return ApiResponse.success(authService.getProfile(currentUserId()));
     }
 }

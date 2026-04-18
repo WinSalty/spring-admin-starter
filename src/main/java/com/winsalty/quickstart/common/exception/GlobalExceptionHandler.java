@@ -1,9 +1,11 @@
 package com.winsalty.quickstart.common.exception;
 
 import com.winsalty.quickstart.common.api.ApiResponse;
+import com.winsalty.quickstart.common.constant.ErrorCode;
+import com.winsalty.quickstart.common.constant.SystemConstants;
+import com.winsalty.quickstart.common.util.IpUtils;
 import com.winsalty.quickstart.log.dto.OperationLogRequest;
 import com.winsalty.quickstart.log.service.LogService;
-import com.winsalty.quickstart.common.util.IpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -45,7 +47,7 @@ public class GlobalExceptionHandler {
                 ? "请求参数校验失败"
                 : exception.getBindingResult().getFieldError().getDefaultMessage();
         log.error("method argument not valid, uri={}, message={}", request.getRequestURI(), message);
-        return ApiResponse.failure(4001, message);
+        return ApiResponse.failure(ErrorCode.REQUEST_PARAM_INVALID.getCode(), message);
     }
 
     @ExceptionHandler(BindException.class)
@@ -54,20 +56,20 @@ public class GlobalExceptionHandler {
                 ? "请求参数绑定失败"
                 : exception.getBindingResult().getFieldError().getDefaultMessage();
         log.error("bind exception, uri={}, message={}", request.getRequestURI(), message);
-        return ApiResponse.failure(4002, message);
+        return ApiResponse.failure(ErrorCode.REQUEST_BIND_INVALID.getCode(), message);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ApiResponse<Object> handleHttpMessageNotReadableException(HttpMessageNotReadableException exception,
                                                                      HttpServletRequest request) {
         log.error("request body unreadable, uri={}, message={}", request.getRequestURI(), exception.getMessage());
-        return ApiResponse.failure(4003, "请求体格式错误");
+        return ApiResponse.failure(ErrorCode.REQUEST_BODY_INVALID.getCode(), ErrorCode.REQUEST_BODY_INVALID.getMessage());
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ApiResponse<Object> handleAccessDeniedException(AccessDeniedException exception, HttpServletRequest request) {
         log.error("access denied, uri={}, message={}", request.getRequestURI(), exception.getMessage());
-        return ApiResponse.failure(4030, "无权限访问该资源");
+        return ApiResponse.failure(ErrorCode.ACCESS_DENIED.getCode(), ErrorCode.ACCESS_DENIED.getMessage());
     }
 
     @ExceptionHandler(Exception.class)
@@ -80,13 +82,13 @@ public class GlobalExceptionHandler {
     private void recordExceptionLog(String target, String description, String logType, String ipAddress) {
         OperationLogRequest request = new OperationLogRequest();
         request.setLogType(logType);
-        request.setOwner("system");
+        request.setOwner(SystemConstants.SYSTEM_OPERATOR);
         request.setName("异常日志");
         request.setCode("exception_log");
         request.setDescription(description);
         request.setTarget(target);
         request.setIpAddress(ipAddress);
-        request.setResult("失败");
+        request.setResult(SystemConstants.RESULT_FAILURE);
         request.setDurationMs(0L);
         logService.record(request);
     }

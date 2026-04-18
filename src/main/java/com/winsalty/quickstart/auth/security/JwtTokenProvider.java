@@ -1,5 +1,7 @@
 package com.winsalty.quickstart.auth.security;
 
+import com.winsalty.quickstart.common.constant.ErrorCode;
+import com.winsalty.quickstart.common.constant.SecurityConstants;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
@@ -47,17 +49,17 @@ public class JwtTokenProvider {
     }
 
     public String createAccessToken(Long userId, String username, String roleCode, String sessionId) {
-        return buildToken(userId, username, roleCode, sessionId, "access", accessExpireSeconds);
+        return buildToken(userId, username, roleCode, sessionId, SecurityConstants.TOKEN_TYPE_ACCESS, accessExpireSeconds);
     }
 
     public String createRefreshToken(Long userId, String username, String roleCode, String sessionId) {
-        return buildToken(userId, username, roleCode, sessionId, "refresh", refreshExpireSeconds);
+        return buildToken(userId, username, roleCode, sessionId, SecurityConstants.TOKEN_TYPE_REFRESH, refreshExpireSeconds);
     }
 
     public AuthUser parseAccessToken(String token) {
         TokenPayload payload = parseToken(token);
-        if (!"access".equals(payload.getTokenType())) {
-            throw new BusinessException(4011, "登录令牌无效或已过期");
+        if (!SecurityConstants.TOKEN_TYPE_ACCESS.equals(payload.getTokenType())) {
+            throw new BusinessException(ErrorCode.TOKEN_INVALID);
         }
         return new AuthUser(payload.getUserId(), payload.getUsername(), payload.getRoleCode(), payload.getSessionId());
     }
@@ -74,7 +76,7 @@ public class JwtTokenProvider {
                     claims.get("tokenType", String.class)
             );
         } catch (Exception exception) {
-            throw new BusinessException(4011, "登录令牌无效或已过期");
+            throw new BusinessException(ErrorCode.TOKEN_INVALID);
         }
     }
 

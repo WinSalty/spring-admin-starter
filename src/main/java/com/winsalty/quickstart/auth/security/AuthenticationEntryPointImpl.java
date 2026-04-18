@@ -2,6 +2,7 @@ package com.winsalty.quickstart.auth.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.winsalty.quickstart.common.api.ApiResponse;
+import com.winsalty.quickstart.common.constant.ErrorCode;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -27,6 +28,7 @@ public class AuthenticationEntryPointImpl implements AuthenticationEntryPoint {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write(objectMapper.writeValueAsString(ApiResponse.failure(4010, "未登录或登录已失效")));
+        response.getWriter().write(objectMapper.writeValueAsString(
+                ApiResponse.failure(ErrorCode.AUTH_REQUIRED.getCode(), ErrorCode.AUTH_REQUIRED.getMessage())));
     }
 }

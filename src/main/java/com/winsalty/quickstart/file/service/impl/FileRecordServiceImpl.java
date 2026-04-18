@@ -1,8 +1,9 @@
 package com.winsalty.quickstart.file.service.impl;
 
-import com.winsalty.quickstart.auth.security.AuthContext;
-import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.common.api.PageResponse;
+import com.winsalty.quickstart.common.base.BaseService;
+import com.winsalty.quickstart.common.constant.CommonStatusConstants;
+import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.file.dto.FileListRequest;
 import com.winsalty.quickstart.file.dto.FileStatusRequest;
@@ -30,7 +31,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @Service
-public class FileRecordServiceImpl implements FileRecordService {
+public class FileRecordServiceImpl extends BaseService implements FileRecordService {
 
     private static final long MAX_FILE_SIZE = 10L * 1024L * 1024L;
     private static final int DEFAULT_PAGE_NO = 1;
@@ -72,32 +73,32 @@ public class FileRecordServiceImpl implements FileRecordService {
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo upload(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessException(4041, "上传文件不能为空");
+            throw new BusinessException(ErrorCode.FILE_EMPTY);
         }
         if (file.getSize() > MAX_FILE_SIZE) {
-            throw new BusinessException(4042, "文件大小不能超过 10MB");
+            throw new BusinessException(ErrorCode.FILE_TOO_LARGE);
         }
         String originalName = StringUtils.cleanPath(file.getOriginalFilename() == null ? "file" : file.getOriginalFilename());
         String extension = resolveExtension(originalName);
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
-            throw new BusinessException(4043, "文件类型不支持");
+            throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
         }
         // 校验 Content-Type 与扩展名是否匹配，防止伪造扩展名绕过校验
         String expectedMime = EXTENSION_MIME_MAP.get(extension);
         String actualMime = file.getContentType();
         if (expectedMime != null && !expectedMime.equals(actualMime)) {
-            throw new BusinessException(4043, "文件类型不支持");
+            throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
         }
         File directory = new File(uploadDir);
         if (!directory.exists() && !directory.mkdirs()) {
-            throw new BusinessException(5001, "上传目录创建失败");
+            throw new BusinessException(ErrorCode.DIRECTORY_CREATE_FAILED);
         }
         String storedName = UUID.randomUUID().toString().replace("-", "") + "." + extension;
         File target = new File(directory, storedName);
         try {
             file.transferTo(target);
         } catch (IOException exception) {
-            throw new BusinessException(5002, "文件保存失败");
+            throw new BusinessException(ErrorCode.FILE_SAVE_FAILED);
         }
         FileRecordEntity entity = new FileRecordEntity();
         entity.setFileCode("F" + System.currentTimeMillis());
@@ -107,7 +108,7 @@ public class FileRecordServiceImpl implements FileRecordService {
         entity.setContentType(file.getContentType());
         entity.setExtension(extension);
         entity.setSizeBytes(file.getSize());
-        entity.setStatus("active");
+        entity.setStatus(CommonStatusConstants.ACTIVE);
         entity.setCreatedBy(resolveCurrentUsername());
         fileRecordMapper.insert(entity);
         return toVo(load(entity.getId()));
@@ -134,7 +135,7 @@ public class FileRecordServiceImpl implements FileRecordService {
         FileRecordEntity entity = load(parseId(id));
         File file = new File(entity.getFilePath());
         if (!file.exists() || !file.isFile()) {
-            throw new BusinessException(4044, "文件不存在");
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
         }
         return new FileSystemResource(file);
     }
@@ -160,20 +161,19 @@ public class FileRecordServiceImpl implements FileRecordService {
     private String resolveExtension(String originalName) {
         int index = originalName.lastIndexOf('.');
         if (index < 0 || index == originalName.length() - 1) {
-            throw new BusinessException(4043, "文件类型不支持");
+            throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
         }
         return originalName.substring(index + 1).toLowerCase();
     }
 
     private String resolveCurrentUsername() {
-        AuthUser authUser = AuthContext.get();
-        return authUser == null ? "system" : authUser.getUsername();
+        return currentUsername();
     }
 
     private FileRecordEntity load(Long id) {
         FileRecordEntity entity = fileRecordMapper.findById(id);
         if (entity == null) {
-            throw new BusinessException(4044, "文件记录不存在");
+            throw new BusinessException(ErrorCode.FILE_RECORD_NOT_FOUND);
         }
         return entity;
     }
@@ -182,7 +182,7 @@ public class FileRecordServiceImpl implements FileRecordService {
         try {
             return Long.valueOf(id);
         } catch (Exception exception) {
-            throw new BusinessException(4001, "id 不合法");
+            throw new BusinessException(ErrorCode.INVALID_ID);
         }
     }
 
