@@ -26,6 +26,7 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 public class SecurityConfig {
 
     private static final RequestMatcher[] PUBLIC_MATCHERS = {
+            // 健康检查、文档和登录注册相关入口必须在 JWT 过滤器之前放行。
             new AntPathRequestMatcher("/actuator/health"),
             new AntPathRequestMatcher("/swagger-ui.html"),
             new AntPathRequestMatcher("/swagger-ui/**"),
@@ -33,8 +34,10 @@ public class SecurityConfig {
             new AntPathRequestMatcher("/api/common/ping"),
             new AntPathRequestMatcher("/api/common/demo"),
             new AntPathRequestMatcher("/api/auth/login"),
+            // refresh-token 虽然和登录态有关，但凭 refresh token 自身校验，不依赖 access token。
             new AntPathRequestMatcher("/api/auth/refresh-token"),
             new AntPathRequestMatcher("/api/auth/register"),
+            // 未注册用户无法携带 token，验证码发送接口必须匿名可访问。
             new AntPathRequestMatcher("/api/auth/register/verify-code")
     };
 
@@ -55,6 +58,7 @@ public class SecurityConfig {
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 .and()
                 .exceptionHandling()
+                // 认证失败和授权失败分别输出统一 ApiResponse，避免 Spring Security 返回默认 HTML。
                 .authenticationEntryPoint(authenticationEntryPoint())
                 .accessDeniedHandler(accessDeniedHandler())
                 .and()
@@ -62,6 +66,7 @@ public class SecurityConfig {
                 .requestMatchers(PUBLIC_MATCHERS).permitAll()
                 .anyRequest().authenticated()
                 .and()
+                // 自定义 JWT 过滤器必须放在用户名密码过滤器前，先把 Bearer token 转成认证上下文。
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

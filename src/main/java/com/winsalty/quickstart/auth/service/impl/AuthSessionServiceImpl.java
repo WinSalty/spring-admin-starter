@@ -32,6 +32,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
 
     @Override
     public boolean exists(String sessionId) {
+        // refresh token 解析成功不代表会话仍有效，Redis key 可被登出或过期清理。
         return redisCacheService.get(SESSION_KEY_PREFIX + sessionId) != null;
     }
 
@@ -41,6 +42,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
     @Override
     public boolean matchesRefreshToken(String sessionId, String refreshToken) {
         Object cached = redisCacheService.get(SESSION_KEY_PREFIX + sessionId);
+        // 只接受 Redis 中当前保存的 refresh token，旧 token 会因为轮换覆盖而不再匹配。
         return cached instanceof String && StringUtils.hasText(refreshToken) && refreshToken.equals(cached);
     }
 
@@ -54,6 +56,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
 
     @Override
     public void deleteSession(String sessionId) {
+        // 删除 session 后 refresh token 无法续期；已签发 access token 等到自然过期。
         redisCacheService.delete(SESSION_KEY_PREFIX + sessionId);
     }
 }

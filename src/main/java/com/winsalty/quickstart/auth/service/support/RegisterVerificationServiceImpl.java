@@ -41,7 +41,9 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
         if (!StringUtils.hasText(email)) {
             throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "邮箱不能为空");
         }
+        // SecureRandom 用于验证码，避免普通 Random 在高并发注册场景下可预测。
         String code = String.format("%06d", random.nextInt(1000000));
+        // 先发邮件再缓存，避免邮件发送失败但 Redis 中留下一个用户永远收不到的验证码。
         registerMailService.sendVerifyCode(email.trim(), code, CODE_TTL_SECONDS);
         redisCacheService.set(buildKey(email), code, CODE_TTL_SECONDS);
         log.info("register verify code sent, email={}", email);
@@ -58,12 +60,15 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
         }
         String expectedCode = String.valueOf(cached);
         if (!expectedCode.equals(code)) {
+            // 错误验证码不删除缓存，允许用户在有效期内重新输入正确验证码。
             throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "邮箱验证码错误");
         }
+        // 验证码一次性消费，校验成功立即删除，防止同一邮箱验证码被重复注册。
         redisCacheService.delete(buildKey(email));
     }
 
     private String buildKey(String email) {
+        // 邮箱统一小写去空格，避免 Test@A.com 与 test@a.com 命中不同验证码。
         return CACHE_KEY_PREFIX + email.trim().toLowerCase();
     }
 }

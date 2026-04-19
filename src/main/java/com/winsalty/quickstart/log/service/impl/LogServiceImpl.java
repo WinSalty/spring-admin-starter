@@ -30,11 +30,14 @@ public class LogServiceImpl implements LogService {
     @Override
     public void record(OperationLogRequest request) {
         if (!StringUtils.hasText(request.getOwner())) {
+            // 没有登录态的系统任务或异常兜底统一归属 system，便于日志筛选。
             request.setOwner(SystemConstants.SYSTEM_OPERATOR);
         }
         if (!StringUtils.hasText(request.getResult())) {
+            // 调用方未明确失败时按成功记录，失败场景由审计切面/异常处理器显式传入。
             request.setResult(SystemConstants.RESULT_SUCCESS);
         }
+        // 数据库字段有长度限制，入库前截断可避免日志写入反向影响业务请求。
         request.setDescription(limit(request.getDescription(), 255));
         request.setTarget(limit(request.getTarget(), 180));
         request.setDeviceInfo(limit(request.getDeviceInfo(), 255));
@@ -42,6 +45,7 @@ public class LogServiceImpl implements LogService {
             request.setDurationMs(0L);
         }
         String recordCode = "L" + UUID.randomUUID().toString().replace("-", "").substring(0, 31);
+        // 使用随机业务码避免并发日志记录时 System.currentTimeMillis 碰撞。
         logMapper.insertLog(recordCode, request);
         log.info("operation log recorded, type={}, owner={}, code={}", request.getLogType(), request.getOwner(), request.getCode());
     }

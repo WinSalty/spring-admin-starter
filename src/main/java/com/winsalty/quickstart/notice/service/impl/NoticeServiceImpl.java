@@ -68,6 +68,7 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         NoticeEntity entity = StringUtils.hasText(request.getId()) ? load(parseId(request.getId())) : new NoticeEntity();
         applyFields(entity, request);
         if (entity.getPublisherId() == null) {
+            // 后台手工创建公告时默认用当前登录用户作为发布人，避免公告列表出现无发布人数据。
             entity.setPublisherId(currentUserId());
         }
         if (entity.getId() == null) {
@@ -99,6 +100,7 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
     @Override
     public List<NoticeVo> getActiveNotices() {
         List<NoticeEntity> entities = noticeMapper.findActive();
+        // active 查询由 SQL 负责过滤状态和有效期，service 只做协议转换，保持工作台接口轻量。
         log.info("active notices loaded, size={}", entities.size());
         return toVoList(entities);
     }
@@ -115,6 +117,7 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         entity.setPublishTime(request.getPublishTime());
         entity.setExpireTime(request.getExpireTime());
         entity.setStatus(request.getStatus());
+        // sortOrder 空值按 0 处理，SQL 可直接按数值排序，不需要额外处理 null。
         entity.setSortOrder(request.getSortOrder() == null ? 0 : request.getSortOrder());
     }
 

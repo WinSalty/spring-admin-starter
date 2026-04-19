@@ -49,6 +49,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         String cacheKey = CONFIG_CACHE_KEY_PREFIX + version + ":list";
         Object cached = redisCacheService.get(cacheKey);
         if (cached instanceof List) {
+            // 配置列表读取频率高、变更频率低，使用版本号缓存避免保存时扫描删除旧 key。
             log.info("system config cache hit, cacheKey={}, size={}", cacheKey, ((List<?>) cached).size());
             return (List<SystemConfigVo>) cached;
         }
@@ -103,12 +104,14 @@ public class SystemConfigServiceImpl implements SystemConfigService {
     private String normalizeValue(String valueType, Object value) {
         if ("boolean".equals(valueType)) {
             if (!(value instanceof Boolean)) {
+                // 布尔配置只接受前端 Switch 传来的 Boolean，避免字符串 "yes" 这类值进入数据库。
                 throw new BusinessException(4017, "布尔配置值不合法");
             }
             return String.valueOf(value);
         }
         if ("number".equals(valueType)) {
             if (value instanceof Number) {
+                // 用 BigDecimal 去掉 1.0 这类尾零，数据库统一保存最简字符串。
                 return new BigDecimal(String.valueOf(value)).stripTrailingZeros().toPlainString();
             }
             throw new BusinessException(4018, "数字配置值不合法");
@@ -141,9 +144,11 @@ public class SystemConfigServiceImpl implements SystemConfigService {
 
     private Object resolveValue(String valueType, String configValue) {
         if ("boolean".equals(valueType)) {
+            // 出参恢复为 Boolean，前端表单控件不需要再做字符串转换。
             return Boolean.valueOf(configValue);
         }
         if ("number".equals(valueType)) {
+            // 当前系统配置只使用整数型数字；需要小数时可扩展为 BigDecimal。
             return Integer.valueOf(configValue);
         }
         return configValue;

@@ -74,6 +74,7 @@ public class QueryServiceImpl implements QueryService {
                 throw new BusinessException(4041, "查询配置不存在");
             }
             if (duplicated != null && !duplicated.getId().equals(existed.getId())) {
+                // 编辑时允许保留自己的 code，但不允许改成其他记录已占用的 code。
                 throw new BusinessException(4008, "查询编码已存在");
             }
             existed.setName(request.getName());
@@ -96,6 +97,7 @@ public class QueryServiceImpl implements QueryService {
         entity.setStatus(request.getStatus());
         entity.setOwner(request.getOwner());
         entity.setDescription(request.getDescription());
+        // 新配置尚未被调用，调用次数从 0 开始，后续真实查询执行链路可递增该字段。
         entity.setCallCount(0L);
         queryMapper.insert(entity);
         log.info("query record created, id={}, code={}", entity.getRecordCode(), entity.getCode());

@@ -19,6 +19,7 @@ public abstract class BaseController {
     protected AuthUser requireCurrentUser() {
         AuthUser authUser = AuthContext.get();
         if (authUser == null) {
+            // 理论上受保护接口会先被 Spring Security 拦截；这里保留兜底，避免直接调用 Controller 方法时 NPE。
             throw new BusinessException(ErrorCode.AUTH_REQUIRED);
         }
         return authUser;

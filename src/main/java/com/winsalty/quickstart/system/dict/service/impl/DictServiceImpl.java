@@ -75,6 +75,7 @@ public class DictServiceImpl implements DictService {
             existed.setRemark(defaultText(request.getRemark()));
             dictMapper.updateType(existed);
             if (!oldDictType.equals(request.getDictType())) {
+                // 类型编码变更时同步已有字典项，否则旧数据会挂在不可见的 dictType 下。
                 dictMapper.updateDataDictType(oldDictType, request.getDictType(), existed.getId());
             }
             bumpVersion();
@@ -122,6 +123,7 @@ public class DictServiceImpl implements DictService {
             if (cached instanceof List) {
                 records = (List<DictDataVo>) cached;
             } else {
+                // 常见业务只按 dictType 拉启用字典项，缓存该路径可以覆盖绝大多数前端下拉框。
                 records = toDataVoList(dictMapper.findActiveDataByType(request.getDictType()));
                 redisCacheService.set(cacheKey, records, CACHE_TTL_SECONDS);
             }
@@ -148,6 +150,7 @@ public class DictServiceImpl implements DictService {
     public DictDataVo saveData(DictDataSaveRequest request) {
         DictTypeEntity type = dictMapper.findTypeByDictType(request.getDictType());
         if (type == null) {
+            // 字典项必须挂到已存在的字典类型，避免前端下拉框无法按类型聚合。
             throw new BusinessException(4022, "字典类型不存在");
         }
         DictDataEntity duplicated = dictMapper.findDataByTypeAndValue(request.getDictType(), request.getValue());
@@ -201,6 +204,7 @@ public class DictServiceImpl implements DictService {
     private void applyDataFields(DictDataEntity entity, DictTypeEntity type, DictDataSaveRequest request) {
         entity.setDictTypeId(type.getId());
         entity.setDictType(type.getDictType());
+        // 保存时同时冗余 typeId 和 dictType，方便列表查询和外部按编码读取。
         entity.setLabel(request.getLabel());
         entity.setValue(request.getValue());
         entity.setSortNo(request.getSortNo());
@@ -237,6 +241,7 @@ public class DictServiceImpl implements DictService {
         if (version instanceof Number) {
             return ((Number) version).longValue();
         }
+        // 首次访问没有版本号时初始化，后续缓存 key 才能稳定按版本拼接。
         redisCacheService.set(DICT_VERSION_KEY, 1L, CACHE_TTL_SECONDS * 24);
         return 1L;
     }

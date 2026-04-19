@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class SpringAdminStarterApplication {
 
     public static void main(String[] args) {
+        // 项目完全使用自定义 JWT 认证链路，启动时不需要 Spring Security 默认内存用户。
         SpringApplication.run(SpringAdminStarterApplication.class, args);
     }
 }

@@ -20,6 +20,7 @@ public abstract class BaseService {
     protected AuthUser requireCurrentUser() {
         AuthUser authUser = AuthContext.get();
         if (authUser == null) {
+            // Service 可能被定时任务或测试直接调用，缺少认证上下文时用业务异常表达调用前置条件不满足。
             throw new BusinessException(ErrorCode.AUTH_REQUIRED);
         }
         return authUser;
@@ -37,6 +38,7 @@ public abstract class BaseService {
      */
     protected String currentUsername() {
         AuthUser authUser = AuthContext.get();
+        // 审计日志、异常日志等非用户触发场景没有登录态，统一归属到 system 操作人。
         return authUser == null ? SystemConstants.SYSTEM_OPERATOR : authUser.getUsername();
     }
 }

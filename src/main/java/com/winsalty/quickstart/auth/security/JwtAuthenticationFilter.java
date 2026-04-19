@@ -39,8 +39,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String token = resolveToken(request);
             if (StringUtils.hasText(token)) {
+                // 这里只接受 access token；refresh token 即使被放在 Authorization 头里也会被 JwtTokenProvider 拒绝。
                 AuthUser authUser = jwtTokenProvider.parseAccessToken(token);
                 AuthContext.set(authUser);
+                // Spring Security 用于鉴权决策，AuthContext 用于业务层直接读取当前用户。
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         authUser.getUsername(),
                         null,
@@ -50,6 +52,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
             filterChain.doFilter(request, response);
         } finally {
+            // Web 容器线程会复用，必须清理两个上下文，避免下一个请求继承上一个用户身份。
             AuthContext.clear();
             SecurityContextHolder.clearContext();
         }

@@ -58,9 +58,11 @@ public class AuditLogAspect {
         HttpServletRequest request = currentRequest();
         try {
             Object result = joinPoint.proceed();
+            // 成功分支在业务方法返回后落日志，保证响应摘要能记录到最终结果。
             record(joinPoint, auditLog, request, result, null, startedAt);
             return result;
         } catch (Throwable throwable) {
+            // 异常分支先记录失败日志再继续抛出，让全局异常处理器仍然负责 HTTP 响应。
             record(joinPoint, auditLog, request, null, throwable, startedAt);
             throw throwable;
         }
@@ -76,6 +78,7 @@ public class AuditLogAspect {
                         Throwable throwable,
                         long startedAt) {
         OperationLogRequest logRequest = new OperationLogRequest();
+        // 注解描述“这是什么操作”，请求上下文描述“谁在什么入口触发”，两者组合成完整审计记录。
         logRequest.setLogType(auditLog.logType());
         logRequest.setOwner(resolveOwner());
         logRequest.setName(auditLog.name());
@@ -85,6 +88,7 @@ public class AuditLogAspect {
         logRequest.setDeviceInfo(resolveDeviceInfo(request));
         logRequest.setRequestInfo(auditLog.recordRequest() ? safeJson(buildRequestPayload(joinPoint, request)) : "");
         logRequest.setResponseInfo(auditLog.recordResponse() ? safeJson(buildResponsePayload(result, throwable)) : "");
+        // result 只表示业务方法是否抛异常，不依赖 ApiResponse.code，避免切面对响应协议产生强耦合。
         logRequest.setResult(throwable == null ? SystemConstants.RESULT_SUCCESS : SystemConstants.RESULT_FAILURE);
         logRequest.setDurationMs(System.currentTimeMillis() - startedAt);
         logRequest.setDescription(buildDescription(joinPoint, request, throwable));
@@ -109,6 +113,7 @@ public class AuditLogAspect {
 
     private Map<String, Object> buildRequestPayload(ProceedingJoinPoint joinPoint, HttpServletRequest request) {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        // 只记录定位问题需要的最小请求信息，header/body 原文不入库，降低敏感信息暴露面。
         payload.put("method", request == null ? "" : request.getMethod());
         payload.put("uri", request == null ? "" : request.getRequestURI());
         payload.put("args", sanitize(joinPoint.getArgs()));
@@ -133,6 +138,7 @@ public class AuditLogAspect {
             return null;
         }
         String text = String.valueOf(value);
+        // DTO 通常会被序列化为字符串，这里用字段名匹配做最后一道脱敏防线。
         text = text.replaceAll("(?i)\\\"password\\\"\\s*:\\s*\\\"[^\\\"]*\\\"", "\"password\":\"***\"");
         text = text.replaceAll("(?i)\\\"token\\\"\\s*:\\s*\\\"[^\\\"]*\\\"", "\"token\":\"***\"");
         text = text.replaceAll("(?i)\\\"refreshToken\\\"\\s*:\\s*\\\"[^\\\"]*\\\"", "\"refreshToken\":\"***\"");
@@ -167,6 +173,7 @@ public class AuditLogAspect {
 
     private HttpServletRequest currentRequest() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        // AOP 也可能包到非 Web 调用，返回 null 后各字段按空字符串处理。
         return attributes == null ? null : attributes.getRequest();
     }
 }

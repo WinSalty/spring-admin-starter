@@ -31,6 +31,7 @@ public class RedisCacheService {
      * 写入带过期时间的缓存，timeoutSeconds 统一使用秒。
      */
     public void set(String key, Object value, long timeoutSeconds) {
+        // 所有业务缓存都必须显式给 TTL，避免验证码、会话这类短期数据永久滞留。
         redisTemplate.opsForValue().set(key, value, timeoutSeconds, TimeUnit.SECONDS);
     }
 
@@ -42,6 +43,7 @@ public class RedisCacheService {
     }
 
     public void delete(String key) {
+        // 删除操作用于一次性验证码消费和 refresh session 失效，调用方不需要关心 key 是否存在。
         redisTemplate.delete(key);
     }
 }

@@ -25,8 +25,10 @@ public class RedisConfig {
         StringRedisSerializer stringRedisSerializer = new StringRedisSerializer();
         GenericJackson2JsonRedisSerializer jsonRedisSerializer = new GenericJackson2JsonRedisSerializer();
         redisTemplate.setConnectionFactory(connectionFactory);
+        // key 使用纯字符串，避免 redis-cli 里出现 JDK 序列化前缀，便于人工排查 session/验证码。
         redisTemplate.setKeySerializer(stringRedisSerializer);
         redisTemplate.setHashKeySerializer(stringRedisSerializer);
+        // value 用 JSON 保留类型信息，业务层取出后仍可按 String、Map 等常见结构使用。
         redisTemplate.setValueSerializer(jsonRedisSerializer);
         redisTemplate.setHashValueSerializer(jsonRedisSerializer);
         redisTemplate.afterPropertiesSet();

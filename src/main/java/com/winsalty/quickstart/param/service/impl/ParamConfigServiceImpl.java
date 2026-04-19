@@ -71,6 +71,7 @@ public class ParamConfigServiceImpl implements ParamConfigService {
         if (StringUtils.hasText(request.getId())) {
             ParamConfigEntity existed = load(parseId(request.getId()));
             if (duplicated != null && !duplicated.getId().equals(existed.getId())) {
+                // configKey 是运行参数读取入口，编辑时不能撞到其他参数。
                 throw new BusinessException(4031, "参数键已存在");
             }
             applyFields(existed, request);
@@ -110,6 +111,7 @@ public class ParamConfigServiceImpl implements ParamConfigService {
         long version = bumpVersion();
         Map<String, Object> values = new LinkedHashMap<String, Object>();
         for (ParamConfigEntity entity : paramConfigMapper.findActiveAll()) {
+            // 缓存里保存 typed value，业务读取参数时不必再按 valueType 转换。
             values.put(entity.getConfigKey(), resolveValue(entity.getValueType(), entity.getConfigValue()));
         }
         redisCacheService.set(CONFIG_CACHE_PREFIX + version + ":all", values, CACHE_TTL_SECONDS);
@@ -148,12 +150,14 @@ public class ParamConfigServiceImpl implements ParamConfigService {
     private String normalizeValue(String valueType, String value) {
         if ("boolean".equals(valueType)) {
             if (!"true".equalsIgnoreCase(value) && !"false".equalsIgnoreCase(value)) {
+                // 布尔参数只允许 true/false，避免 yes/no、1/0 在不同调用方解释不一致。
                 throw new BusinessException(4032, "布尔参数值不合法");
             }
             return String.valueOf(Boolean.valueOf(value));
         }
         if ("number".equals(valueType)) {
             try {
+                // BigDecimal 用字符串构造，避免 double 精度问题；落库前去尾零方便比对。
                 return new BigDecimal(value).stripTrailingZeros().toPlainString();
             } catch (Exception exception) {
                 throw new BusinessException(4033, "数字参数值不合法");
@@ -186,6 +190,7 @@ public class ParamConfigServiceImpl implements ParamConfigService {
     private long bumpVersion() {
         Long version = redisCacheService.increment(CONFIG_VERSION_KEY);
         if (version == null) {
+            // 版本 key 可能被手工清理，重建为 1 后下一次缓存会使用稳定 key。
             redisCacheService.set(CONFIG_VERSION_KEY, 1L, CACHE_TTL_SECONDS * 24);
             return 1L;
         }

@@ -82,6 +82,7 @@ public class JwtTokenProvider {
         try {
             Jws<Claims> claimsJws = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
             Claims claims = claimsJws.getBody();
+            // subject 只存 userId，其余业务身份放到 claim；解析后统一交给 AuthUser/TokenPayload 使用。
             return new TokenPayload(
                     Long.valueOf(claims.getSubject()),
                     claims.get("username", String.class),
@@ -90,6 +91,7 @@ public class JwtTokenProvider {
                     claims.get("tokenType", String.class)
             );
         } catch (Exception exception) {
+            // 签名错误、过期、格式错误不区分对外提示，避免暴露 token 解析细节。
             throw new BusinessException(ErrorCode.TOKEN_INVALID);
         }
     }
@@ -112,6 +114,7 @@ public class JwtTokenProvider {
         Date expiredAt = new Date(now.getTime() + expireSeconds * 1000);
         return Jwts.builder()
                 .setSubject(String.valueOf(userId))
+                // sessionId 用来绑定 Redis 中的 refresh token，支持单会话登出和令牌轮换。
                 .claim("username", username)
                 .claim("roleCode", roleCode)
                 .claim("sessionId", sessionId)

@@ -34,9 +34,11 @@ public class JavaMailRegisterMailService implements RegisterMailService {
     @Override
     public void sendVerifyCode(String email, String code, long ttlSeconds) {
         if (!registerMailProperties.isEnabled()) {
+            // 部署环境可通过 MAIL_REGISTER_ENABLED=false 临时关闭注册邮件，接口返回明确业务错误。
             throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_SEND_FAILED, "邮箱验证码服务未启用");
         }
         if (!StringUtils.hasText(registerMailProperties.getFrom())) {
+            // from 为空时 JavaMail 的错误信息较底层，这里提前转成可读业务提示。
             throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_SEND_FAILED, "邮箱验证码发件人未配置");
         }
         SimpleMailMessage message = new SimpleMailMessage();
@@ -45,6 +47,7 @@ public class JavaMailRegisterMailService implements RegisterMailService {
         message.setSubject(resolveSubject());
         message.setText(buildContent(code, ttlSeconds));
         try {
+            // 使用同步发送，只有 SMTP 接受成功后调用方才会缓存验证码。
             javaMailSender.send(message);
         } catch (MailException exception) {
             log.error("register verify code mail send failed, email={}, message={}", email, exception.getMessage(), exception);
@@ -60,6 +63,7 @@ public class JavaMailRegisterMailService implements RegisterMailService {
 
     private String buildContent(String code, long ttlSeconds) {
         long ttlMinutes = Math.max(1L, ttlSeconds / 60L);
+        // 邮件正文保持纯文本，兼容大多数企业邮箱和简单 SMTP 服务。
         return "您好，\n\n"
                 + "您正在注册 Spring Admin Starter，邮箱验证码为：\n\n"
                 + code + "\n\n"

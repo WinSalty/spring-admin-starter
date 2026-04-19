@@ -43,6 +43,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ApiResponse<Object> handleBusinessException(BusinessException exception, HttpServletRequest request) {
         log.error("business exception, uri={}, message={}", request.getRequestURI(), exception.getMessage());
+        // 业务异常代表可预期失败，响应保留原业务码；同时写异常日志，方便后台追踪高频失败原因。
         recordExceptionLog(request.getRequestURI(), exception.getMessage(), "business", IpUtils.getClientIp(request));
         return ApiResponse.failure(exception.getCode(), exception.getMessage());
     }
@@ -53,6 +54,7 @@ public class GlobalExceptionHandler {
         String message = exception.getBindingResult().getFieldError() == null
                 ? "请求参数校验失败"
                 : exception.getBindingResult().getFieldError().getDefaultMessage();
+        // JSON body 的字段校验错误直接返回首个字段提示，避免前端再解析复杂 BindingResult。
         log.error("method argument not valid, uri={}, message={}", request.getRequestURI(), message);
         return ApiResponse.failure(ErrorCode.REQUEST_PARAM_INVALID.getCode(), message);
     }
@@ -73,6 +75,7 @@ public class GlobalExceptionHandler {
                 .findFirst()
                 .map(ConstraintViolation::getMessage)
                 .orElse("请求参数校验失败");
+        // @RequestParam/@PathVariable 的校验异常不经过 BindingResult，需要单独收敛。
         log.error("constraint violation, uri={}, message={}", request.getRequestURI(), message);
         return ApiResponse.failure(ErrorCode.REQUEST_PARAM_INVALID.getCode(), message);
     }
@@ -96,6 +99,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ApiResponse<Object> handleException(Exception exception, HttpServletRequest request) {
         log.error("system exception, uri={}, message={}", request.getRequestURI(), exception.getMessage(), exception);
+        // 未预期异常不把堆栈或数据库错误暴露给前端，只在服务端日志和异常日志保留细节。
         recordExceptionLog(request.getRequestURI(), exception.getMessage(), "system", IpUtils.getClientIp(request));
         return ApiResponse.failure(5000, "系统繁忙，请稍后重试");
     }
@@ -105,6 +109,7 @@ public class GlobalExceptionHandler {
      */
     private void recordExceptionLog(String target, String description, String logType, String ipAddress) {
         OperationLogRequest request = new OperationLogRequest();
+        // 这里复用日志模块的 DTO，统一进入 operation_log 表；LogService 内部会吞掉二次写日志失败。
         request.setLogType(logType);
         request.setOwner(SystemConstants.SYSTEM_OPERATOR);
         request.setName("异常日志");

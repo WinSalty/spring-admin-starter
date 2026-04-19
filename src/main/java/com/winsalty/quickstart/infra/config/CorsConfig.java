@@ -25,9 +25,11 @@ public class CorsConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         if (allowedOrigins == null || allowedOrigins.isEmpty()) {
+            // 生产环境默认不开放跨域；只有显式配置白名单时才注册 CORS 规则。
             return;
         }
         registry.addMapping("/**")
+                // 使用 allowedOrigins 而不是 "*"，否则 allowCredentials(true) 会被浏览器拒绝。
                 .allowedOrigins(allowedOrigins.toArray(new String[0]))
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                 .allowedHeaders("*")

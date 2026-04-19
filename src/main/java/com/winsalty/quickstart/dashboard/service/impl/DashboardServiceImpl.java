@@ -39,6 +39,7 @@ public class DashboardServiceImpl implements DashboardService {
     public DashboardOverviewVo getOverview() {
         log.info("dashboard overview loaded");
         DashboardOverviewVo response = new DashboardOverviewVo();
+        // 工作台只展示概览，限制每类最多 200 条，避免看板接口扫描过大数据集。
         List<SystemRecordEntity> users = systemMapper.findPage("users", null, null, null, 0, 200);
         List<SystemRecordEntity> roles = systemMapper.findPage("roles", null, null, null, 0, 200);
         List<SystemRecordEntity> dicts = systemMapper.findPage("dicts", null, null, null, 0, 200);
@@ -90,10 +91,12 @@ public class DashboardServiceImpl implements DashboardService {
         int size = Math.min(logs.size(), 7);
         for (int index = size - 1; index >= 0; index--) {
             SystemRecordEntity entity = logs.get(index);
+            // 日志按最近记录逆序取 7 条，再倒序插入，前端折线图呈现从旧到新的趋势。
             String date = entity.getCreatedAt() == null || entity.getCreatedAt().length() < 10 ? "未知" : entity.getCreatedAt().substring(5, 10);
             trend.add(buildTrendPoint(date, safeLong(entity.getDurationMs()), "成功".equals(entity.getResult()) ? 1L : 0L));
         }
         if (trend.isEmpty()) {
+            // 空数据时给一个零点，避免 ECharts 因空数组出现无坐标轴的空白体验。
             trend.add(buildTrendPoint("暂无", 0L, 0L));
         }
         return trend;

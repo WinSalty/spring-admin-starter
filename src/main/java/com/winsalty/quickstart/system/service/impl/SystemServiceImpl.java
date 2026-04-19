@@ -63,6 +63,7 @@ public class SystemServiceImpl implements SystemService {
         int pageNo = request.getPageNo() == null ? 1 : request.getPageNo();
         int pageSize = request.getPageSize() == null ? 10 : request.getPageSize();
         if ("dicts".equals(request.getModuleKey()) && !StringUtils.hasText(request.getLogType())) {
+            // 旧版系统管理页的字典列表数据量较小，优先走版本化缓存再内存过滤，减少频繁查库。
             long version = currentVersion(DICT_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
             String cacheKey = DICT_CACHE_KEY_PREFIX + version + ":list";
             Object cached = redisCacheService.get(cacheKey);
@@ -79,6 +80,7 @@ public class SystemServiceImpl implements SystemService {
             List<SystemRecordVo> filtered = filterDictPage(records, request.getKeyword(), request.getStatus());
             int fromIndex = Math.min((pageNo - 1) * pageSize, filtered.size());
             int toIndex = Math.min(fromIndex + pageSize, filtered.size());
+            // subList 边界用 Math.min 防御超出最后一页的请求，保证返回空列表而不是抛异常。
             return new PageResponse<SystemRecordVo>(filtered.subList(fromIndex, toIndex), pageNo, pageSize, filtered.size());
         }
         int offset = (pageNo - 1) * pageSize;
@@ -119,10 +121,12 @@ public class SystemServiceImpl implements SystemService {
             if (duplicated != null && !duplicated.getRecordCode().equals(existed.getRecordCode())) {
                 throw new BusinessException(4010, "记录编码已存在");
             }
+            // 公共字段和模块差异字段拆开映射，避免用户、角色、字典互相污染字段。
             applyCommonFields(existed, request);
             applyModuleFields(existed, request);
             updateWritable(existed);
             if ("users".equals(existed.getModuleKey())) {
+                // 用户保存后重建角色关系，避免历史角色残留。
                 assignRoles(existed.getId(), resolveRequestedRoleCodes(request));
             }
             if ("dicts".equals(existed.getModuleKey())) {
@@ -143,6 +147,7 @@ public class SystemServiceImpl implements SystemService {
         applyModuleFields(entity, request);
         insertWritable(entity);
         if ("users".equals(entity.getModuleKey())) {
+            // 新增用户默认使用请求角色；未传角色时 resolveRequestedRoleCodes 会兜底 viewer。
             assignRoles(entity.getId(), resolveRequestedRoleCodes(request));
         }
         if ("dicts".equals(entity.getModuleKey())) {
@@ -164,6 +169,7 @@ public class SystemServiceImpl implements SystemService {
             throw new BusinessException(4042, "系统记录不存在");
         }
         if ("logs".equals(existed.getModuleKey())) {
+            // 日志是审计事实记录，不允许通过系统管理页切状态。
             throw new BusinessException(4011, "日志模块不支持状态变更");
         }
         updateWritableStatus(existed, request.getStatus());
@@ -193,6 +199,7 @@ public class SystemServiceImpl implements SystemService {
     public SystemMenuVo saveMenu(SystemMenuSaveRequest request) {
         SystemMenuEntity duplicated = systemMapper.findMenuByCode(request.getCode());
         Long parentId = parseParentId(request.getParentId());
+        // 父节点和外链字段先校验，后续新增/编辑共用同一套规则。
         validateMenuFields(request, parentId);
         if (StringUtils.hasText(request.getId())) {
             SystemMenuEntity existed = systemMapper.findMenuById(parseRequiredId(request.getId()));
@@ -203,6 +210,7 @@ public class SystemServiceImpl implements SystemService {
                 throw new BusinessException(4010, "菜单编码已存在");
             }
             if (parentId != null && parentId.equals(existed.getId())) {
+                // 只禁止直接把自己设为父级；更深层环路在当前扁平菜单管理中暂不递归校验。
                 throw new BusinessException(4014, "父级菜单不能选择自身");
             }
             existed.setParentId(parentId);
@@ -252,6 +260,7 @@ public class SystemServiceImpl implements SystemService {
     public SystemRecordVo assignUserRoles(UserRoleAssignRequest request) {
         SystemRecordEntity user = loadWritableRecord(request.getUserId());
         if (!"users".equals(user.getModuleKey())) {
+            // 前端传的是 recordCode，这里防止误把角色/字典记录当成用户做角色分配。
             throw new BusinessException(4050, "只能为用户分配角色");
         }
         assignRoles(user.getId(), request.getRoleCodes());
@@ -319,6 +328,7 @@ public class SystemServiceImpl implements SystemService {
             }
         }
         if ("external".equals(request.getMenuType()) && !StringUtils.hasText(request.getExternalLink())) {
+            // 外链菜单没有内部 routePath，必须依赖 externalLink 才能被前端正确打开。
             throw new BusinessException(4016, "外链菜单必须填写 externalLink");
         }
     }
@@ -359,6 +369,7 @@ public class SystemServiceImpl implements SystemService {
         String[] segments = path.split("/");
         for (int index = segments.length - 1; index >= 0; index--) {
             if (StringUtils.hasText(segments[index])) {
+                // /system/users 这类路径取最后一段 users 作为 routeCode，供前端路由权限匹配。
                 return segments[index];
             }
         }
@@ -394,6 +405,7 @@ public class SystemServiceImpl implements SystemService {
 
     private void insertWritable(SystemRecordEntity entity) {
         if ("users".equals(entity.getModuleKey())) {
+            // 用户表 password 字段借用 roleCodes 入参承载默认密码哈希，mapper 中只写入 password。
             systemMapper.insertUser(entity);
             return;
         }
@@ -459,6 +471,7 @@ public class SystemServiceImpl implements SystemService {
      */
     private void applyModuleFields(SystemRecordEntity entity, SystemSaveRequest request) {
         if ("users".equals(request.getModuleKey())) {
+            // 系统管理页新增用户时密码统一初始化，后续可通过重置密码流程修改。
             entity.setDepartmentId(resolveDepartmentId(request.getDepartmentId(), request.getOwner()));
             entity.setRoleCodes(passwordEncoder.encode("SpringAdmin@2026"));
             return;
@@ -476,6 +489,7 @@ public class SystemServiceImpl implements SystemService {
                 entity.setItemCount(0L);
             }
             if (!StringUtils.hasText(entity.getCacheKey())) {
+                // cacheKey 用于前端展示旧字典缓存标识，未传时按编码生成稳定值。
                 entity.setCacheKey("dict:" + request.getCode());
             }
             return;
@@ -563,6 +577,7 @@ public class SystemServiceImpl implements SystemService {
             }
             SystemMenuVo parent = menuMap.get(menu.getParentId());
             if (parent == null) {
+                // 父节点被过滤时子节点提升为根节点，避免管理页查询条件导致整棵分支消失。
                 roots.add(menu);
                 continue;
             }
@@ -618,6 +633,7 @@ public class SystemServiceImpl implements SystemService {
             }
         }
         if (StringUtils.hasText(owner)) {
+            // 兼容旧表单只传 owner 文本的情况，尝试用部门名称/负责人等关键字反查部门。
             return systemMapper.findDepartmentIdByKeyword(owner.trim());
         }
         return null;
@@ -659,6 +675,7 @@ public class SystemServiceImpl implements SystemService {
             }
             Long roleId = systemMapper.findRoleIdByCode(roleCode.trim());
             if (roleId == null) {
+                // 兼容前端传角色名称的老数据，优先 code，找不到再按 name 匹配。
                 roleId = systemMapper.findRoleIdByName(roleCode.trim());
             }
             if (roleId == null) {
@@ -675,6 +692,7 @@ public class SystemServiceImpl implements SystemService {
         for (Long roleId : roleIds) {
             systemMapper.insertUserRole(userId, roleId);
         }
+        // 用户角色变化会影响 bootstrap 中的菜单/路由/按钮，必须刷新版本。
         nextVersion(BOOTSTRAP_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
     }
 }

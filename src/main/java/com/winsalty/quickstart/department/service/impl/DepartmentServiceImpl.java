@@ -56,6 +56,7 @@ public class DepartmentServiceImpl implements DepartmentService {
         DepartmentEntity duplicated = departmentMapper.findByCode(request.getCode());
         DepartmentEntity entity = StringUtils.hasText(request.getId()) ? load(parseId(request.getId())) : new DepartmentEntity();
         if (duplicated != null && (entity.getId() == null || !duplicated.getId().equals(entity.getId()))) {
+            // 部门编码用于系统管理页和用户归属查询，必须全局唯一。
             throw new BusinessException(4047, "部门编码已存在");
         }
         applyFields(entity, request, parentId);
@@ -94,6 +95,7 @@ public class DepartmentServiceImpl implements DepartmentService {
             throw new BusinessException(4046, "父级部门不存在");
         }
         if (StringUtils.hasText(currentId) && parentId.equals(parseId(currentId))) {
+            // 当前只拦截直接自引用，避免最常见的树结构错误。
             throw new BusinessException(4048, "父级部门不能选择自身");
         }
     }
@@ -129,6 +131,7 @@ public class DepartmentServiceImpl implements DepartmentService {
             }
             DepartmentVo parent = map.get(item.getParentId());
             if (parent == null) {
+                // 查询条件过滤掉父部门时，将子部门提升为根节点，方便前端仍然展示命中结果。
                 roots.add(item);
                 continue;
             }

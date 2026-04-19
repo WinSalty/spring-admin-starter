@@ -57,6 +57,7 @@ public class PermissionServiceImpl implements PermissionService {
     public PermissionBootstrapVo getBootstrap(Long userId, String roleCode) {
         String actualRoleCode = permissionMapper.findRoleCodeByUserId(userId);
         if (StringUtils.hasText(actualRoleCode)) {
+            // token 中的 roleCode 只作为快速载荷，最终以数据库当前角色为准，支持角色调整后立即生效。
             roleCode = actualRoleCode;
         }
         long version = currentVersion(BOOTSTRAP_VERSION_KEY);
@@ -71,6 +72,7 @@ public class PermissionServiceImpl implements PermissionService {
         List<RoleActionEntity> actions = permissionMapper.findActionsByRoleCode(roleCode);
 
         PermissionBootstrapVo response = new PermissionBootstrapVo();
+        // menus 给侧边栏和动态路由使用，routes 给前端 RouteGuard 使用，actions 给按钮级 Access 使用。
         response.setMenus(buildMenuTree(menus));
         response.setRoutes(routes);
         response.setActions(buildActions(actions));
@@ -91,6 +93,7 @@ public class PermissionServiceImpl implements PermissionService {
         }
         PermissionAssignmentVo response = new PermissionAssignmentVo();
         response.setRoleCode(roleCode);
+        // 前端穿梭框使用字符串 id，后端 mapper 保持 Long，出参在这里统一转换。
         response.setMenuIds(toStringIds(permissionMapper.findMenuIdsByRoleCode(roleCode)));
         response.setRouteCodes(permissionMapper.findRouteCodesByRoleCode(roleCode));
         response.setActionCodes(permissionMapper.findActionCodesByRoleCode(roleCode));
@@ -112,14 +115,17 @@ public class PermissionServiceImpl implements PermissionService {
         List<Long> menuIds = parseMenuIds(request.getMenuIds());
         List<MenuEntity> menus = menuIds.isEmpty() ? Collections.<MenuEntity>emptyList() : permissionMapper.findMenusByIds(menuIds);
         if (menus.size() != menuIds.size()) {
+            // 菜单必须来自 sys_menu，防止前端提交不存在的 id 造成脏授权关系。
             throw new BusinessException(4012, "存在无效菜单ID");
         }
         Set<String> routeCodeSet = new LinkedHashSet<String>(distinctNonBlank(request.getRouteCodes()));
         Set<String> validRouteCodes = new LinkedHashSet<String>(permissionMapper.findAllRouteCodes());
         if (!validRouteCodes.containsAll(routeCodeSet)) {
+            // 路由码必须来自菜单表登记值，避免授权到前端不存在或后端未纳管的路由。
             throw new BusinessException(4013, "存在未授权的路由权限码");
         }
 
+        // 权限分配按“先删后插”整体重建，配合事务保证三张关系表要么全部成功要么全部回滚。
         permissionMapper.deleteRoleMenus(roleId);
         permissionMapper.deleteRoleActions(roleId);
         permissionMapper.deleteRoleRoutes(roleId);
@@ -133,6 +139,7 @@ public class PermissionServiceImpl implements PermissionService {
         for (String actionCode : distinctNonBlank(request.getActionCodes())) {
             permissionMapper.insertRoleAction(roleId, actionCode, resolveActionName(actionCode));
         }
+        // 只递增版本，不逐个删除旧 cache key；旧 key 等 TTL 自动过期，减少 Redis 扫描成本。
         long version = nextVersion(BOOTSTRAP_VERSION_KEY);
         log.info("permission assignment saved, roleCode={}, menuSize={}, routeSize={}, actionSize={}, cacheVersion={}",
                 request.getRoleCode(), menuIds.size(), routeCodeSet.size(), request.getActionCodes().size(), version);
@@ -147,6 +154,7 @@ public class PermissionServiceImpl implements PermissionService {
         if (cached instanceof Number) {
             return ((Number) cached).longValue();
         }
+        // 版本号丢失时从 1 重新开始；缓存 key 带版本和角色，不影响数据库真实权限。
         redisCacheService.set(versionKey, 1L, BOOTSTRAP_CACHE_TTL_SECONDS * 24);
         return 1L;
     }
@@ -169,6 +177,7 @@ public class PermissionServiceImpl implements PermissionService {
         }
         for (String value : values) {
             if (StringUtils.hasText(value)) {
+                // LinkedHashSet 在去重的同时保留前端传入顺序，便于排查保存后的权限差异。
                 result.add(value.trim());
             }
         }
@@ -191,6 +200,7 @@ public class PermissionServiceImpl implements PermissionService {
             try {
                 deduplicated.add(Long.valueOf(menuId.trim()));
             } catch (NumberFormatException exception) {
+                // 字符串无法转 Long 时直接拒绝，避免 SQL 层隐式转换带来不可控结果。
                 throw new BusinessException(4012, "存在无效菜单ID");
             }
         }
@@ -222,6 +232,7 @@ public class PermissionServiceImpl implements PermissionService {
         List<PermissionMenuVo> roots = new ArrayList<PermissionMenuVo>();
         for (MenuEntity menu : menus) {
             PermissionMenuVo item = new PermissionMenuVo();
+            // 后端字段按数据库命名，VO 字段按前端菜单协议命名，在这里集中做协议转换。
             item.setId(String.valueOf(menu.getId()));
             item.setParentId(menu.getParentId() == null ? null : String.valueOf(menu.getParentId()));
             item.setTitle(menu.getTitle());
@@ -245,6 +256,7 @@ public class PermissionServiceImpl implements PermissionService {
             }
             PermissionMenuVo parent = menuMap.get(menu.getParentId());
             if (parent == null) {
+                // 父菜单被禁用或未授权时，把子菜单提升为根节点，避免有权限页面入口被完全隐藏。
                 roots.add(menu);
                 continue;
             }
@@ -257,6 +269,7 @@ public class PermissionServiceImpl implements PermissionService {
      * 将按钮权限码转换为展示名。未登记的权限码原样返回，保证扩展权限不会被丢弃。
      */
     private String resolveActionName(String actionCode) {
+        // 权限码展示名当前由后端兜底维护；新增动作即使未登记展示名，也会保留原始 actionCode。
         if ("query:add".equals(actionCode)) {
             return "新增查询";
         }

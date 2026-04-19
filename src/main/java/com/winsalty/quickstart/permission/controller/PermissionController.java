@@ -42,6 +42,7 @@ public class PermissionController extends BaseController {
     @GetMapping("/bootstrap")
     public ApiResponse<PermissionBootstrapVo> bootstrap() {
         AuthUser authUser = requireCurrentUser();
+        // userId 用于回查数据库当前角色，token 中的 roleCode 仅作为兜底入参。
         return ApiResponse.success(permissionService.getBootstrap(authUser.getUserId(), authUser.getRoleCode()));
     }
 
@@ -60,6 +61,7 @@ public class PermissionController extends BaseController {
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/assignment")
     public ApiResponse<PermissionAssignmentVo> saveAssignment(@Valid @RequestBody PermissionAssignmentSaveRequest request) {
+        // 角色权限变更是高风险操作，审计切面会记录请求摘要和执行结果。
         return ApiResponse.success("保存成功", permissionService.saveAssignment(request));
     }
 }

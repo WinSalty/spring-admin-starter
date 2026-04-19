@@ -88,12 +88,14 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         String originalName = StringUtils.cleanPath(file.getOriginalFilename() == null ? "file" : file.getOriginalFilename());
         String extension = resolveExtension(originalName);
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
+            // 扩展名先过白名单，快速拒绝脚本、可执行文件等明显不允许的类型。
             throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
         }
         // 校验 Content-Type 与扩展名是否匹配，防止伪造扩展名绕过校验
         String expectedMime = EXTENSION_MIME_MAP.get(extension);
         String actualMime = file.getContentType();
         if (expectedMime != null && !expectedMime.equals(actualMime)) {
+            // Content-Type 不能完全防伪，但能挡住最常见的“改后缀上传”误用。
             throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
         }
         File directory = new File(uploadDir);
@@ -103,6 +105,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         String storedName = UUID.randomUUID().toString().replace("-", "") + "." + extension;
         File target = new File(directory, storedName);
         try {
+            // 先落盘再写数据库；若落盘失败，事务不会留下文件元数据。
             file.transferTo(target);
         } catch (IOException exception) {
             throw new BusinessException(ErrorCode.FILE_SAVE_FAILED);
@@ -110,6 +113,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         FileRecordEntity entity = new FileRecordEntity();
         entity.setFileCode("F" + System.currentTimeMillis());
         entity.setOriginalName(originalName);
+        // storedName 使用 UUID，避免用户上传同名文件互相覆盖。
         entity.setStoredName(storedName);
         entity.setFilePath(target.getPath());
         entity.setContentType(file.getContentType());
@@ -161,6 +165,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     public FileRecordVo delete(String id) {
         Long fileId = parseId(id);
         FileRecordVo vo = toVo(load(fileId));
+        // 只软删除数据库记录，不立即删除磁盘文件，便于后续做审计或恢复策略。
         fileRecordMapper.softDelete(fileId);
         return vo;
     }

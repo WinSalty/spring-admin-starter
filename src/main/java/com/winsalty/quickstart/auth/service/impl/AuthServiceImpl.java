@@ -69,6 +69,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     public LoginResponse login(LoginRequest request) {
         UserEntity user = userMapper.findByUsername(request.getUsername());
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            // 用户不存在和密码错误使用同一提示，防止通过接口枚举有效用户名。
             throw new BusinessException(ErrorCode.LOGIN_BAD_CREDENTIALS);
         }
         if (!CommonStatusConstants.ACTIVE.equals(user.getStatus())) {
@@ -78,9 +79,11 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         if (!StringUtils.hasText(roleCode)) {
             throw new BusinessException(ErrorCode.ROLE_NOT_ASSIGNED);
         }
+        // sessionId 同时写入 access/refresh token，后续 refresh 时用它定位 Redis 中的当前会话。
         String sessionId = jwtTokenProvider.generateSessionId();
         String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUsername(), roleCode, sessionId);
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId(), user.getUsername(), roleCode, sessionId);
+        // Redis 中只保存 refresh token 当前有效版本，access token 保持无状态。
         authSessionService.createSession(sessionId, refreshToken, jwtTokenProvider.getRefreshExpireSeconds());
         log.info("user login success, username={}, roleCode={}, sessionId={}", user.getUsername(), roleCode, sessionId);
         LoginResponse response = new LoginResponse(accessToken, accessToken, refreshToken,
@@ -98,14 +101,17 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     public RefreshTokenResponse refreshToken(RefreshTokenRequest request) {
         TokenPayload payload = jwtTokenProvider.parseToken(request.getRefreshToken());
         if (!SecurityConstants.TOKEN_TYPE_REFRESH.equals(payload.getTokenType())) {
+            // access token 不能用于换取新 token，避免权限边界混用。
             throw new BusinessException(ErrorCode.TOKEN_INVALID);
         }
         if (!authSessionService.exists(payload.getSessionId())
                 || !authSessionService.matchesRefreshToken(payload.getSessionId(), request.getRefreshToken())) {
+            // session 不存在通常代表已登出；refresh token 不匹配代表已被轮换或疑似重放。
             throw new BusinessException(ErrorCode.SESSION_INVALID);
         }
         String accessToken = jwtTokenProvider.createAccessToken(payload.getUserId(), payload.getUsername(), payload.getRoleCode(), payload.getSessionId());
         String refreshToken = jwtTokenProvider.createRefreshToken(payload.getUserId(), payload.getUsername(), payload.getRoleCode(), payload.getSessionId());
+        // 每次刷新都覆盖 Redis 中的 refresh token，旧 refresh token 随即失效。
         authSessionService.refreshSession(payload.getSessionId(), refreshToken, jwtTokenProvider.getRefreshExpireSeconds());
         RefreshTokenResponse response = new RefreshTokenResponse();
         response.setAccessToken(accessToken);
@@ -132,6 +138,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void register(RegisterRequest request) {
+        // 验证码先校验并消费，避免同一验证码被重复注册多个账号。
         registerVerificationService.verifyCode(request.getEmail(), request.getVerifyCode());
         UserEntity existedUser = userMapper.findByUsername(request.getUsername());
         if (existedUser != null) {
@@ -146,6 +153,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         user.setStatus(CommonStatusConstants.ACTIVE);
         user.setOwner(SystemConstants.REGISTER_OWNER);
         user.setDescription(SystemConstants.REGISTER_DESCRIPTION);
+        // 当前 starter 使用初始化 SQL 中的运营中心部门和 viewer 角色作为注册用户默认归属。
         user.setDepartmentId(DEFAULT_DEPARTMENT_ID);
         user.setDeleted(0);
         userMapper.insert(user);
@@ -171,6 +179,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
         ProfileResponse response = new ProfileResponse();
+        // profile 只返回前端恢复登录态需要的身份字段，不返回邮箱、密码摘要等非必要信息。
         response.setUserId(user.getId());
         response.setUsername(user.getUsername());
         response.setNickname(user.getNickname());
