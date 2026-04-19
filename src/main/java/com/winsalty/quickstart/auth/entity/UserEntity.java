@@ -30,6 +30,26 @@ public class UserEntity {
     private String password;
     /** 用户昵称。 */
     private String nickname;
+    /** 头像地址。 */
+    private String avatarUrl;
+    /** 国家/地区。 */
+    private String country;
+    /** 所在省份。 */
+    private String province;
+    /** 所在城市。 */
+    private String city;
+    /** 街道地址。 */
+    private String streetAddress;
+    /** 电话区号。 */
+    private String phonePrefix;
+    /** 联系电话。 */
+    private String phoneNumber;
+    /** 账号安全通知开关。 */
+    private Integer notifyAccount;
+    /** 系统消息通知开关。 */
+    private Integer notifySystem;
+    /** 待办任务通知开关。 */
+    private Integer notifyTodo;
     /** 用户状态。 */
     private String status;
     /** 归属负责人。 */

@@ -1,6 +1,9 @@
 package com.winsalty.quickstart.auth.service.impl;
 
 import com.winsalty.quickstart.auth.dto.LoginRequest;
+import com.winsalty.quickstart.auth.dto.NotificationSettingsRequest;
+import com.winsalty.quickstart.auth.dto.PasswordUpdateRequest;
+import com.winsalty.quickstart.auth.dto.ProfileUpdateRequest;
 import com.winsalty.quickstart.auth.dto.RefreshTokenRequest;
 import com.winsalty.quickstart.auth.dto.RegisterRequest;
 import com.winsalty.quickstart.auth.entity.UserEntity;
@@ -149,6 +152,11 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setNickname(request.getUsername());
+        user.setCountry("中国");
+        user.setPhonePrefix("86");
+        user.setNotifyAccount(1);
+        user.setNotifySystem(1);
+        user.setNotifyTodo(0);
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setStatus(CommonStatusConstants.ACTIVE);
         user.setOwner(SystemConstants.REGISTER_OWNER);
@@ -174,17 +182,98 @@ public class AuthServiceImpl extends BaseService implements AuthService {
      */
     @Override
     public ProfileResponse getProfile(Long userId) {
-        UserEntity user = userMapper.selectById(userId);
+        UserEntity user = userMapper.findActiveById(userId);
         if (user == null || user.getDeleted() != null && user.getDeleted() == 1) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
+        return buildProfileResponse(user);
+    }
+
+    @Override
+    public ProfileResponse updateProfile(Long userId, ProfileUpdateRequest request) {
+        UserEntity user = userMapper.findActiveById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        user.setEmail(trimToNull(request.getEmail()));
+        user.setNickname(trimToNull(request.getNickname()));
+        user.setDescription(trimToDefault(request.getDescription(), ""));
+        user.setAvatarUrl(trimToNull(request.getAvatarUrl()));
+        user.setCountry(trimToDefault(request.getCountry(), "中国"));
+        user.setProvince(trimToNull(request.getProvince()));
+        user.setCity(trimToNull(request.getCity()));
+        user.setStreetAddress(trimToNull(request.getStreetAddress()));
+        user.setPhonePrefix(trimToNull(request.getPhonePrefix()));
+        user.setPhoneNumber(trimToNull(request.getPhoneNumber()));
+        userMapper.updateProfile(user);
+        return getProfile(userId);
+    }
+
+    @Override
+    public void updatePassword(Long userId, PasswordUpdateRequest request) {
+        UserEntity user = userMapper.findActiveById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new BusinessException(ErrorCode.LOGIN_BAD_CREDENTIALS, "当前密码不正确");
+        }
+        userMapper.updatePassword(userId, passwordEncoder.encode(request.getNewPassword()));
+    }
+
+    @Override
+    public ProfileResponse updateNotificationSettings(Long userId, NotificationSettingsRequest request) {
+        UserEntity user = userMapper.findActiveById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        user.setNotifyAccount(Boolean.TRUE.equals(request.getNotifyAccount()) ? 1 : 0);
+        user.setNotifySystem(Boolean.TRUE.equals(request.getNotifySystem()) ? 1 : 0);
+        user.setNotifyTodo(Boolean.TRUE.equals(request.getNotifyTodo()) ? 1 : 0);
+        userMapper.updateNotificationSettings(user);
+        return getProfile(userId);
+    }
+
+    private ProfileResponse buildProfileResponse(UserEntity user) {
         ProfileResponse response = new ProfileResponse();
-        // profile 只返回前端恢复登录态需要的身份字段，不返回邮箱、密码摘要等非必要信息。
         response.setUserId(user.getId());
         response.setUsername(user.getUsername());
+        response.setEmail(user.getEmail());
         response.setNickname(user.getNickname());
-        response.setRoleCode(permissionMapper.findRoleCodeByUserId(userId));
-        response.setRoleName(permissionMapper.findRoleNameByUserId(userId));
+        response.setDescription(user.getDescription());
+        response.setAvatarUrl(user.getAvatarUrl());
+        response.setCountry(StringUtils.hasText(user.getCountry()) ? user.getCountry() : "中国");
+        response.setProvince(user.getProvince());
+        response.setCity(user.getCity());
+        response.setStreetAddress(user.getStreetAddress());
+        response.setPhonePrefix(user.getPhonePrefix());
+        response.setPhoneNumber(user.getPhoneNumber());
+        response.setNotifyAccount(toBoolean(user.getNotifyAccount(), true));
+        response.setNotifySystem(toBoolean(user.getNotifySystem(), true));
+        response.setNotifyTodo(toBoolean(user.getNotifyTodo(), false));
+        response.setRoleCode(permissionMapper.findRoleCodeByUserId(user.getId()));
+        response.setRoleName(permissionMapper.findRoleNameByUserId(user.getId()));
         return response;
+    }
+
+    private Boolean toBoolean(Integer value, boolean defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        return value == 1;
+    }
+
+    private String trimToNull(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private String trimToDefault(String value, String defaultValue) {
+        if (!StringUtils.hasText(value)) {
+            return defaultValue;
+        }
+        return value.trim();
     }
 }

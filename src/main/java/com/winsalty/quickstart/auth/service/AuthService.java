@@ -1,6 +1,9 @@
 package com.winsalty.quickstart.auth.service;
 
 import com.winsalty.quickstart.auth.dto.LoginRequest;
+import com.winsalty.quickstart.auth.dto.NotificationSettingsRequest;
+import com.winsalty.quickstart.auth.dto.PasswordUpdateRequest;
+import com.winsalty.quickstart.auth.dto.ProfileUpdateRequest;
 import com.winsalty.quickstart.auth.dto.RefreshTokenRequest;
 import com.winsalty.quickstart.auth.dto.RegisterRequest;
 import com.winsalty.quickstart.auth.vo.LoginResponse;
@@ -25,4 +28,10 @@ public interface AuthService {
     void sendRegisterVerifyCode(String email);
 
     ProfileResponse getProfile(Long userId);
+
+    ProfileResponse updateProfile(Long userId, ProfileUpdateRequest request);
+
+    void updatePassword(Long userId, PasswordUpdateRequest request);
+
+    ProfileResponse updateNotificationSettings(Long userId, NotificationSettingsRequest request);
 }

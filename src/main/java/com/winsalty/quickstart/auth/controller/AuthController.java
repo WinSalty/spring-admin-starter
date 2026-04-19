@@ -2,6 +2,9 @@ package com.winsalty.quickstart.auth.controller;
 
 import com.winsalty.quickstart.auth.annotation.AuditLog;
 import com.winsalty.quickstart.auth.dto.LoginRequest;
+import com.winsalty.quickstart.auth.dto.NotificationSettingsRequest;
+import com.winsalty.quickstart.auth.dto.PasswordUpdateRequest;
+import com.winsalty.quickstart.auth.dto.ProfileUpdateRequest;
 import com.winsalty.quickstart.auth.dto.RefreshTokenRequest;
 import com.winsalty.quickstart.auth.dto.RegisterRequest;
 import com.winsalty.quickstart.auth.security.AuthUser;
@@ -17,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -102,5 +106,24 @@ public class AuthController extends BaseController {
     @GetMapping("/profile")
     public ApiResponse<ProfileResponse> profile() {
         return ApiResponse.success(authService.getProfile(currentUserId()));
+    }
+
+    @AuditLog(logType = "operation", code = "auth_profile_update", name = "更新个人资料")
+    @PutMapping("/profile")
+    public ApiResponse<ProfileResponse> updateProfile(@Validated @RequestBody ProfileUpdateRequest request) {
+        return ApiResponse.success("保存成功", authService.updateProfile(currentUserId(), request));
+    }
+
+    @AuditLog(logType = "operation", code = "auth_password_update", name = "修改登录密码")
+    @PostMapping("/password")
+    public ApiResponse<Object> updatePassword(@Validated @RequestBody PasswordUpdateRequest request) {
+        authService.updatePassword(currentUserId(), request);
+        return ApiResponse.success("密码已更新", null);
+    }
+
+    @AuditLog(logType = "operation", code = "auth_notification_update", name = "更新通知设置")
+    @PutMapping("/profile/notifications")
+    public ApiResponse<ProfileResponse> updateNotificationSettings(@Validated @RequestBody NotificationSettingsRequest request) {
+        return ApiResponse.success("通知设置已保存", authService.updateNotificationSettings(currentUserId(), request));
     }
 }

@@ -1,23 +1,45 @@
 CREATE TABLE IF NOT EXISTS sys_user (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    record_code VARCHAR(32) NOT NULL COMMENT '展示编号',
     username VARCHAR(64) NOT NULL COMMENT '用户名',
     email VARCHAR(128) DEFAULT NULL COMMENT '邮箱',
     password VARCHAR(255) NOT NULL COMMENT '密码密文',
     nickname VARCHAR(64) DEFAULT NULL COMMENT '昵称',
+    avatar_url VARCHAR(255) DEFAULT NULL COMMENT '头像地址',
+    country VARCHAR(64) NOT NULL DEFAULT '中国' COMMENT '国家/地区',
+    province VARCHAR(64) DEFAULT NULL COMMENT '省份',
+    city VARCHAR(64) DEFAULT NULL COMMENT '城市',
+    street_address VARCHAR(255) DEFAULT NULL COMMENT '街道地址',
+    phone_prefix VARCHAR(12) DEFAULT NULL COMMENT '电话区号',
+    phone_number VARCHAR(32) DEFAULT NULL COMMENT '联系电话',
+    notify_account TINYINT(1) NOT NULL DEFAULT 1 COMMENT '账号安全通知',
+    notify_system TINYINT(1) NOT NULL DEFAULT 1 COMMENT '系统消息通知',
+    notify_todo TINYINT(1) NOT NULL DEFAULT 0 COMMENT '待办任务通知',
     status VARCHAR(16) NOT NULL DEFAULT 'active' COMMENT '状态',
+    owner VARCHAR(64) NOT NULL DEFAULT '平台技术部' COMMENT '负责人',
+    description VARCHAR(255) NOT NULL DEFAULT '' COMMENT '描述',
+    department_id BIGINT DEFAULT NULL COMMENT '部门ID',
+    last_login_at DATETIME NULL COMMENT '最近登录时间',
     deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_sys_user_record_code (record_code),
     UNIQUE KEY uk_sys_user_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 
 CREATE TABLE IF NOT EXISTS sys_role (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    record_code VARCHAR(32) NOT NULL COMMENT '展示编号',
     role_code VARCHAR(64) NOT NULL COMMENT '角色编码',
     role_name VARCHAR(64) NOT NULL COMMENT '角色名称',
     status VARCHAR(16) NOT NULL DEFAULT 'active' COMMENT '状态',
+    owner VARCHAR(64) NOT NULL DEFAULT '平台技术部' COMMENT '负责人',
+    description VARCHAR(255) NOT NULL DEFAULT '' COMMENT '描述',
+    data_scope VARCHAR(60) NOT NULL DEFAULT '全部数据' COMMENT '数据范围',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_sys_role_record_code (record_code),
     UNIQUE KEY uk_sys_role_role_code (role_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色表';
 

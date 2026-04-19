@@ -12,7 +12,19 @@ public class ProfileResponse {
 
     private Long userId;
     private String username;
+    private String email;
     private String nickname;
+    private String description;
+    private String avatarUrl;
+    private String country;
+    private String province;
+    private String city;
+    private String streetAddress;
+    private String phonePrefix;
+    private String phoneNumber;
+    private Boolean notifyAccount;
+    private Boolean notifySystem;
+    private Boolean notifyTodo;
     private String roleCode;
     private String roleName;
 }
