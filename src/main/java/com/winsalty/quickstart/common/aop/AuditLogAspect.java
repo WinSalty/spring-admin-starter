@@ -22,8 +22,12 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
+import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -137,13 +141,61 @@ public class AuditLogAspect {
         if (value == null) {
             return null;
         }
-        String text = String.valueOf(value);
-        // DTO 通常会被序列化为字符串，这里用字段名匹配做最后一道脱敏防线。
-        text = text.replaceAll("(?i)\\\"password\\\"\\s*:\\s*\\\"[^\\\"]*\\\"", "\"password\":\"***\"");
-        text = text.replaceAll("(?i)\\\"token\\\"\\s*:\\s*\\\"[^\\\"]*\\\"", "\"token\":\"***\"");
-        text = text.replaceAll("(?i)\\\"refreshToken\\\"\\s*:\\s*\\\"[^\\\"]*\\\"", "\"refreshToken\":\"***\"");
-        text = text.replaceAll("(?i)\\\"verifyCode\\\"\\s*:\\s*\\\"[^\\\"]*\\\"", "\"verifyCode\":\"***\"");
-        return text;
+        if (value instanceof CharSequence || value instanceof Character || value instanceof Enum) {
+            return sanitizeText(String.valueOf(value));
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return value;
+        }
+        if (value.getClass().isArray()) {
+            List<Object> list = new ArrayList<Object>();
+            int length = Array.getLength(value);
+            for (int i = 0; i < length; i++) {
+                list.add(sanitize(Array.get(value, i)));
+            }
+            return list;
+        }
+        if (value instanceof Collection) {
+            List<Object> list = new ArrayList<Object>();
+            for (Object item : (Collection<?>) value) {
+                list.add(sanitize(item));
+            }
+            return list;
+        }
+        if (value instanceof Map) {
+            Map<String, Object> map = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                String key = String.valueOf(entry.getKey());
+                map.put(key, isSensitiveKey(key) ? "***" : sanitize(entry.getValue()));
+            }
+            return map;
+        }
+        try {
+            // 先转换为 Jackson 能处理的树状结构，再递归脱敏，避免 ApiResponse 等对象落成 Class@hash。
+            return sanitize(objectMapper.convertValue(value, Object.class));
+        } catch (IllegalArgumentException exception) {
+            log.warn("audit log payload convert failed, type={}, message={}", value.getClass().getName(), exception.getMessage());
+            return sanitizeText(String.valueOf(value));
+        }
+    }
+
+    private boolean isSensitiveKey(String key) {
+        return "password".equalsIgnoreCase(key)
+                || "token".equalsIgnoreCase(key)
+                || "accessToken".equalsIgnoreCase(key)
+                || "refreshToken".equalsIgnoreCase(key)
+                || "verifyCode".equalsIgnoreCase(key);
+    }
+
+    private String sanitizeText(String text) {
+        String sanitized = text;
+        // 字符串兜底处理 JSON 片段，Map/DTO 的敏感字段优先通过 isSensitiveKey 精准脱敏。
+        sanitized = sanitized.replaceAll("(?i)\\\"password\\\"\\s*:\\s*\\\"[^\\\"]*\\\"", "\"password\":\"***\"");
+        sanitized = sanitized.replaceAll("(?i)\\\"token\\\"\\s*:\\s*\\\"[^\\\"]*\\\"", "\"token\":\"***\"");
+        sanitized = sanitized.replaceAll("(?i)\\\"accessToken\\\"\\s*:\\s*\\\"[^\\\"]*\\\"", "\"accessToken\":\"***\"");
+        sanitized = sanitized.replaceAll("(?i)\\\"refreshToken\\\"\\s*:\\s*\\\"[^\\\"]*\\\"", "\"refreshToken\":\"***\"");
+        sanitized = sanitized.replaceAll("(?i)\\\"verifyCode\\\"\\s*:\\s*\\\"[^\\\"]*\\\"", "\"verifyCode\":\"***\"");
+        return sanitized;
     }
 
     private String buildDescription(ProceedingJoinPoint joinPoint, HttpServletRequest request, Throwable throwable) {
