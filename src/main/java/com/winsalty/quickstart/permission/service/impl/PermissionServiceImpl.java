@@ -1,7 +1,6 @@
 package com.winsalty.quickstart.permission.service.impl;
 
 import com.winsalty.quickstart.common.exception.BusinessException;
-import com.winsalty.quickstart.infra.cache.RedisCacheService;
 import com.winsalty.quickstart.permission.dto.PermissionAssignmentSaveRequest;
 import com.winsalty.quickstart.permission.entity.MenuEntity;
 import com.winsalty.quickstart.permission.entity.RoleActionEntity;
@@ -35,37 +34,22 @@ import java.util.Set;
 public class PermissionServiceImpl implements PermissionService {
 
     private static final Logger log = LoggerFactory.getLogger(PermissionServiceImpl.class);
-    private static final String BOOTSTRAP_VERSION_KEY = "sa:cache:ver:bootstrap";
-    private static final String BOOTSTRAP_CACHE_KEY_PREFIX = "sa:bootstrap:v";
-    private static final long BOOTSTRAP_CACHE_TTL_SECONDS = 1800L;
-
     private final PermissionMapper permissionMapper;
-    private final RedisCacheService redisCacheService;
 
-    public PermissionServiceImpl(PermissionMapper permissionMapper,
-                                 RedisCacheService redisCacheService) {
+    public PermissionServiceImpl(PermissionMapper permissionMapper) {
         this.permissionMapper = permissionMapper;
-        this.redisCacheService = redisCacheService;
     }
 
     /**
      * 构建登录用户的权限 bootstrap 数据。
-     * 缓存 key 按角色和版本号组织，角色权限保存后递增版本，旧缓存自然过期。
+     * 权限、菜单和用户角色本身支持后台编辑，这里直接读取数据库，避免登录态拿到过期权限。
      */
     @Override
-    @SuppressWarnings("unchecked")
     public PermissionBootstrapVo getBootstrap(Long userId, String roleCode) {
         String actualRoleCode = permissionMapper.findRoleCodeByUserId(userId);
         if (StringUtils.hasText(actualRoleCode)) {
             // token 中的 roleCode 只作为快速载荷，最终以数据库当前角色为准，支持角色调整后立即生效。
             roleCode = actualRoleCode;
-        }
-        long version = currentVersion(BOOTSTRAP_VERSION_KEY);
-        String cacheKey = BOOTSTRAP_CACHE_KEY_PREFIX + version + ":role:" + roleCode;
-        Object cached = redisCacheService.get(cacheKey);
-        if (cached instanceof PermissionBootstrapVo) {
-            log.info("permission bootstrap cache hit, userId={}, roleCode={}, cacheKey={}", userId, roleCode, cacheKey);
-            return (PermissionBootstrapVo) cached;
         }
         List<MenuEntity> menus = permissionMapper.findMenusByRoleCode(roleCode);
         List<String> routes = permissionMapper.findRouteCodesByRoleCode(roleCode);
@@ -76,9 +60,8 @@ public class PermissionServiceImpl implements PermissionService {
         response.setMenus(buildMenuTree(menus));
         response.setRoutes(routes);
         response.setActions(buildActions(actions));
-        redisCacheService.set(cacheKey, response, BOOTSTRAP_CACHE_TTL_SECONDS);
-        log.info("permission bootstrap cache refreshed, userId={}, roleCode={}, cacheKey={}, menuSize={}, routeSize={}, actionSize={}",
-                userId, roleCode, cacheKey, menus.size(), routes.size(), actions.size());
+        log.info("permission bootstrap loaded, userId={}, roleCode={}, menuSize={}, routeSize={}, actionSize={}",
+                userId, roleCode, menus.size(), routes.size(), actions.size());
         return response;
     }
 
@@ -139,32 +122,9 @@ public class PermissionServiceImpl implements PermissionService {
         for (String actionCode : distinctNonBlank(request.getActionCodes())) {
             permissionMapper.insertRoleAction(roleId, actionCode, resolveActionName(actionCode));
         }
-        // 只递增版本，不逐个删除旧 cache key；旧 key 等 TTL 自动过期，减少 Redis 扫描成本。
-        long version = nextVersion(BOOTSTRAP_VERSION_KEY);
-        log.info("permission assignment saved, roleCode={}, menuSize={}, routeSize={}, actionSize={}, cacheVersion={}",
-                request.getRoleCode(), menuIds.size(), routeCodeSet.size(), request.getActionCodes().size(), version);
+        log.info("permission assignment saved, roleCode={}, menuSize={}, routeSize={}, actionSize={}",
+                request.getRoleCode(), menuIds.size(), routeCodeSet.size(), request.getActionCodes().size());
         return getAssignment(request.getRoleCode());
-    }
-
-    /**
-     * 获取当前缓存版本；首次使用时初始化为 1。
-     */
-    private long currentVersion(String versionKey) {
-        Object cached = redisCacheService.get(versionKey);
-        if (cached instanceof Number) {
-            return ((Number) cached).longValue();
-        }
-        // 版本号丢失时从 1 重新开始；缓存 key 带版本和角色，不影响数据库真实权限。
-        redisCacheService.set(versionKey, 1L, BOOTSTRAP_CACHE_TTL_SECONDS * 24);
-        return 1L;
-    }
-
-    /**
-     * 权限保存后递增版本号，使后续 bootstrap 命中新 key。
-     */
-    private long nextVersion(String versionKey) {
-        Long version = redisCacheService.increment(versionKey);
-        return version == null ? 1L : version.longValue();
     }
 
     /**
