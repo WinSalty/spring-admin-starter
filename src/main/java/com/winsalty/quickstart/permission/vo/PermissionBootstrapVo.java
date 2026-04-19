@@ -1,5 +1,7 @@
 package com.winsalty.quickstart.permission.vo;
 
+import lombok.Data;
+
 import java.util.List;
 
 /**
@@ -7,33 +9,10 @@ import java.util.List;
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
+@Data
 public class PermissionBootstrapVo {
 
     private List<PermissionMenuVo> menus;
     private List<String> routes;
     private List<PermissionActionVo> actions;
-
-    public List<PermissionMenuVo> getMenus() {
-        return menus;
-    }
-
-    public void setMenus(List<PermissionMenuVo> menus) {
-        this.menus = menus;
-    }
-
-    public List<String> getRoutes() {
-        return routes;
-    }
-
-    public void setRoutes(List<String> routes) {
-        this.routes = routes;
-    }
-
-    public List<PermissionActionVo> getActions() {
-        return actions;
-    }
-
-    public void setActions(List<PermissionActionVo> actions) {
-        this.actions = actions;
-    }
 }

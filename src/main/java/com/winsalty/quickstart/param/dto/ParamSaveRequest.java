@@ -1,9 +1,12 @@
 package com.winsalty.quickstart.param.dto;
 
+import lombok.Data;
+
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 
+@Data
 public class ParamSaveRequest {
     private String id;
 
@@ -33,68 +36,4 @@ public class ParamSaveRequest {
 
     @Size(max = 255, message = "备注长度不能超过 255")
     private String remark;
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getConfigName() {
-        return configName;
-    }
-
-    public void setConfigName(String configName) {
-        this.configName = configName;
-    }
-
-    public String getConfigKey() {
-        return configKey;
-    }
-
-    public void setConfigKey(String configKey) {
-        this.configKey = configKey;
-    }
-
-    public String getConfigValue() {
-        return configValue;
-    }
-
-    public void setConfigValue(String configValue) {
-        this.configValue = configValue;
-    }
-
-    public String getValueType() {
-        return valueType;
-    }
-
-    public void setValueType(String valueType) {
-        this.valueType = valueType;
-    }
-
-    public String getConfigType() {
-        return configType;
-    }
-
-    public void setConfigType(String configType) {
-        this.configType = configType;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getRemark() {
-        return remark;
-    }
-
-    public void setRemark(String remark) {
-        this.remark = remark;
-    }
 }

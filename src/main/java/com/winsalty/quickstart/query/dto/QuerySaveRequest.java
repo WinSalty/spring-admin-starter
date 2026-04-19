@@ -1,5 +1,7 @@
 package com.winsalty.quickstart.query.dto;
 
+import lombok.Data;
+
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
@@ -9,6 +11,7 @@ import javax.validation.constraints.Size;
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
+@Data
 public class QuerySaveRequest {
 
     private String id;
@@ -32,52 +35,4 @@ public class QuerySaveRequest {
     @NotBlank(message = "描述不能为空")
     @Size(max = 160, message = "描述长度不能超过 160")
     private String description;
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public void setCode(String code) {
-        this.code = code;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getOwner() {
-        return owner;
-    }
-
-    public void setOwner(String owner) {
-        this.owner = owner;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
 }

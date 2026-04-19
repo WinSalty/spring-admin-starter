@@ -1,5 +1,7 @@
 package com.winsalty.quickstart.system.dto;
 
+import lombok.Data;
+
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.Pattern;
@@ -9,6 +11,7 @@ import javax.validation.constraints.Pattern;
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
+@Data
 public class SystemListRequest {
 
     @Pattern(regexp = "users|roles|dicts|logs", message = "moduleKey 不合法")
@@ -28,52 +31,4 @@ public class SystemListRequest {
     @Min(value = 1, message = "pageSize 不能小于 1")
     @Max(value = 100, message = "pageSize 不能大于 100")
     private Integer pageSize = 10;
-
-    public String getModuleKey() {
-        return moduleKey;
-    }
-
-    public void setModuleKey(String moduleKey) {
-        this.moduleKey = moduleKey;
-    }
-
-    public String getKeyword() {
-        return keyword;
-    }
-
-    public void setKeyword(String keyword) {
-        this.keyword = keyword;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getLogType() {
-        return logType;
-    }
-
-    public void setLogType(String logType) {
-        this.logType = logType;
-    }
-
-    public Integer getPageNo() {
-        return pageNo;
-    }
-
-    public void setPageNo(Integer pageNo) {
-        this.pageNo = pageNo;
-    }
-
-    public Integer getPageSize() {
-        return pageSize;
-    }
-
-    public void setPageSize(Integer pageSize) {
-        this.pageSize = pageSize;
-    }
 }

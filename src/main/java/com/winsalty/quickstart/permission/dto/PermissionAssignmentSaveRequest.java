@@ -1,5 +1,7 @@
 package com.winsalty.quickstart.permission.dto;
 
+import lombok.Data;
+
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
@@ -11,6 +13,7 @@ import java.util.List;
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
+@Data
 public class PermissionAssignmentSaveRequest {
 
     @NotBlank(message = "roleCode 不能为空")
@@ -25,36 +28,4 @@ public class PermissionAssignmentSaveRequest {
 
     @NotNull(message = "actionCodes 不能为空")
     private List<String> actionCodes = new ArrayList<String>();
-
-    public String getRoleCode() {
-        return roleCode;
-    }
-
-    public void setRoleCode(String roleCode) {
-        this.roleCode = roleCode;
-    }
-
-    public List<String> getMenuIds() {
-        return menuIds;
-    }
-
-    public void setMenuIds(List<String> menuIds) {
-        this.menuIds = menuIds;
-    }
-
-    public List<String> getRouteCodes() {
-        return routeCodes;
-    }
-
-    public void setRouteCodes(List<String> routeCodes) {
-        this.routeCodes = routeCodes;
-    }
-
-    public List<String> getActionCodes() {
-        return actionCodes;
-    }
-
-    public void setActionCodes(List<String> actionCodes) {
-        this.actionCodes = actionCodes;
-    }
 }

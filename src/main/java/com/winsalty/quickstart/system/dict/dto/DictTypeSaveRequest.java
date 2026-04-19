@@ -1,9 +1,12 @@
 package com.winsalty.quickstart.system.dict.dto;
 
+import lombok.Data;
+
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 
+@Data
 public class DictTypeSaveRequest {
     private String id;
 
@@ -21,44 +24,4 @@ public class DictTypeSaveRequest {
 
     @Size(max = 255, message = "备注长度不能超过 255")
     private String remark;
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getDictName() {
-        return dictName;
-    }
-
-    public void setDictName(String dictName) {
-        this.dictName = dictName;
-    }
-
-    public String getDictType() {
-        return dictType;
-    }
-
-    public void setDictType(String dictType) {
-        this.dictType = dictType;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getRemark() {
-        return remark;
-    }
-
-    public void setRemark(String remark) {
-        this.remark = remark;
-    }
 }

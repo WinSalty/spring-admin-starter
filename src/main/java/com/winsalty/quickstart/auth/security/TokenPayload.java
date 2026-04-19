@@ -1,10 +1,13 @@
 package com.winsalty.quickstart.auth.security;
 
+import lombok.Getter;
+
 /**
  * 令牌载荷对象。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
+@Getter
 public class TokenPayload {
 
     private final Long userId;
@@ -19,25 +22,5 @@ public class TokenPayload {
         this.roleCode = roleCode;
         this.sessionId = sessionId;
         this.tokenType = tokenType;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public String getRoleCode() {
-        return roleCode;
-    }
-
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public String getTokenType() {
-        return tokenType;
     }
 }

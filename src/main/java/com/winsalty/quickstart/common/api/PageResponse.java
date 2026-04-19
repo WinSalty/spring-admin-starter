@@ -1,5 +1,7 @@
 package com.winsalty.quickstart.common.api;
 
+import lombok.Data;
+
 import java.util.List;
 
 /**
@@ -8,6 +10,7 @@ import java.util.List;
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
+@Data
 public class PageResponse<T> {
 
     private List<T> records;
@@ -28,38 +31,6 @@ public class PageResponse<T> {
         this.records = records;
         this.pageNo = pageNo;
         this.pageSize = pageSize;
-        this.total = total;
-    }
-
-    public List<T> getRecords() {
-        return records;
-    }
-
-    public void setRecords(List<T> records) {
-        this.records = records;
-    }
-
-    public long getPageNo() {
-        return pageNo;
-    }
-
-    public void setPageNo(long pageNo) {
-        this.pageNo = pageNo;
-    }
-
-    public long getPageSize() {
-        return pageSize;
-    }
-
-    public void setPageSize(long pageSize) {
-        this.pageSize = pageSize;
-    }
-
-    public long getTotal() {
-        return total;
-    }
-
-    public void setTotal(long total) {
         this.total = total;
     }
 }

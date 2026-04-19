@@ -1,5 +1,7 @@
 package com.winsalty.quickstart.notice.dto;
 
+import lombok.Data;
+
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Pattern;
@@ -10,6 +12,7 @@ import javax.validation.constraints.Size;
  * 创建日期：2026-04-18
  * author：sunshengxian
  */
+@Data
 public class NoticeSaveRequest {
 
     private String id;
@@ -44,84 +47,4 @@ public class NoticeSaveRequest {
 
     @Min(value = 0, message = "排序不能小于 0")
     private Integer sortOrder = 0;
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-
-    public String getNoticeType() {
-        return noticeType;
-    }
-
-    public void setNoticeType(String noticeType) {
-        this.noticeType = noticeType;
-    }
-
-    public String getPriority() {
-        return priority;
-    }
-
-    public void setPriority(String priority) {
-        this.priority = priority;
-    }
-
-    public Long getPublisherId() {
-        return publisherId;
-    }
-
-    public void setPublisherId(Long publisherId) {
-        this.publisherId = publisherId;
-    }
-
-    public String getPublishTime() {
-        return publishTime;
-    }
-
-    public void setPublishTime(String publishTime) {
-        this.publishTime = publishTime;
-    }
-
-    public String getExpireTime() {
-        return expireTime;
-    }
-
-    public void setExpireTime(String expireTime) {
-        this.expireTime = expireTime;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public Integer getSortOrder() {
-        return sortOrder;
-    }
-
-    public void setSortOrder(Integer sortOrder) {
-        this.sortOrder = sortOrder;
-    }
 }

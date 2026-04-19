@@ -1,5 +1,7 @@
 package com.winsalty.quickstart.system.dto;
 
+import lombok.Data;
+
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
@@ -9,6 +11,7 @@ import javax.validation.constraints.Size;
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
+@Data
 public class SystemSaveRequest {
 
     private String id;
@@ -43,84 +46,4 @@ public class SystemSaveRequest {
     private String departmentId;
 
     private java.util.List<String> roleCodes;
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getModuleKey() {
-        return moduleKey;
-    }
-
-    public void setModuleKey(String moduleKey) {
-        this.moduleKey = moduleKey;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public void setCode(String code) {
-        this.code = code;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getOwner() {
-        return owner;
-    }
-
-    public void setOwner(String owner) {
-        this.owner = owner;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getExtraValue() {
-        return extraValue;
-    }
-
-    public void setExtraValue(String extraValue) {
-        this.extraValue = extraValue;
-    }
-
-    public String getDepartmentId() {
-        return departmentId;
-    }
-
-    public void setDepartmentId(String departmentId) {
-        this.departmentId = departmentId;
-    }
-
-    public java.util.List<String> getRoleCodes() {
-        return roleCodes;
-    }
-
-    public void setRoleCodes(java.util.List<String> roleCodes) {
-        this.roleCodes = roleCodes;
-    }
 }

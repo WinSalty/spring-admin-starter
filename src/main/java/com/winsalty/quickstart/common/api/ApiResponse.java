@@ -1,5 +1,7 @@
 package com.winsalty.quickstart.common.api;
 
+import lombok.Data;
+
 /**
  * 统一响应对象。
  * 所有 JSON 接口都应使用该结构，前端只需要判断 code 是否为 0。
@@ -7,6 +9,7 @@ package com.winsalty.quickstart.common.api;
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
+@Data
 public class ApiResponse<T> {
 
     private int code;
@@ -41,29 +44,5 @@ public class ApiResponse<T> {
      */
     public static <T> ApiResponse<T> failure(int code, String message) {
         return new ApiResponse<T>(code, message, null);
-    }
-
-    public int getCode() {
-        return code;
-    }
-
-    public void setCode(int code) {
-        this.code = code;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
-
-    public T getData() {
-        return data;
-    }
-
-    public void setData(T data) {
-        this.data = data;
     }
 }

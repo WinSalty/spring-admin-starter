@@ -1,5 +1,7 @@
 package com.winsalty.quickstart.auth.dto;
 
+import lombok.Data;
+
 import javax.validation.constraints.NotBlank;
 
 /**
@@ -7,16 +9,9 @@ import javax.validation.constraints.NotBlank;
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
+@Data
 public class RefreshTokenRequest {
 
     @NotBlank(message = "refreshToken 不能为空")
     private String refreshToken;
-
-    public String getRefreshToken() {
-        return refreshToken;
-    }
-
-    public void setRefreshToken(String refreshToken) {
-        this.refreshToken = refreshToken;
-    }
 }

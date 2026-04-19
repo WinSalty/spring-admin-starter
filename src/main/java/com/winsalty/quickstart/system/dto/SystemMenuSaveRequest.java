@@ -1,5 +1,7 @@
 package com.winsalty.quickstart.system.dto;
 
+import lombok.Data;
+
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
@@ -12,6 +14,7 @@ import javax.validation.constraints.Size;
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
+@Data
 public class SystemMenuSaveRequest {
 
     private String id;
@@ -55,100 +58,4 @@ public class SystemMenuSaveRequest {
     @Min(value = 1, message = "排序不能小于 1")
     @Max(value = 9999, message = "排序不能大于 9999")
     private Integer orderNo;
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getParentId() {
-        return parentId;
-    }
-
-    public void setParentId(String parentId) {
-        this.parentId = parentId;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public void setCode(String code) {
-        this.code = code;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getMenuType() {
-        return menuType;
-    }
-
-    public void setMenuType(String menuType) {
-        this.menuType = menuType;
-    }
-
-    public String getIcon() {
-        return icon;
-    }
-
-    public void setIcon(String icon) {
-        this.icon = icon;
-    }
-
-    public String getRoutePath() {
-        return routePath;
-    }
-
-    public void setRoutePath(String routePath) {
-        this.routePath = routePath;
-    }
-
-    public String getPermissionCode() {
-        return permissionCode;
-    }
-
-    public void setPermissionCode(String permissionCode) {
-        this.permissionCode = permissionCode;
-    }
-
-    public String getExternalLink() {
-        return externalLink;
-    }
-
-    public void setExternalLink(String externalLink) {
-        this.externalLink = externalLink;
-    }
-
-    public Integer getOrderNo() {
-        return orderNo;
-    }
-
-    public void setOrderNo(Integer orderNo) {
-        this.orderNo = orderNo;
-    }
 }
