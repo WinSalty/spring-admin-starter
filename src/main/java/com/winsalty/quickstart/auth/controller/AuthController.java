@@ -69,7 +69,7 @@ public class AuthController extends BaseController {
     }
 
     /**
-     * 登出只失效当前 sessionId，不影响同账号其他设备或浏览器会话。
+     * 登出失效当前 sessionId；过滤器会拒绝该 session 后续携带的 access token。
      */
     @AuditLog(logType = "operation", code = "auth_logout", name = "用户退出")
     @PostMapping("/logout")

@@ -1,13 +1,14 @@
 package com.winsalty.quickstart.auth.service.impl;
 
 import com.winsalty.quickstart.auth.service.AuthSessionService;
+import com.winsalty.quickstart.common.constant.SecurityConstants;
 import com.winsalty.quickstart.infra.cache.RedisCacheService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
  * 认证会话服务实现。
- * 使用 Redis 记录 sessionId -> refreshToken，用于 refresh token 轮换和登出失效。
+ * 使用 Redis 记录 session、用户设备索引和会话归属，用于令牌轮换、登出失效和同设备单点登录。
  * 创建日期：2026-04-17
  * author：sunshengxian
  */
@@ -15,6 +16,9 @@ import org.springframework.util.StringUtils;
 public class AuthSessionServiceImpl implements AuthSessionService {
 
     private static final String SESSION_KEY_PREFIX = "sa:auth:session:";
+    private static final String SESSION_OWNER_KEY_PREFIX = "sa:auth:session-owner:";
+    private static final String USER_DEVICE_KEY_PREFIX = "sa:auth:user-device:";
+    private static final String OWNER_SEPARATOR = ":";
 
     private final RedisCacheService redisCacheService;
 
@@ -23,11 +27,20 @@ public class AuthSessionServiceImpl implements AuthSessionService {
     }
 
     /**
-     * 登录时创建会话，过期时间与 refresh token 过期时间保持一致。
+     * 登录时创建会话，并踢掉同一用户同一设备类型的旧会话。
+     * 旧 access token 会因为 session key 被删除而在过滤器中立即失效。
      */
     @Override
-    public void createSession(String sessionId, String refreshToken, long timeoutSeconds) {
+    public void createSession(Long userId, String deviceType, String sessionId, String refreshToken, long timeoutSeconds) {
+        String normalizedDeviceType = normalizeDeviceType(deviceType);
+        String userDeviceKey = userDeviceKey(userId, normalizedDeviceType);
+        Object oldSessionId = redisCacheService.get(userDeviceKey);
+        if (oldSessionId instanceof String && StringUtils.hasText((String) oldSessionId)) {
+            deleteSession((String) oldSessionId);
+        }
         redisCacheService.set(SESSION_KEY_PREFIX + sessionId, refreshToken, timeoutSeconds);
+        redisCacheService.set(SESSION_OWNER_KEY_PREFIX + sessionId, ownerValue(userId, normalizedDeviceType), timeoutSeconds);
+        redisCacheService.set(userDeviceKey, sessionId, timeoutSeconds);
     }
 
     @Override
@@ -52,11 +65,41 @@ public class AuthSessionServiceImpl implements AuthSessionService {
     @Override
     public void refreshSession(String sessionId, String refreshToken, long timeoutSeconds) {
         redisCacheService.set(SESSION_KEY_PREFIX + sessionId, refreshToken, timeoutSeconds);
+        Object owner = redisCacheService.get(SESSION_OWNER_KEY_PREFIX + sessionId);
+        if (owner instanceof String && StringUtils.hasText((String) owner)) {
+            redisCacheService.set(SESSION_OWNER_KEY_PREFIX + sessionId, owner, timeoutSeconds);
+            redisCacheService.set(userDeviceKey((String) owner), sessionId, timeoutSeconds);
+        }
     }
 
     @Override
     public void deleteSession(String sessionId) {
-        // 删除 session 后 refresh token 无法续期；已签发 access token 等到自然过期。
+        Object owner = redisCacheService.get(SESSION_OWNER_KEY_PREFIX + sessionId);
+        // 删除 session 后 refresh token 无法续期；过滤器也会拒绝同一 session 的 access token。
         redisCacheService.delete(SESSION_KEY_PREFIX + sessionId);
+        redisCacheService.delete(SESSION_OWNER_KEY_PREFIX + sessionId);
+        if (owner instanceof String && StringUtils.hasText((String) owner)) {
+            String userDeviceKey = userDeviceKey((String) owner);
+            Object currentSessionId = redisCacheService.get(userDeviceKey);
+            if (sessionId.equals(currentSessionId)) {
+                redisCacheService.delete(userDeviceKey);
+            }
+        }
+    }
+
+    private String normalizeDeviceType(String deviceType) {
+        return StringUtils.hasText(deviceType) ? deviceType.trim().toUpperCase() : SecurityConstants.DEFAULT_DEVICE_TYPE;
+    }
+
+    private String ownerValue(Long userId, String deviceType) {
+        return userId + OWNER_SEPARATOR + normalizeDeviceType(deviceType);
+    }
+
+    private String userDeviceKey(Long userId, String deviceType) {
+        return USER_DEVICE_KEY_PREFIX + ownerValue(userId, deviceType);
+    }
+
+    private String userDeviceKey(String owner) {
+        return USER_DEVICE_KEY_PREFIX + owner;
     }
 }

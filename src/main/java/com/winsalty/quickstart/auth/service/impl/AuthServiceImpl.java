@@ -83,12 +83,13 @@ public class AuthServiceImpl extends BaseService implements AuthService {
             throw new BusinessException(ErrorCode.ROLE_NOT_ASSIGNED);
         }
         // sessionId 同时写入 access/refresh token，后续 refresh 时用它定位 Redis 中的当前会话。
+        String deviceType = normalizeDeviceType(request.getDeviceType());
         String sessionId = jwtTokenProvider.generateSessionId();
         String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUsername(), roleCode, sessionId);
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId(), user.getUsername(), roleCode, sessionId);
-        // Redis 中只保存 refresh token 当前有效版本，access token 保持无状态。
-        authSessionService.createSession(sessionId, refreshToken, jwtTokenProvider.getRefreshExpireSeconds());
-        log.info("user login success, username={}, roleCode={}, sessionId={}", user.getUsername(), roleCode, sessionId);
+        // 同一账号同一设备类型只保留最新 session，旧 access token 会因 session 失效被过滤器拒绝。
+        authSessionService.createSession(user.getId(), deviceType, sessionId, refreshToken, jwtTokenProvider.getRefreshExpireSeconds());
+        log.info("user login success, username={}, roleCode={}, deviceType={}, sessionId={}", user.getUsername(), roleCode, deviceType, sessionId);
         LoginResponse response = new LoginResponse(accessToken, accessToken, refreshToken,
                 jwtTokenProvider.getAccessExpireSeconds(), jwtTokenProvider.getRefreshExpireSeconds(), SecurityConstants.TOKEN_PREFIX_BEARER);
         response.setRoleCode(roleCode);
@@ -261,6 +262,10 @@ public class AuthServiceImpl extends BaseService implements AuthService {
             return defaultValue;
         }
         return value == 1;
+    }
+
+    private String normalizeDeviceType(String deviceType) {
+        return StringUtils.hasText(deviceType) ? deviceType.trim().toUpperCase() : SecurityConstants.DEFAULT_DEVICE_TYPE;
     }
 
     private String trimToNull(String value) {

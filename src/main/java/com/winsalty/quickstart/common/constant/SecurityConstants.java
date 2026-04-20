@@ -10,6 +10,7 @@ public final class SecurityConstants {
     public static final String TOKEN_TYPE_ACCESS = "access";
     public static final String TOKEN_TYPE_REFRESH = "refresh";
     public static final String TOKEN_PREFIX_BEARER = "Bearer";
+    public static final String DEFAULT_DEVICE_TYPE = "WEB";
 
     private SecurityConstants() {
     }

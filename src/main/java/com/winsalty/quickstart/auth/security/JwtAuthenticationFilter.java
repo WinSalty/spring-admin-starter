@@ -1,6 +1,7 @@
 package com.winsalty.quickstart.auth.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.winsalty.quickstart.auth.service.AuthSessionService;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
@@ -30,10 +31,14 @@ import java.util.Collections;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final AuthSessionService authSessionService;
     private final ObjectMapper objectMapper;
 
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, ObjectMapper objectMapper) {
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider,
+                                   AuthSessionService authSessionService,
+                                   ObjectMapper objectMapper) {
         this.jwtTokenProvider = jwtTokenProvider;
+        this.authSessionService = authSessionService;
         this.objectMapper = objectMapper;
     }
 
@@ -49,6 +54,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (StringUtils.hasText(token)) {
                 // 这里只接受 access token；refresh token 即使被放在 Authorization 头里也会被 JwtTokenProvider 拒绝。
                 AuthUser authUser = jwtTokenProvider.parseAccessToken(token);
+                if (!authSessionService.exists(authUser.getSessionId())) {
+                    // 登出或同设备新登录会删除旧 session，旧 access token 必须立即失效。
+                    throw new BusinessException(ErrorCode.SESSION_INVALID);
+                }
                 AuthContext.set(authUser);
                 // Spring Security 用于鉴权决策，AuthContext 用于业务层直接读取当前用户。
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
@@ -67,7 +76,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write(objectMapper.writeValueAsString(
-                    ApiResponse.failure(ErrorCode.TOKEN_INVALID.getCode(), ErrorCode.TOKEN_INVALID.getMessage())));
+                    ApiResponse.failure(exception.getCode(), exception.getMessage())));
         } finally {
             // Web 容器线程会复用，必须清理两个上下文，避免下一个请求继承上一个用户身份。
             AuthContext.clear();

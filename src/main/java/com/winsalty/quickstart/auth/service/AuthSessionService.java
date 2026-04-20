@@ -7,7 +7,7 @@ package com.winsalty.quickstart.auth.service;
  */
 public interface AuthSessionService {
 
-    void createSession(String sessionId, String refreshToken, long timeoutSeconds);
+    void createSession(Long userId, String deviceType, String sessionId, String refreshToken, long timeoutSeconds);
 
     boolean exists(String sessionId);
 
