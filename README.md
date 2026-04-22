@@ -1,152 +1,230 @@
 # Spring Admin Starter
 
-## 项目说明
+## 项目定位
 
-本项目是基于 Java 8 + Spring Boot 2.7.18 的后台脚手架，当前已完成 `todolist.md` 中阶段 0、阶段 1 和阶段 2 的最小闭环。
+`spring-admin-starter` 是一套面向后台管理系统的 Java 服务端基座，基于 Spring Boot 2.7 + Spring Security + MyBatis-Plus 构建，当前已具备认证鉴权、权限装配、工作台、查询管理、系统管理、公告通知、部门管理、参数配置、文件管理、缓存、日志审计、定时归档和 Elasticsearch 基础能力。
 
-## 当前能力
+项目当前状态不再是“最小骨架”，而是已能作为前后端一体化管理平台的后端基础工程，与配套的 `react-admin-starter` 可直接联调。
 
-- 已完成阶段 0：工程骨架、统一响应、全局异常处理、多环境配置、CORS、OpenAPI、健康检查。
-- 已完成阶段 1：`/api/auth/login`、`/api/auth/register`、`/api/auth/profile`、`/api/permission/bootstrap`。
-- 已完成阶段 2：`/api/dashboard/overview`、`/api/query/list`、`/api/query/detail`、`/api/query/save`。
-- 已完成阶段 3：`/api/system/{moduleKey}/list`、`/api/system/detail`、`/api/system/save`、`/api/system/status`，覆盖 `users`、`roles`、`dicts`、`logs`。
-- 已完成阶段 4：`/api/system/menus/tree`、`/api/system/menus/save`、`/api/system/menus/status`、`/api/permission/assignment`，已联动权限 bootstrap。
-- 已完成阶段 5：`/api/system/configs`、`/api/system/configs/save`，已接入 Redis 并覆盖 bootstrap、dict、config 三类缓存。
-- 已完成阶段 6 第一阶段：登录接口升级为双 Token，新增 refresh token、登出与基于 Redis 的会话失效控制。
-- 已完成阶段 6 第二阶段：新增登录日志、操作日志、异常日志写入链路，并接入 auth、permission、system 和全局异常处理。
-- 已完成登录鉴权安全加固：生产 JWT 密钥强校验、匿名登录/验证码限流、refresh token 轮换校验和 demo 接口收敛。
-- 已完成阶段 6 后续模块：新增新版字典类型/字典项、参数配置、文件上传下载与完整初始化 SQL。
-- 已补齐公告通知、部门管理、用户角色真实联动接口；用户列表和角色列表已切到 `sys_user`、`sys_role`、`sys_user_role` 真实关系。
-- 已切换数据库连接池为 Druid，统一使用 fastjson2 做项目 JSON 序列化。
-- 已补齐 Redis 通用工具类，支持字符串、对象、Hash、List、Set、计数器、TTL、分布式占位和 Java 对象压缩缓存。
-- 已接入 Quartz 定时任务框架，日志模块支持按配置周期将历史日志迁移到 `sys_log_archive` 留档表。
-- 已接入 Elasticsearch，并封装 `ElasticsearchTemplateService` 作为项目通用 ES 工具。
-- 已接入 JWT Bearer 鉴权。
-- 已提供 `admin` / `viewer` 两套角色与权限差异数据。
-- 当前阶段按要求先使用本地 MySQL `spring_admin`。
-- 当前阶段已接入本地 Redis，用于 bootstrap、dict、config 缓存。
-- 文件上传默认本地存储目录为项目根目录 `uploads/`，单文件限制 10MB。
-- 注册接口仅在 dev 环境开放。
-- 登录鉴权审计报告详见 [SECURITY_AUTH_AUDIT.md](./SECURITY_AUTH_AUDIT.md)。
+## 技术架构
 
-## 启动要求
+### 技术栈
 
-- JDK 8
-- Maven 3.6+
-- 本地 MySQL 5.7/8.0
-- 本地 Redis 5.x+
-- Elasticsearch 7.x，默认地址 `http://127.0.0.1:9200`
+| 类别 | 方案 |
+| --- | --- |
+| JDK | Java 8 |
+| 应用框架 | Spring Boot 2.7.18 |
+| 安全框架 | Spring Security |
+| ORM / 数据访问 | MyBatis-Plus 3.5.7 |
+| 数据库 | MySQL 5.7 / 8.0 |
+| 缓存 | Redis |
+| 连接池 | Druid |
+| JSON 序列化 | fastjson2 |
+| API 文档 | springdoc-openapi |
+| 定时任务 | Quartz |
+| 搜索能力 | Elasticsearch 7.x |
+| 邮件 | Spring Mail |
+| 构建工具 | Maven 3.6+ |
 
-## 本地开发配置
+### 服务端分层
 
-默认 dev 数据源配置：
+项目按领域模块和基础设施能力拆分，核心包结构如下：
+
+| 包路径 | 说明 |
+| --- | --- |
+| `com.winsalty.quickstart.auth` | 登录注册、JWT、安全配置、用户上下文、限流、会话管理 |
+| `com.winsalty.quickstart.permission` | 权限 bootstrap、角色授权、菜单权限与按钮权限 |
+| `com.winsalty.quickstart.dashboard` | 工作台统计概览 |
+| `com.winsalty.quickstart.query` | 查询管理示例业务模块 |
+| `com.winsalty.quickstart.system` | 用户、角色、字典、菜单、系统配置等通用系统模块 |
+| `com.winsalty.quickstart.notice` | 公告通知管理 |
+| `com.winsalty.quickstart.department` | 部门树与部门状态管理 |
+| `com.winsalty.quickstart.param` | 参数配置管理与缓存刷新 |
+| `com.winsalty.quickstart.file` | 本地文件上传、下载、状态管理 |
+| `com.winsalty.quickstart.log` | 登录日志、操作日志、接口日志与归档 |
+| `com.winsalty.quickstart.common` | 统一响应、异常、常量、基础父类、工具类 |
+| `com.winsalty.quickstart.infra` | CORS、Redis、Quartz、OpenAPI、ES、JSON 等基础设施配置 |
+
+### 关键架构说明
+
+1. 认证基于 JWT Bearer Token，登录返回 access token 与 refresh token。
+2. refresh token 保存在 Redis，会话失效、轮换校验和退出登录都依赖 Redis 做统一控制。
+3. 权限初始化通过 `/api/permission/bootstrap` 输出菜单树、路由码和按钮权限，直接服务前端动态权限装配。
+4. 系统管理模块对用户、角色、字典、日志采用“统一控制器入口 + 服务层分发”的方式，减少重复 CRUD 模板代码。
+5. 关键管理操作通过 `@AuditLog` + AOP 记录审计日志，异常链路写入异常日志。
+6. 配置、字典、权限 bootstrap 等高频读取能力已接入 Redis 缓存。
+7. 日志归档通过 Quartz 定时任务迁移历史日志到归档表，减少主表膨胀。
+8. Elasticsearch 已完成基础接入和通用封装，可作为后续全文检索能力的扩展基础。
+
+## 模块能力
+
+### 认证与安全
+
+| 模块 | 说明 |
+| --- | --- |
+| 登录 | `/api/auth/login`，支持 access token + refresh token |
+| 刷新令牌 | `/api/auth/refresh-token`，支持 refresh token 轮换 |
+| 退出登录 | `/api/auth/logout`，基于 Redis 失效当前会话 |
+| 注册 | `/api/auth/register`，仅 `dev` 环境默认开放 |
+| 注册验证码 | `/api/auth/register/verify-code`，基于邮件发送 |
+| 个人中心 | `/api/auth/profile`、资料修改、密码修改、通知设置 |
+| 登录限流 | 基于账号/IP 的匿名接口限流 |
+| JWT 安全校验 | 生产环境要求外部注入强密钥 |
+
+### 权限与菜单
+
+| 模块 | 说明 |
+| --- | --- |
+| 权限初始化 | `/api/permission/bootstrap` 返回菜单、路由、按钮权限 |
+| 角色权限分配 | `/api/permission/assignment` |
+| 菜单树管理 | `/api/system/menus/tree`、`/save`、`/status` |
+| 用户角色分配 | `/api/system/users/assign-roles` |
+
+### 业务与系统模块
+
+| 模块 | 说明 |
+| --- | --- |
+| 工作台 | `/api/dashboard/overview` 输出指标、趋势、分类与状态统计 |
+| 查询管理 | `/api/query/list`、`/detail`、`/save` |
+| 用户管理 | `/api/system/users/list` 等 |
+| 角色管理 | `/api/system/roles/list` 等 |
+| 字典管理 | `/api/system/dicts/list` 等 |
+| 日志管理 | `/api/system/logs/list` 等 |
+| 系统配置 | `/api/system/configs`、`/configs/save` |
+| 公告通知 | `/api/system/notices/list`、`/detail`、`/save`、`/status`、`/active` |
+| 部门管理 | `/api/system/departments/tree`、`/save`、`/status` |
+| 参数配置 | `/api/system/params/list`、`/detail`、`/save`、`/status`、`/cache/refresh` |
+| 文件管理 | `/api/file/upload`、`/list`、`/{id}/download`、`/{id}/delete`、`/{id}/status` |
+
+## 配套环境说明
+
+### 必需环境
+
+| 软件 | 要求 |
+| --- | --- |
+| JDK | 1.8 |
+| Maven | 3.6 及以上 |
+| MySQL | 5.7 或 8.0 |
+| Redis | 5.x 及以上 |
+| Elasticsearch | 7.x |
+
+### 推荐联调环境
+
+| 组件 | 默认说明 |
+| --- | --- |
+| 前端 | `react-admin-starter` |
+| 前端地址 | `http://localhost:5173` |
+| 后端服务 | `http://localhost:8080` |
+| Swagger | `http://localhost:8080/swagger-ui.html` |
+| 健康检查 | `http://localhost:8080/actuator/health` |
+
+## 配置说明
+
+### Profile 说明
+
+| Profile | 说明 |
+| --- | --- |
+| `dev` | 本地开发环境，默认启用 |
+| `test` | 测试环境 |
+| `prod` | 生产环境，要求外部注入关键配置 |
+
+### 核心配置文件
+
+| 文件 | 说明 |
+| --- | --- |
+| `src/main/resources/application.yml` | 通用配置，包含端口、上传限制、邮件、Quartz、ES 等 |
+| `src/main/resources/application-dev.yml` | 开发环境数据库、Redis、JWT、CORS 配置 |
+| `src/main/resources/application-prod.yml` | 生产环境数据库、Redis、JWT 与 CORS 外部化配置 |
+| `src/main/resources/logback-spring.xml` | 日志配置 |
+
+### 关键配置项
+
+#### 1. 数据库
+
+开发环境默认配置：
 
 ```yaml
 spring:
   datasource:
-    url: jdbc:mysql://127.0.0.1:3306/spring_admin?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
-    username: spring_admin
-    password: SpringAdmin@2026
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/spring_admin?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: ${DB_USERNAME:spring_admin}
+    password: ${DB_PASSWORD:SpringAdmin@2026}
 ```
 
-JWT dev 密钥已内置在 `application-dev.yml`，仅用于当前本地开发。
-
-dev 环境默认 Redis 与 ES 配置：
+#### 2. Redis
 
 ```yaml
 spring:
   redis:
-    host: 127.0.0.1
-    port: 6379
-  elasticsearch:
-    uris: http://127.0.0.1:9200
+    host: ${REDIS_HOST:127.0.0.1}
+    port: ${REDIS_PORT:6379}
 ```
 
-日志归档跑批默认每天 02:00 执行，迁移 30 天前的日志，每批最多 1000 条。可通过以下环境变量覆盖：
+Redis 当前承担以下职责：
+
+1. 登录会话与 refresh token 控制
+2. 权限 bootstrap 缓存
+3. 字典缓存
+4. 系统配置缓存
+5. 匿名接口限流
+6. 通用对象缓存
+
+#### 3. JWT
+
+开发环境默认值：
+
+```yaml
+app:
+  security:
+    jwt-secret: ${JWT_SECRET:winsalty-quickstart-dev-jwt-secret-2026-secure-key}
+    jwt-expire-seconds: 7200
+    jwt-refresh-expire-seconds: 604800
+```
+
+生产环境必须显式提供：
 
 ```bash
-export LOG_ARCHIVE_ENABLED=true
-export LOG_ARCHIVE_CRON='0 0 2 * * ?'
-export LOG_ARCHIVE_RETENTION_DAYS=30
-export LOG_ARCHIVE_BATCH_SIZE=1000
+export JWT_SECRET='replace-with-a-long-random-secret'
 ```
 
-## 初始化 SQL
+#### 4. CORS
 
-当前版本 SQL 脚本位于项目根目录：
+开发环境默认允许：
 
-- `sql/init.sql`
-- `sql/seed-data.sql`
-
-若需要一次性重建完整结构和种子数据，可执行：
-
-```bash
-mysql -u spring_admin -p spring_admin < sql/init.sql
-mysql -u spring_admin -p spring_admin < sql/seed-data.sql
+```yaml
+app:
+  cors:
+    allowed-origins:
+      - http://localhost:5173
 ```
 
-## 默认演示账号
+生产环境需改为真实前端域名，不允许使用宽泛通配。
 
-- `admin / 123456`
-- `viewer / 123456`
+#### 5. 文件上传
 
-## 启动命令
-
-```bash
-mvn clean compile -DskipTests
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+```yaml
+app:
+  file:
+    upload-dir: uploads
 ```
 
-浏览器访问：
+默认单文件大小限制：
 
-- 健康检查：`http://localhost:8080/actuator/health`
-- Swagger：`http://localhost:8080/swagger-ui.html`
+- `10MB`
 
-本地停止：
+#### 6. 日志归档
 
-```bash
-CTRL+C
+```yaml
+app:
+  batch:
+    log-archive:
+      enabled: ${LOG_ARCHIVE_ENABLED:true}
+      cron: ${LOG_ARCHIVE_CRON:0 0 2 * * ?}
+      retention-days: ${LOG_ARCHIVE_RETENTION_DAYS:30}
+      batch-size: ${LOG_ARCHIVE_BATCH_SIZE:1000}
 ```
 
-如果使用后台方式启动，可按端口查找并停止：
-
-```bash
-lsof -i :8080
-kill <PID>
-```
-
-## 生产部署说明
-
-后端生产部署的目标是使用 `prod` profile 运行打包后的 Spring Boot JAR，并把 MySQL、Redis、JWT 密钥、CORS 域名、文件存储目录等配置全部外部化。生产环境不要使用 `dev` profile，也不要继续使用 README 中的本地数据库账号和开发 JWT 密钥。
-
-### 部署前准备
-
-1. 准备 JDK 8 运行环境。
-2. 准备 MySQL 5.7/8.0，并创建生产数据库和专用账号。
-3. 准备 Redis，用于登录会话、权限 bootstrap、字典、系统配置、限流和压缩对象缓存。
-4. 准备 Elasticsearch 7.x，用于后续业务检索能力开箱即用。
-5. 准备文件上传目录，确保运行用户有读写权限。
-6. 准备足够长且不可提交到仓库的 `JWT_SECRET`；`prod` 环境缺失或使用默认占位密钥会启动失败。
-7. 确认前端生产域名，例如 `https://admin.example.com`，用于 CORS 白名单。
-8. 确认日志归档策略，默认每天 02:00 归档 30 天前日志。
-9. 确认是否由 Nginx 或网关统一暴露 `/api`，建议后端只监听内网地址或受控端口。
-
-### 初始化生产数据库
-
-首次部署时，在生产 MySQL 中执行初始化脚本：
-
-```bash
-mysql -u <prod_user> -p <prod_database> < sql/init.sql
-mysql -u <prod_user> -p <prod_database> < sql/seed-data.sql
-```
-
-`seed-data.sql` 会创建演示账号和初始权限。正式上线前必须修改或禁用默认账号 `admin / 123456`、`viewer / 123456`，并按实际组织重新分配角色权限。
-
-### 配置生产环境变量
-
-当前 `application-prod.yml` 已读取 Redis 和 JWT 相关环境变量，但生产仍需要补齐或通过外部配置注入 MySQL 数据源。推荐通过环境变量或独立配置文件管理敏感配置，不要把生产密码写入仓库。
-
-推荐环境变量：
+### 推荐环境变量
 
 ```bash
 export SPRING_PROFILES_ACTIVE=prod
@@ -160,9 +238,11 @@ export DB_PASSWORD='replace-with-strong-password'
 
 export REDIS_HOST=127.0.0.1
 export REDIS_PORT=6379
+
 export ES_URIS=http://127.0.0.1:9200
 export ES_USERNAME=
 export ES_PASSWORD=
+
 export JWT_SECRET='replace-with-a-long-random-secret'
 export APP_FILE_UPLOAD_DIR=/data/spring-admin-starter/uploads
 
@@ -172,52 +252,119 @@ export LOG_ARCHIVE_RETENTION_DAYS=30
 export LOG_ARCHIVE_BATCH_SIZE=1000
 ```
 
-如果使用外部配置文件，至少需要覆盖：
+## SQL 与初始化说明
 
-```yaml
-spring:
-  datasource:
-    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
-  redis:
-    host: ${REDIS_HOST}
-    port: ${REDIS_PORT}
-  elasticsearch:
-    uris: ${ES_URIS}
-    username: ${ES_USERNAME}
-    password: ${ES_PASSWORD}
+### 初始化脚本
 
-app:
-  cors:
-    allowed-origins:
-      - https://admin.example.com
-  security:
-    jwt-secret: ${JWT_SECRET}
-    register-enabled: false
-  file:
-    upload-dir: ${APP_FILE_UPLOAD_DIR}
+项目当前同时保留两套 SQL 资源：
+
+| 路径 | 说明 |
+| --- | --- |
+| `sql/init.sql` | 一次性初始化主表结构 |
+| `sql/seed-data.sql` | 一次性导入种子数据 |
+| `resources/sql/` | 按版本拆分的 SQL 脚本集合 |
+
+### 本地初始化
+
+```bash
+cd /Users/salty/codeProject/ai/spring-admin-starter
+mysql -u spring_admin -p spring_admin < sql/init.sql
+mysql -u spring_admin -p spring_admin < sql/seed-data.sql
 ```
 
-注意：`app.cors.allowed-origins` 生产环境必须填写明确域名，不要使用通配符；`register-enabled` 建议保持 `false`。
-注意：生产环境建议关闭或限制 Swagger/OpenAPI 访问，并在网关层叠加登录、验证码等匿名接口限流。
+### 默认演示账号
 
-### 打包与启动
+- `admin / 123456`
+- `viewer / 123456`
 
-在项目根目录打包：
+正式部署前必须修改或禁用默认账号。
+
+## 启动与验证
+
+### 1. 安装依赖并编译
+
+```bash
+cd /Users/salty/codeProject/ai/spring-admin-starter
+mvn clean compile -DskipTests
+```
+
+### 2. 启动开发环境
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
+```
+
+### 3. 常用命令
+
+```bash
+mvn test
+mvn clean package -DskipTests
+java -jar target/spring-admin-starter-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
+```
+
+| 命令 | 作用 |
+| --- | --- |
+| `mvn spring-boot:run -Dspring-boot.run.profiles=dev` | 启动开发环境 |
+| `mvn test` | 执行测试 |
+| `mvn clean package -DskipTests` | 打包生产 JAR |
+| `java -jar ... --spring.profiles.active=prod` | 以生产配置运行 |
+
+### 4. 启动后检查
+
+启动成功后建议至少验证以下地址：
+
+1. `http://localhost:8080/actuator/health`
+2. `http://localhost:8080/swagger-ui.html`
+3. `POST /api/auth/login`
+4. `GET /api/permission/bootstrap`
+
+### 5. 停止服务
+
+前台运行：
+
+```bash
+Ctrl + C
+```
+
+按端口定位进程：
+
+```bash
+lsof -i :8080
+kill <PID>
+```
+
+## 部署说明
+
+### 部署原则
+
+1. 生产环境只使用 `prod` profile。
+2. 数据库、Redis、JWT 密钥、上传目录、CORS 域名等必须外部化配置。
+3. 不要继续使用开发环境默认数据库账号、JWT 密钥和默认演示密码。
+4. 建议由 Nginx、网关、systemd、Supervisor、Docker 或 Kubernetes 托管进程。
+
+### 打包
 
 ```bash
 cd /Users/salty/codeProject/ai/spring-admin-starter
 mvn clean package -DskipTests
 ```
 
-启动 JAR：
+### 启动 JAR
 
 ```bash
-java -jar target/spring-admin-starter-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
+java -jar target/spring-admin-starter-0.0.1-SNAPSHOT.jar \
+  --spring.profiles.active=prod
 ```
 
-后台启动示例：
+### 外部配置文件方式
+
+```bash
+java -jar target/spring-admin-starter-0.0.1-SNAPSHOT.jar \
+  --spring.profiles.active=prod \
+  --spring.config.additional-location=file:/etc/spring-admin-starter/
+```
+
+### 后台运行示例
 
 ```bash
 nohup java -jar target/spring-admin-starter-0.0.1-SNAPSHOT.jar \
@@ -226,148 +373,37 @@ nohup java -jar target/spring-admin-starter-0.0.1-SNAPSHOT.jar \
 echo $! > spring-admin-starter.pid
 ```
 
-也可以把外部配置文件放到服务器固定目录：
+### 生产部署前检查清单
 
-```bash
-java -jar target/spring-admin-starter-0.0.1-SNAPSHOT.jar \
-  --spring.profiles.active=prod \
-  --spring.config.additional-location=file:/etc/spring-admin-starter/
-```
+1. MySQL 已初始化表结构和种子数据。
+2. Redis 已可连接。
+3. Elasticsearch 已可连接。
+4. `JWT_SECRET` 已替换为强随机密钥。
+5. 上传目录已创建且应用用户有读写权限。
+6. CORS 白名单已配置前端正式域名。
+7. 默认账号已下线或修改密码。
+8. Swagger 是否对公网暴露已按安全策略处理。
+9. 日志目录与归档策略已确认。
 
-建议用 systemd、Supervisor、Docker 或 Kubernetes 托管进程，确保异常退出后能自动拉起，并把日志输出接入服务器日志系统。
+## 与前端配套关系
 
-### 停止服务
+当前项目默认对接 `/Users/salty/codeProject/ai/react-admin-starter`，两者的职责边界如下：
 
-如果使用上面的 PID 文件启动：
+| 系统 | 职责 |
+| --- | --- |
+| `react-admin-starter` | 页面展现、交互编排、权限 UI 渲染 |
+| `spring-admin-starter` | 鉴权、权限计算、业务数据、缓存、日志审计、文件存储 |
 
-```bash
-kill $(cat spring-admin-starter.pid)
-rm -f spring-admin-starter.pid
-```
+推荐本地联调顺序：
 
-如果服务未正常退出，可先确认进程仍存在，再使用强制停止：
+1. 初始化 MySQL、Redis、Elasticsearch。
+2. 启动当前后端项目。
+3. 启动前端项目。
+4. 使用演示账号登录并验证工作台、权限目录、系统管理、公告管理等页面。
 
-```bash
-ps -ef | grep spring-admin-starter
-kill -9 <PID>
-```
+## 运维与扩展建议
 
-systemd 托管时使用：
-
-```bash
-systemctl stop spring-admin-starter
-```
-
-### Nginx 反向代理示例
-
-如果前端和后端同域部署，可由 Nginx 把 `/api` 转发到后端：
-
-```nginx
-location /api/ {
-    proxy_pass http://127.0.0.1:8080/api/;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
-
-location /actuator/health {
-    proxy_pass http://127.0.0.1:8080/actuator/health;
-}
-```
-
-生产环境建议只对内网或监控系统开放 `/actuator/health`，不要公开 Swagger 和详细 Actuator 信息。
-
-### 上线后验证
-
-上线后按顺序验证：
-
-- `GET /actuator/health` 返回 `UP`。
-- Redis 可写入会话，登录后 refresh token 和 logout 正常。
-- Elasticsearch `/` 地址可访问，应用启动日志没有 ES 客户端初始化错误。
-- Quartz 日志归档任务按 `LOG_ARCHIVE_CRON` 注册，`sys_log_archive` 表存在。
-- `POST /api/auth/login` 能登录生产账号。
-- `GET /api/permission/bootstrap` 返回菜单、路由和按钮权限。
-- `GET /api/dashboard/overview`、`GET /api/query/list`、`GET /api/system/users/list` 返回正常。
-- 文件上传目录可写，上传、下载、删除接口正常。
-- 前端生产域名请求后端接口无 CORS 报错。
-- 日志中没有数据库连接失败、Redis 连接失败、JWT secret 过短或权限初始化失败等错误。
-
-### 生产安全 Checklist
-
-- 修改或禁用默认演示账号密码。
-- 使用强随机 `JWT_SECRET`，不要使用仓库中的示例值。
-- 生产数据库、Redis 密码只通过环境变量、密钥管理或外部配置注入。
-- Elasticsearch 只允许应用内网访问；如启用账号密码，必须通过环境变量或密钥管理注入。
-- CORS 只允许明确的前端生产域名。
-- 关闭生产注册入口，除非业务明确需要开放。
-- 限制 Swagger、Actuator、数据库和 Redis 的公网访问。
-- 文件上传目录放在独立数据盘或持久卷，并配置备份和容量监控。
-- 配置 HTTPS、访问日志、错误日志、进程守护和告警。
-
-## 接口入口
-
-- 健康检查：`/actuator/health`
-- 基础联调接口：`/api/common/ping`
-- OpenAPI：`/swagger-ui.html`
-
-## 前端联调说明
-
-- 后端 dev 环境默认允许 `http://localhost:5173` 跨域访问，并在 Spring Security 中启用 CORS。
-- 前端可通过 Vite `/api` 代理访问本服务，也可配置 `VITE_API_BASE_URL=http://localhost:8080` 直连。
-- 登录接口 `POST /api/auth/login` 返回 `token/accessToken/refreshToken` 以及 `roleCode/roleName`，前端使用 Bearer Token 访问受保护接口。
-- 权限初始化接口 `GET /api/permission/bootstrap` 基于当前登录用户和角色返回菜单、路由、按钮权限。
-
-## 已验证接口
-
-- `GET /api/dashboard/overview`
-- `POST /api/auth/login`
-- `POST /api/auth/register`
-- `GET /api/auth/profile`
-- `POST /api/auth/refresh-token`
-- `POST /api/auth/logout`
-- `GET /api/permission/bootstrap`
-- `GET /api/query/list`
-- `GET /api/query/detail`
-- `POST /api/query/save`
-- `GET /api/system/users/list`
-- `GET /api/system/roles/list`
-- `GET /api/system/dicts/list`
-- `GET /api/system/logs/list`
-- `GET /api/system/detail`
-- `POST /api/system/save`
-- `POST /api/system/status`
-- `GET /api/system/menus/tree`
-- `POST /api/system/menus/save`
-- `POST /api/system/menus/status`
-- `GET /api/permission/assignment`
-- `POST /api/permission/assignment`
-- `GET /api/system/configs`
-- `POST /api/system/configs/save`
-- `GET /api/system/dict/types/list`
-- `POST /api/system/dict/types/save`
-- `POST /api/system/dict/types/status`
-- `GET /api/system/dict/data/list`
-- `GET /api/system/dict/data/detail`
-- `POST /api/system/dict/data/save`
-- `POST /api/system/dict/data/status`
-- `POST /api/system/dict/cache/refresh`
-- `GET /api/system/params/list`
-- `GET /api/system/params/detail`
-- `POST /api/system/params/save`
-- `POST /api/system/params/status`
-- `POST /api/system/params/cache/refresh`
-- `GET /api/system/notices/list`
-- `GET /api/system/notices/detail`
-- `POST /api/system/notices/save`
-- `POST /api/system/notices/status`
-- `GET /api/system/notices/active`
-- `GET /api/system/departments/tree`
-- `POST /api/system/departments/save`
-- `POST /api/system/departments/status`
-- `POST /api/system/users/assign-roles`
-- `POST /api/file/upload`
-- `GET /api/file/list`
-- `GET /api/file/{id}/download`
-- `POST /api/file/{id}/delete`
-- `POST /api/file/{id}/status`
+1. 若继续新增系统模块，建议沿用 `controller + service + mapper + entity/dto/vo` 的分层方式。
+2. 若新增高频读配置，优先接入现有 Redis 缓存服务，避免重复实现缓存模板。
+3. 若新增审计敏感操作，建议统一使用 `@AuditLog` 接入日志链路。
+4. Elasticsearch 目前是基础设施已就绪状态，新增检索场景时优先复用 `ElasticsearchTemplateService`。
