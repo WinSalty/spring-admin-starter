@@ -17,6 +17,10 @@
 - 已完成登录鉴权安全加固：生产 JWT 密钥强校验、匿名登录/验证码限流、refresh token 轮换校验和 demo 接口收敛。
 - 已完成阶段 6 后续模块：新增新版字典类型/字典项、参数配置、文件上传下载与完整初始化 SQL。
 - 已补齐公告通知、部门管理、用户角色真实联动接口；用户列表和角色列表已切到 `sys_user`、`sys_role`、`sys_user_role` 真实关系。
+- 已切换数据库连接池为 Druid，统一使用 fastjson2 做项目 JSON 序列化。
+- 已补齐 Redis 通用工具类，支持字符串、对象、Hash、List、Set、计数器、TTL、分布式占位和 Java 对象压缩缓存。
+- 已接入 Quartz 定时任务框架，日志模块支持按配置周期将历史日志迁移到 `sys_log_archive` 留档表。
+- 已接入 Elasticsearch，并封装 `ElasticsearchTemplateService` 作为项目通用 ES 工具。
 - 已接入 JWT Bearer 鉴权。
 - 已提供 `admin` / `viewer` 两套角色与权限差异数据。
 - 当前阶段按要求先使用本地 MySQL `spring_admin`。
@@ -30,6 +34,8 @@
 - JDK 8
 - Maven 3.6+
 - 本地 MySQL 5.7/8.0
+- 本地 Redis 5.x+
+- Elasticsearch 7.x，默认地址 `http://127.0.0.1:9200`
 
 ## 本地开发配置
 
@@ -44,6 +50,26 @@ spring:
 ```
 
 JWT dev 密钥已内置在 `application-dev.yml`，仅用于当前本地开发。
+
+dev 环境默认 Redis 与 ES 配置：
+
+```yaml
+spring:
+  redis:
+    host: 127.0.0.1
+    port: 6379
+  elasticsearch:
+    uris: http://127.0.0.1:9200
+```
+
+日志归档跑批默认每天 02:00 执行，迁移 30 天前的日志，每批最多 1000 条。可通过以下环境变量覆盖：
+
+```bash
+export LOG_ARCHIVE_ENABLED=true
+export LOG_ARCHIVE_CRON='0 0 2 * * ?'
+export LOG_ARCHIVE_RETENTION_DAYS=30
+export LOG_ARCHIVE_BATCH_SIZE=1000
+```
 
 ## 初始化 SQL
 
@@ -71,6 +97,24 @@ mvn clean compile -DskipTests
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
+浏览器访问：
+
+- 健康检查：`http://localhost:8080/actuator/health`
+- Swagger：`http://localhost:8080/swagger-ui.html`
+
+本地停止：
+
+```bash
+CTRL+C
+```
+
+如果使用后台方式启动，可按端口查找并停止：
+
+```bash
+lsof -i :8080
+kill <PID>
+```
+
 ## 生产部署说明
 
 后端生产部署的目标是使用 `prod` profile 运行打包后的 Spring Boot JAR，并把 MySQL、Redis、JWT 密钥、CORS 域名、文件存储目录等配置全部外部化。生产环境不要使用 `dev` profile，也不要继续使用 README 中的本地数据库账号和开发 JWT 密钥。
@@ -79,11 +123,13 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 
 1. 准备 JDK 8 运行环境。
 2. 准备 MySQL 5.7/8.0，并创建生产数据库和专用账号。
-3. 准备 Redis，用于登录会话、权限 bootstrap、字典和系统配置缓存。
-4. 准备文件上传目录，确保运行用户有读写权限。
-5. 准备足够长且不可提交到仓库的 `JWT_SECRET`；`prod` 环境缺失或使用默认占位密钥会启动失败。
-6. 确认前端生产域名，例如 `https://admin.example.com`，用于 CORS 白名单。
-7. 确认是否由 Nginx 或网关统一暴露 `/api`，建议后端只监听内网地址或受控端口。
+3. 准备 Redis，用于登录会话、权限 bootstrap、字典、系统配置、限流和压缩对象缓存。
+4. 准备 Elasticsearch 7.x，用于后续业务检索能力开箱即用。
+5. 准备文件上传目录，确保运行用户有读写权限。
+6. 准备足够长且不可提交到仓库的 `JWT_SECRET`；`prod` 环境缺失或使用默认占位密钥会启动失败。
+7. 确认前端生产域名，例如 `https://admin.example.com`，用于 CORS 白名单。
+8. 确认日志归档策略，默认每天 02:00 归档 30 天前日志。
+9. 确认是否由 Nginx 或网关统一暴露 `/api`，建议后端只监听内网地址或受控端口。
 
 ### 初始化生产数据库
 
@@ -114,8 +160,16 @@ export DB_PASSWORD='replace-with-strong-password'
 
 export REDIS_HOST=127.0.0.1
 export REDIS_PORT=6379
+export ES_URIS=http://127.0.0.1:9200
+export ES_USERNAME=
+export ES_PASSWORD=
 export JWT_SECRET='replace-with-a-long-random-secret'
 export APP_FILE_UPLOAD_DIR=/data/spring-admin-starter/uploads
+
+export LOG_ARCHIVE_ENABLED=true
+export LOG_ARCHIVE_CRON='0 0 2 * * ?'
+export LOG_ARCHIVE_RETENTION_DAYS=30
+export LOG_ARCHIVE_BATCH_SIZE=1000
 ```
 
 如果使用外部配置文件，至少需要覆盖：
@@ -129,6 +183,10 @@ spring:
   redis:
     host: ${REDIS_HOST}
     port: ${REDIS_PORT}
+  elasticsearch:
+    uris: ${ES_URIS}
+    username: ${ES_USERNAME}
+    password: ${ES_PASSWORD}
 
 app:
   cors:
@@ -159,6 +217,15 @@ mvn clean package -DskipTests
 java -jar target/spring-admin-starter-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
 ```
 
+后台启动示例：
+
+```bash
+nohup java -jar target/spring-admin-starter-0.0.1-SNAPSHOT.jar \
+  --spring.profiles.active=prod \
+  > logs/startup.log 2>&1 &
+echo $! > spring-admin-starter.pid
+```
+
 也可以把外部配置文件放到服务器固定目录：
 
 ```bash
@@ -168,6 +235,28 @@ java -jar target/spring-admin-starter-0.0.1-SNAPSHOT.jar \
 ```
 
 建议用 systemd、Supervisor、Docker 或 Kubernetes 托管进程，确保异常退出后能自动拉起，并把日志输出接入服务器日志系统。
+
+### 停止服务
+
+如果使用上面的 PID 文件启动：
+
+```bash
+kill $(cat spring-admin-starter.pid)
+rm -f spring-admin-starter.pid
+```
+
+如果服务未正常退出，可先确认进程仍存在，再使用强制停止：
+
+```bash
+ps -ef | grep spring-admin-starter
+kill -9 <PID>
+```
+
+systemd 托管时使用：
+
+```bash
+systemctl stop spring-admin-starter
+```
 
 ### Nginx 反向代理示例
 
@@ -195,6 +284,8 @@ location /actuator/health {
 
 - `GET /actuator/health` 返回 `UP`。
 - Redis 可写入会话，登录后 refresh token 和 logout 正常。
+- Elasticsearch `/` 地址可访问，应用启动日志没有 ES 客户端初始化错误。
+- Quartz 日志归档任务按 `LOG_ARCHIVE_CRON` 注册，`sys_log_archive` 表存在。
 - `POST /api/auth/login` 能登录生产账号。
 - `GET /api/permission/bootstrap` 返回菜单、路由和按钮权限。
 - `GET /api/dashboard/overview`、`GET /api/query/list`、`GET /api/system/users/list` 返回正常。
@@ -207,6 +298,7 @@ location /actuator/health {
 - 修改或禁用默认演示账号密码。
 - 使用强随机 `JWT_SECRET`，不要使用仓库中的示例值。
 - 生产数据库、Redis 密码只通过环境变量、密钥管理或外部配置注入。
+- Elasticsearch 只允许应用内网访问；如启用账号密码，必须通过环境变量或密钥管理注入。
 - CORS 只允许明确的前端生产域名。
 - 关闭生产注册入口，除非业务明确需要开放。
 - 限制 Swagger、Actuator、数据库和 Redis 的公网访问。

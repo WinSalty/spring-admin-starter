@@ -22,6 +22,20 @@ spring:
             required: ${MAIL_SMTP_STARTTLS_REQUIRED:false}
           ssl:
             enable: ${MAIL_SMTP_SSL_ENABLE:false}
+  quartz:
+    job-store-type: memory
+    properties:
+      org:
+        quartz:
+          scheduler:
+            instanceName: SpringAdminQuartzScheduler
+            instanceId: AUTO
+          threadPool:
+            threadCount: 5
+  elasticsearch:
+    uris: ${ES_URIS:http://127.0.0.1:9200}
+    username: ${ES_USERNAME:}
+    password: ${ES_PASSWORD:}
 
 server:
   port: 8080
@@ -49,3 +63,9 @@ app:
       enabled: ${MAIL_REGISTER_ENABLED:true}
       from: ${MAIL_FROM:${MAIL_USERNAME:}}
       subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 注册验证码}
+  batch:
+    log-archive:
+      enabled: ${LOG_ARCHIVE_ENABLED:true}
+      cron: ${LOG_ARCHIVE_CRON:0 0 2 * * ?}
+      retention-days: ${LOG_ARCHIVE_RETENTION_DAYS:30}
+      batch-size: ${LOG_ARCHIVE_BATCH_SIZE:1000}

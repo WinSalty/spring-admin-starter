@@ -1,18 +1,30 @@
 spring:
   datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
     driver-class-name: com.mysql.cj.jdbc.Driver
     # 生产环境请通过环境变量注入，例如：url: jdbc:mysql://${DB_HOST}:${DB_PORT}/spring_admin?...
     url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/spring_admin?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
     username: ${DB_USERNAME:spring_admin}
     # 生产环境请通过环境变量注入，例如：password: ${DB_PASSWORD}
     password: ${DB_PASSWORD:SpringAdmin@2026}
-    hikari:
-      pool-name: HikariPool-SpringAdmin
-      maximum-pool-size: 20
-      minimum-idle: 5
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
+    druid:
+      name: DruidPool-SpringAdmin
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      max-wait: 30000
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      pool-prepared-statements: true
+      max-pool-prepared-statement-per-connection-size: 20
+      stat-view-servlet:
+        enabled: ${DRUID_STAT_VIEW_ENABLED:false}
+      web-stat-filter:
+        enabled: false
   redis:
     host: ${REDIS_HOST:127.0.0.1}
     port: ${REDIS_PORT:6379}

@@ -1,10 +1,10 @@
 package com.winsalty.quickstart.auth.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.winsalty.quickstart.auth.service.AuthSessionService;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
+import com.winsalty.quickstart.infra.json.FastJsonUtils;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -32,14 +32,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final AuthSessionService authSessionService;
-    private final ObjectMapper objectMapper;
 
     public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider,
-                                   AuthSessionService authSessionService,
-                                   ObjectMapper objectMapper) {
+                                   AuthSessionService authSessionService) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.authSessionService = authSessionService;
-        this.objectMapper = objectMapper;
     }
 
     /**
@@ -75,7 +72,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.getWriter().write(objectMapper.writeValueAsString(
+            response.getWriter().write(FastJsonUtils.toJsonString(
                     ApiResponse.failure(exception.getCode(), exception.getMessage())));
         } finally {
             // Web 容器线程会复用，必须清理两个上下文，避免下一个请求继承上一个用户身份。

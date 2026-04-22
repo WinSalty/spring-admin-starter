@@ -1,4 +1,28 @@
 spring:
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME:spring_admin}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    druid:
+      name: DruidPool-SpringAdmin
+      initial-size: ${DB_POOL_INITIAL_SIZE:5}
+      min-idle: ${DB_POOL_MIN_IDLE:5}
+      max-active: ${DB_POOL_MAX_ACTIVE:50}
+      max-wait: ${DB_POOL_MAX_WAIT:30000}
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      pool-prepared-statements: true
+      max-pool-prepared-statement-per-connection-size: 20
+      stat-view-servlet:
+        enabled: ${DRUID_STAT_VIEW_ENABLED:false}
+      web-stat-filter:
+        enabled: false
   redis:
     host: ${REDIS_HOST:127.0.0.1}
     port: ${REDIS_PORT:6379}

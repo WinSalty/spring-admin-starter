@@ -1,13 +1,12 @@
 package com.winsalty.quickstart.common.aop;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.winsalty.quickstart.auth.annotation.AuditLog;
 import com.winsalty.quickstart.auth.security.AuthContext;
 import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.common.constant.CommonStatusConstants;
 import com.winsalty.quickstart.common.constant.SystemConstants;
 import com.winsalty.quickstart.common.util.IpUtils;
+import com.winsalty.quickstart.infra.json.FastJsonUtils;
 import com.winsalty.quickstart.log.dto.OperationLogRequest;
 import com.winsalty.quickstart.log.service.LogService;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -44,11 +43,9 @@ public class AuditLogAspect {
     private static final Logger log = LoggerFactory.getLogger(AuditLogAspect.class);
 
     private final LogService logService;
-    private final ObjectMapper objectMapper;
 
-    public AuditLogAspect(LogService logService, ObjectMapper objectMapper) {
+    public AuditLogAspect(LogService logService) {
         this.logService = logService;
-        this.objectMapper = objectMapper;
     }
 
     /**
@@ -171,10 +168,10 @@ public class AuditLogAspect {
             return map;
         }
         try {
-            // 先转换为 Jackson 能处理的树状结构，再递归脱敏，避免 ApiResponse 等对象落成 Class@hash。
-            return sanitize(objectMapper.convertValue(value, Object.class));
+            // 先转换为 Fastjson 能处理的树状结构，再递归脱敏，避免 ApiResponse 等对象落成 Class@hash。
+            return sanitize(FastJsonUtils.convert(value, Object.class));
         } catch (IllegalArgumentException exception) {
-            log.warn("audit log payload convert failed, type={}, message={}", value.getClass().getName(), exception.getMessage());
+            log.error("audit log payload convert failed, type={}, message={}", value.getClass().getName(), exception.getMessage());
             return sanitizeText(String.valueOf(value));
         }
     }
@@ -212,8 +209,8 @@ public class AuditLogAspect {
 
     private String safeJson(Object value) {
         try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
+            return FastJsonUtils.toJsonString(value);
+        } catch (RuntimeException exception) {
             log.error("audit log serialize failed, message={}", exception.getMessage());
             return "";
         }

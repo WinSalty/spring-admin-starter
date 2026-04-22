@@ -24,6 +24,8 @@
         <mybatis-plus.version>3.5.7</mybatis-plus.version>
         <springdoc.version>1.7.0</springdoc.version>
         <jjwt.version>0.11.5</jjwt.version>
+        <druid.version>1.2.27</druid.version>
+        <fastjson2.version>2.0.61</fastjson2.version>
     </properties>
 
     <dependencies>
@@ -53,7 +55,30 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-quartz</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>druid-spring-boot-starter</artifactId>
+            <version>${druid.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.fastjson2</groupId>
+            <artifactId>fastjson2</artifactId>
+            <version>${fastjson2.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.fastjson2</groupId>
+            <artifactId>fastjson2-extension-spring5</artifactId>
+            <version>${fastjson2.version}</version>
         </dependency>
         <dependency>
             <groupId>com.baomidou</groupId>

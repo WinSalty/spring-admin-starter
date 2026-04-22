@@ -1,6 +1,5 @@
 package com.winsalty.quickstart.common.aop;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.winsalty.quickstart.auth.vo.LoginResponse;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import org.junit.jupiter.api.Test;
@@ -12,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AuditLogAspectTest {
 
-    private final AuditLogAspect auditLogAspect = new AuditLogAspect(null, new ObjectMapper());
+    private final AuditLogAspect auditLogAspect = new AuditLogAspect(null);
 
     @Test
     void responseInfoShouldSerializeApiResponseBodyInsteadOfObjectAddress() {

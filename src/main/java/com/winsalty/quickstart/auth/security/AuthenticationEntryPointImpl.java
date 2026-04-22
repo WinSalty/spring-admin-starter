@@ -1,8 +1,8 @@
 package com.winsalty.quickstart.auth.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.common.constant.ErrorCode;
+import com.winsalty.quickstart.infra.json.FastJsonUtils;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -19,8 +19,6 @@ import java.nio.charset.StandardCharsets;
  */
 public class AuthenticationEntryPointImpl implements AuthenticationEntryPoint {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
     @Override
     public void commence(HttpServletRequest request,
                          HttpServletResponse response,
@@ -28,7 +26,7 @@ public class AuthenticationEntryPointImpl implements AuthenticationEntryPoint {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write(objectMapper.writeValueAsString(
+        response.getWriter().write(FastJsonUtils.toJsonString(
                 ApiResponse.failure(ErrorCode.AUTH_REQUIRED.getCode(), ErrorCode.AUTH_REQUIRED.getMessage())));
     }
 }
