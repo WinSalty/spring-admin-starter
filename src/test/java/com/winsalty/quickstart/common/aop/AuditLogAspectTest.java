@@ -3,6 +3,7 @@ package com.winsalty.quickstart.common.aop;
 import com.winsalty.quickstart.auth.vo.LoginResponse;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Map;
@@ -34,5 +35,19 @@ class AuditLogAspectTest {
         assertThat(responseInfo).contains("\"token\":\"***\"");
         assertThat(responseInfo).contains("\"accessToken\":\"***\"");
         assertThat(responseInfo).contains("\"refreshToken\":\"***\"");
+    }
+
+    @Test
+    void requestArgsShouldSkipServletRequestObject() {
+        Object[] args = new Object[]{
+                "admin",
+                new MockHttpServletRequest()
+        };
+        Object sanitized = ReflectionTestUtils.invokeMethod(auditLogAspect, "sanitize", (Object) args);
+        String requestInfo = ReflectionTestUtils.invokeMethod(auditLogAspect, "safeJson", sanitized);
+
+        assertThat(requestInfo).contains("\"admin\"");
+        assertThat(requestInfo).contains("[ignored:MockHttpServletRequest]");
+        assertThat(requestInfo).doesNotContain("asyncContext");
     }
 }

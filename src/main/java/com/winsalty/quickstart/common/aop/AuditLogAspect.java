@@ -17,9 +17,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
@@ -138,6 +141,9 @@ public class AuditLogAspect {
         if (value == null) {
             return null;
         }
+        if (isInfrastructureObject(value)) {
+            return "[ignored:" + value.getClass().getSimpleName() + "]";
+        }
         if (value instanceof CharSequence || value instanceof Character || value instanceof Enum) {
             return sanitizeText(String.valueOf(value));
         }
@@ -174,6 +180,12 @@ public class AuditLogAspect {
             log.error("audit log payload convert failed, type={}, message={}", value.getClass().getName(), exception.getMessage());
             return sanitizeText(String.valueOf(value));
         }
+    }
+
+    private boolean isInfrastructureObject(Object value) {
+        return value instanceof ServletRequest
+                || value instanceof ServletResponse
+                || value instanceof MultipartFile;
     }
 
     private boolean isSensitiveKey(String key) {
