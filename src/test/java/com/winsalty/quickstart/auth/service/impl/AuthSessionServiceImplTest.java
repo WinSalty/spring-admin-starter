@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 /**
  * 认证会话服务测试。
  * 聚焦同设备单点登录和 session 反向索引清理，避免旧 token 被误保留或误删新会话。
+ * 创建日期：2026-04-17
+ * author：sunshengxian
  */
 class AuthSessionServiceImplTest {
 

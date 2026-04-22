@@ -9,6 +9,7 @@ import com.winsalty.quickstart.auth.dto.RefreshTokenRequest;
 import com.winsalty.quickstart.auth.dto.RegisterRequest;
 import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.auth.service.AuthService;
+import com.winsalty.quickstart.auth.service.support.AuthRateLimitService;
 import com.winsalty.quickstart.auth.vo.LoginResponse;
 import com.winsalty.quickstart.auth.vo.ProfileResponse;
 import com.winsalty.quickstart.auth.vo.RefreshTokenResponse;
@@ -16,6 +17,7 @@ import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.common.base.BaseController;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
+import com.winsalty.quickstart.common.util.IpUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.validation.constraints.Email;
 import javax.validation.constraints.NotBlank;
 
@@ -42,12 +45,14 @@ import javax.validation.constraints.NotBlank;
 public class AuthController extends BaseController {
 
     private final AuthService authService;
+    private final AuthRateLimitService authRateLimitService;
 
     @Value("${app.security.register-enabled:false}")
     private boolean registerEnabled;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, AuthRateLimitService authRateLimitService) {
         this.authService = authService;
+        this.authRateLimitService = authRateLimitService;
     }
 
     /**
@@ -55,7 +60,8 @@ public class AuthController extends BaseController {
      */
     @AuditLog(logType = "login", code = "auth_login", name = "用户登录")
     @PostMapping("/login")
-    public ApiResponse<LoginResponse> login(@Validated @RequestBody LoginRequest request) {
+    public ApiResponse<LoginResponse> login(@Validated @RequestBody LoginRequest request, HttpServletRequest servletRequest) {
+        authRateLimitService.checkLogin(request.getUsername(), IpUtils.getClientIp(servletRequest));
         return ApiResponse.success("登录成功", authService.login(request));
     }
 
@@ -98,7 +104,9 @@ public class AuthController extends BaseController {
     @GetMapping("/register/verify-code")
     public ApiResponse<Object> registerVerifyCode(@NotBlank(message = "邮箱不能为空")
                                                   @Email(message = "邮箱格式不正确")
-                                                  @RequestParam("email") String email) {
+                                                  @RequestParam("email") String email,
+                                                  HttpServletRequest servletRequest) {
+        authRateLimitService.checkRegisterVerifyCode(email, IpUtils.getClientIp(servletRequest));
         authService.sendRegisterVerifyCode(email);
         return ApiResponse.success("发送成功", null);
     }

@@ -42,6 +42,13 @@ public class RedisCacheService {
         return redisTemplate.opsForValue().increment(key);
     }
 
+    /**
+     * 为已有 key 设置过期时间，常用于计数器首次创建后的限流窗口绑定。
+     */
+    public void expire(String key, long timeoutSeconds) {
+        redisTemplate.expire(key, timeoutSeconds, TimeUnit.SECONDS);
+    }
+
     public void delete(String key) {
         // 删除操作用于一次性验证码消费和 refresh session 失效，调用方不需要关心 key 是否存在。
         redisTemplate.delete(key);

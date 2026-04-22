@@ -37,6 +37,7 @@ public enum ErrorCode {
     REGISTER_DISABLED(4031, "当前环境不开放注册"),
     REGISTER_VERIFY_CODE_INVALID(4032, "邮箱验证码无效"),
     REGISTER_VERIFY_CODE_SEND_FAILED(4033, "邮箱验证码发送失败"),
+    AUTH_RATE_LIMITED(4034, "操作过于频繁，请稍后再试"),
     USER_NOT_FOUND(4040, "用户不存在"),
     QUERY_NOT_FOUND(4041, "查询配置不存在"),
     SYSTEM_RECORD_NOT_FOUND(4042, "系统记录不存在"),

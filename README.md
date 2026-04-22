@@ -14,6 +14,7 @@
 - 已完成阶段 5：`/api/system/configs`、`/api/system/configs/save`，已接入 Redis 并覆盖 bootstrap、dict、config 三类缓存。
 - 已完成阶段 6 第一阶段：登录接口升级为双 Token，新增 refresh token、登出与基于 Redis 的会话失效控制。
 - 已完成阶段 6 第二阶段：新增登录日志、操作日志、异常日志写入链路，并接入 auth、permission、system 和全局异常处理。
+- 已完成登录鉴权安全加固：生产 JWT 密钥强校验、匿名登录/验证码限流、refresh token 轮换校验和 demo 接口收敛。
 - 已完成阶段 6 后续模块：新增新版字典类型/字典项、参数配置、文件上传下载与完整初始化 SQL。
 - 已补齐公告通知、部门管理、用户角色真实联动接口；用户列表和角色列表已切到 `sys_user`、`sys_role`、`sys_user_role` 真实关系。
 - 已接入 JWT Bearer 鉴权。
@@ -22,6 +23,7 @@
 - 当前阶段已接入本地 Redis，用于 bootstrap、dict、config 缓存。
 - 文件上传默认本地存储目录为项目根目录 `uploads/`，单文件限制 10MB。
 - 注册接口仅在 dev 环境开放。
+- 登录鉴权审计报告详见 [SECURITY_AUTH_AUDIT.md](./SECURITY_AUTH_AUDIT.md)。
 
 ## 启动要求
 
@@ -79,7 +81,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 2. 准备 MySQL 5.7/8.0，并创建生产数据库和专用账号。
 3. 准备 Redis，用于登录会话、权限 bootstrap、字典和系统配置缓存。
 4. 准备文件上传目录，确保运行用户有读写权限。
-5. 准备足够长且不可提交到仓库的 `JWT_SECRET`。
+5. 准备足够长且不可提交到仓库的 `JWT_SECRET`；`prod` 环境缺失或使用默认占位密钥会启动失败。
 6. 确认前端生产域名，例如 `https://admin.example.com`，用于 CORS 白名单。
 7. 确认是否由 Nginx 或网关统一暴露 `/api`，建议后端只监听内网地址或受控端口。
 
@@ -140,6 +142,7 @@ app:
 ```
 
 注意：`app.cors.allowed-origins` 生产环境必须填写明确域名，不要使用通配符；`register-enabled` 建议保持 `false`。
+注意：生产环境建议关闭或限制 Swagger/OpenAPI 访问，并在网关层叠加登录、验证码等匿名接口限流。
 
 ### 打包与启动
 

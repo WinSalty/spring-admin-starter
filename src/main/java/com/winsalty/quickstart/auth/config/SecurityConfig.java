@@ -32,7 +32,6 @@ public class SecurityConfig {
             new AntPathRequestMatcher("/swagger-ui/**"),
             new AntPathRequestMatcher("/v3/api-docs/**"),
             new AntPathRequestMatcher("/api/common/ping"),
-            new AntPathRequestMatcher("/api/common/demo"),
             new AntPathRequestMatcher("/api/auth/login"),
             // refresh-token 虽然和登录态有关，但凭 refresh token 自身校验，不依赖 access token。
             new AntPathRequestMatcher("/api/auth/refresh-token"),

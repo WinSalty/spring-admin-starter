@@ -9,11 +9,13 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.UUID;
 
@@ -37,6 +39,11 @@ public class JwtTokenProvider {
     private long refreshExpireSeconds;
 
     private Key key;
+    private final Environment environment;
+
+    public JwtTokenProvider(Environment environment) {
+        this.environment = environment;
+    }
 
     /**
      * 启动时校验 HMAC 密钥长度，避免运行中签发弱密钥 token。
@@ -45,6 +52,9 @@ public class JwtTokenProvider {
     public void init() {
         if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
             throw new IllegalStateException("app.security.jwt-secret 长度不足 32 字节，请检查配置");
+        }
+        if (isProdProfile() && isUnsafeProdSecret(secret)) {
+            throw new IllegalStateException("prod 环境必须通过 JWT_SECRET 注入独立随机密钥，不能使用仓库默认密钥");
         }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
@@ -123,5 +133,15 @@ public class JwtTokenProvider {
                 .setExpiration(expiredAt)
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    private boolean isProdProfile() {
+        return Arrays.asList(environment.getActiveProfiles()).contains("prod");
+    }
+
+    private boolean isUnsafeProdSecret(String value) {
+        return value.contains("winsalty-quickstart-prod-jwt-secret")
+                || value.contains("winsalty-quickstart-dev-jwt-secret")
+                || value.contains("replace-with");
     }
 }
