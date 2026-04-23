@@ -14,7 +14,7 @@ import javax.validation.constraints.Size;
 @Data
 public class LoginRequest {
 
-    @NotBlank(message = "用户名不能为空")
+    @NotBlank(message = "账号或邮箱不能为空")
     private String username;
 
     @NotBlank(message = "密码不能为空")

@@ -63,10 +63,10 @@
 
 | 模块 | 说明 |
 | --- | --- |
-| 登录 | `/api/auth/login`，支持 access token + refresh token |
+| 登录 | `/api/auth/login`，支持用户名或邮箱 + 密码登录，返回 access token + refresh token |
 | 刷新令牌 | `/api/auth/refresh-token`，支持 refresh token 轮换 |
 | 退出登录 | `/api/auth/logout`，基于 Redis 失效当前会话 |
-| 注册 | `/api/auth/register`，仅 `dev` 环境默认开放 |
+| 注册 | `/api/auth/register`，仅 `dev` 环境默认开放，且一个邮箱仅允许注册一个账号 |
 | 注册验证码 | `/api/auth/register/verify-code`，基于邮件发送 |
 | 个人中心 | `/api/auth/profile`、资料修改、密码修改、通知设置 |
 | 登录限流 | 基于账号/IP 的匿名接口限流 |
@@ -493,6 +493,8 @@ export LOG_ARCHIVE_BATCH_SIZE=1000
 | `resources/sql/` | 按版本拆分的 SQL 脚本集合 |
 
 如果你是从旧版本库升级，而不是重新执行 `sql/init.sql`，文件模块上线前至少需要补齐 `resources/sql/V18__extend_file_business_scope_schema.sql`。当前头像上传、业务文件上传和 OSS 文件复用都依赖 `sys_file.biz_module`、`biz_id`、`visibility`、`owner_type`、`owner_id` 字段；缺失这些字段时，接口会返回“文件表结构未升级”的明确提示。
+
+认证模块新增“用户名或邮箱登录”和“邮箱唯一注册”能力后，旧库还需要继续执行 `resources/sql/V19__add_unique_email_login_support.sql`，为 `sys_user.email` 增加唯一索引。执行前应先清理历史重复邮箱数据，否则索引脚本会被数据库拒绝。
 
 ### 本地初始化
 

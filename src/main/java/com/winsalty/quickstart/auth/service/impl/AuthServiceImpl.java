@@ -70,7 +70,8 @@ public class AuthServiceImpl extends BaseService implements AuthService {
      */
     @Override
     public LoginResponse login(LoginRequest request) {
-        UserEntity user = userMapper.findByUsername(request.getUsername());
+        String account = normalizeAccount(request.getUsername());
+        UserEntity user = userMapper.findByUsernameOrEmail(account);
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             // 用户不存在和密码错误使用同一提示，防止通过接口枚举有效用户名。
             throw new BusinessException(ErrorCode.LOGIN_BAD_CREDENTIALS);
@@ -144,15 +145,21 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     public void register(RegisterRequest request) {
         // 验证码先校验并消费，避免同一验证码被重复注册多个账号。
         registerVerificationService.verifyCode(request.getEmail(), request.getVerifyCode());
-        UserEntity existedUser = userMapper.findByUsername(request.getUsername());
+        String username = normalizeAccount(request.getUsername());
+        String email = normalizeEmail(request.getEmail());
+        UserEntity existedUser = userMapper.findByUsername(username);
         if (existedUser != null) {
             throw new BusinessException(ErrorCode.USERNAME_ALREADY_EXISTS);
         }
+        UserEntity existedEmailUser = userMapper.findByEmail(email);
+        if (existedEmailUser != null) {
+            throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
         UserEntity user = new UserEntity();
         user.setRecordCode("U" + System.currentTimeMillis());
-        user.setUsername(request.getUsername());
-        user.setEmail(request.getEmail());
-        user.setNickname(request.getUsername());
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setNickname(username);
         user.setCountry("中国");
         user.setPhonePrefix("86");
         user.setNotifyAccount(1);
@@ -266,6 +273,20 @@ public class AuthServiceImpl extends BaseService implements AuthService {
 
     private String normalizeDeviceType(String deviceType) {
         return StringUtils.hasText(deviceType) ? deviceType.trim().toUpperCase() : SecurityConstants.DEFAULT_DEVICE_TYPE;
+    }
+
+    private String normalizeAccount(String account) {
+        if (!StringUtils.hasText(account)) {
+            return "";
+        }
+        return account.trim();
+    }
+
+    private String normalizeEmail(String email) {
+        if (!StringUtils.hasText(email)) {
+            return "";
+        }
+        return email.trim().toLowerCase();
     }
 
     private String trimToNull(String value) {

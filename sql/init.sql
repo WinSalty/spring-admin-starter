@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS sys_user (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     UNIQUE KEY uk_sys_user_record_code (record_code),
-    UNIQUE KEY uk_sys_user_username (username)
+    UNIQUE KEY uk_sys_user_username (username),
+    UNIQUE KEY uk_sys_user_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 
 CREATE TABLE IF NOT EXISTS sys_role (
