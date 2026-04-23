@@ -118,8 +118,9 @@ public class FileController extends BaseController {
     @GetMapping("/{id}/download")
     public ResponseEntity<?> download(@PathVariable("id") String id) {
         FileRecordVo detail = fileRecordService.getDetail(id);
-        if ("aliyun-oss".equals(detail.getStorageType()) && detail.getFileUrl() != null && !detail.getFileUrl().isEmpty()) {
-            return ResponseEntity.status(302).location(URI.create(detail.getFileUrl())).build();
+        if ("aliyun-oss".equals(detail.getStorageType())) {
+            PrivateDownloadUrlVo downloadUrl = fileRecordService.createProtectedDownloadUrl(id);
+            return ResponseEntity.status(302).location(URI.create(downloadUrl.getDownloadUrl())).build();
         }
         Resource resource = fileRecordService.loadDownloadResource(id);
         ContentDisposition disposition = ContentDisposition.attachment()
@@ -168,7 +169,7 @@ public class FileController extends BaseController {
     }
 
     /**
-     * 头像图片访问入口。仅用于浏览器展示已保存头像，阿里云 OSS 文件直接跳转外链。
+     * 头像图片访问入口。OSS 文件生成短期签名 URL 后跳转，避免暴露永久外链。
      */
     @GetMapping("/avatar/{id}")
     public ResponseEntity<?> avatar(@PathVariable("id") String id) {
@@ -176,8 +177,9 @@ public class FileController extends BaseController {
         if (detail.getContentType() == null || !detail.getContentType().startsWith("image/")) {
             throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
         }
-        if ("aliyun-oss".equals(detail.getStorageType()) && detail.getFileUrl() != null && !detail.getFileUrl().isEmpty()) {
-            return ResponseEntity.status(302).location(URI.create(detail.getFileUrl())).build();
+        if ("aliyun-oss".equals(detail.getStorageType())) {
+            PrivateDownloadUrlVo downloadUrl = fileRecordService.createProtectedDownloadUrl(id);
+            return ResponseEntity.status(302).location(URI.create(downloadUrl.getDownloadUrl())).build();
         }
         Resource resource = fileRecordService.loadDownloadResource(id);
         MediaType mediaType = detail.getContentType() == null || detail.getContentType().isEmpty()

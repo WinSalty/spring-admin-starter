@@ -2,29 +2,29 @@
 
 ## 1. 背景与目标
 
-当前系统已接入阿里云 OSS，头像上传使用公共读 Bucket，前端可以直接展示对象存储返回的永久访问地址。后续如果增加合同、证件、内部附件、导入导出文件等私有文件，不能继续复用公共读头像方案，否则会带来数据泄露、越权访问和审计缺失风险。
+当前系统已接入阿里云 OSS。为避免 OSS 公开地址被盗刷和长期外链被滥用，云存储模式统一使用私有 Bucket；头像、公开图片等业务 public 文件也不暴露 OSS 永久 URL，而是保存后端受控访问地址，由后端通过 SDK 生成短期签名 URL。
 
 本方案目标：
 
-- 公共文件与私有文件物理隔离，避免权限误配置造成敏感文件公开。
-- 公共头像继续支持永久 URL 直接展示。
+- public/private 作为业务访问分类，云端物理存储统一进入私有 Bucket，避免公开 Bucket 被滥用。
+- 公共头像保存后端文件编号访问入口，不保存 OSS 永久 URL。
 - 私有文件只保存文件标识和对象 Key，访问时由后端鉴权后生成临时签名 URL 或代理下载。
 - 文件服务保持统一抽象，后续可以扩展临时 Bucket、生命周期清理、CDN、自定义域名、本地存储和多云实现。
 - 未启用云存储时自动使用本地存储替代方案，业务系统上传、展示、下载体验保持无感。
 
 ## 2. 总体设计
 
-推荐采用多 Bucket 模型：
+推荐采用逻辑 Bucket 类型 + 私有物理 Bucket 模型：
 
 | Bucket 类型 | 权限 | 典型文件 | 访问方式 |
 | --- | --- | --- | --- |
-| public | 公共读 | 头像、公开图片、Logo | 数据库保存永久 file_url，前端直接访问 |
+| public | 后端受控公开 | 头像、公开图片、Logo | 数据库保存后端访问入口，后端生成短期签名 URL |
 | private | 私有读写 | 合同、证件、内部附件 | 数据库保存 object_key，后端鉴权后生成临时签名 URL |
 | temp | 私有读写，可选 | 导入临时文件、未确认文件 | 配置生命周期自动清理，确认后转存 |
 
 核心原则：
 
-- 公共文件可以保存长期可访问 URL。
+- 云端公共业务文件不保存 OSS 长期可访问 URL。
 - 私有文件不保存长期可访问 URL，只保存 `fileId`、`bucketType`、`bucketName`、`objectKey` 等元数据。
 - 前端不能直接传 `objectKey` 下载私有文件，必须传 `fileId`，由后端查询文件与业务关系后做权限判断。
 - OSS SDK 只负责生成私有对象临时访问地址，不负责业务用户是否有权访问该文件。
@@ -47,9 +47,7 @@ app:
       access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
       access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
       key-prefix: uploads
-      public-bucket: ${ALIYUN_OSS_PUBLIC_BUCKET:ai-quick-web}
-      public-domain: ${ALIYUN_OSS_PUBLIC_DOMAIN:https://ai-quick-web.oss-cn-hangzhou.aliyuncs.com}
-      private-bucket: ${ALIYUN_OSS_PRIVATE_BUCKET:}
+      private-bucket: ${ALIYUN_OSS_PRIVATE_BUCKET:ai-quick-web-private}
       private-url-expire-seconds: ${ALIYUN_OSS_PRIVATE_URL_EXPIRE_SECONDS:600}
       temp-bucket: ${ALIYUN_OSS_TEMP_BUCKET:}
       temp-file-expire-days: ${ALIYUN_OSS_TEMP_FILE_EXPIRE_DAYS:1}
@@ -64,8 +62,6 @@ app:
 ```bash
 APP_OBJECT_STORAGE_ENABLED=true
 ALIYUN_OSS_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
-ALIYUN_OSS_PUBLIC_BUCKET=ai-quick-web
-ALIYUN_OSS_PUBLIC_DOMAIN=https://ai-quick-web.oss-cn-hangzhou.aliyuncs.com
 ALIYUN_OSS_PRIVATE_BUCKET=ai-quick-web-private
 ALIYUN_OSS_PRIVATE_URL_EXPIRE_SECONDS=600
 ```
@@ -94,8 +90,7 @@ LOCAL_STORAGE_PRIVATE_URL_EXPIRE_SECONDS=600
 生产环境建议：
 
 - AccessKey 不写入仓库，只通过环境变量、KMS、容器 Secret 或云平台密钥管理注入。
-- 公共 Bucket 只存可公开资源。
-- 私有 Bucket 禁止公共读。
+- OSS Bucket 统一使用私有读写，禁止公共读。
 - 临时 Bucket 配置生命周期规则，自动删除过期对象。
 - 本地存储根目录必须挂载到持久化磁盘，不允许使用容器临时目录。
 - 多实例部署时，本地存储必须使用共享文件系统、NAS、NFS 或统一文件服务，否则不同实例之间会出现文件不可见。
@@ -119,10 +114,10 @@ ALTER TABLE sys_file
 | 字段 | 公共文件 | 私有文件 |
 | --- | --- | --- |
 | bucket_type | public | private |
-| bucket_name | 公共 Bucket 名或 local-public | 私有 Bucket 名或 local-private |
+| bucket_name | 私有 Bucket 名或 local-public | 私有 Bucket 名或 local-private |
 | object_key | 必填 | 必填 |
-| file_url | 可保存永久 URL | 为空 |
-| access_policy | public_read | private_read |
+| file_url | 云存储为空，本地可为 `/api/file/public/**` | 为空 |
+| access_policy | 云存储为 private_read，本地公共为 public_read | private_read |
 | business_type | 可选 | 建议必填 |
 | business_id | 可选 | 建议必填 |
 
@@ -145,7 +140,7 @@ ALTER TABLE sys_file
 | 场景 | storage_type | bucket_name | object_key | file_url |
 | --- | --- | --- | --- | --- |
 | 历史本地头像 | local | local-public | public/avatar/ab/hash.png | /api/file/public/public/avatar/ab/hash.png |
-| 新 OSS 头像 | aliyun | ai-quick-web | uploads/avatar/ab/hash.png | https://ai-quick-web.oss-cn-hangzhou.aliyuncs.com/uploads/avatar/ab/hash.png |
+| 新 OSS 头像 | aliyun | ai-quick-web-private | uploads/public/avatar/ab/hash.png | 空 |
 | 历史本地私有附件 | local | local-private | private/order/1/a.pdf | 空 |
 | 新 OSS 私有附件 | aliyun | ai-quick-web-private | private/order/1/a.pdf | 空 |
 
@@ -198,7 +193,7 @@ public interface FileStorageProvider {
 | `object-storage.enabled=true` 且 `provider=aliyun` | AliyunOssStorageProvider |
 | `object-storage.enabled=false` | LocalFileStorageProvider |
 
-业务 Service 只调用 `ObjectStorageService`，由其根据配置委托到具体 Provider。这样头像、附件、下载接口不用区分云存储和本地存储，前端体验保持一致。
+业务 Service 只调用 `ObjectStorageService`，由其根据配置委托到具体 Provider。这样头像、附件、下载接口不用区分云存储和本地存储，前端体验保持一致。云存储 Provider 不区分 public/private 物理 Bucket，统一写入私有 Bucket，仅通过 `bucket_type` 区分业务语义。
 
 历史文件访问的 Provider 选择规则：
 
@@ -253,7 +248,7 @@ POST /api/file/avatar/upload
 ```json
 {
   "id": 1,
-  "fileUrl": "https://ai-quick-web.oss-cn-hangzhou.aliyuncs.com/uploads/avatar.png"
+  "fileUrl": "/api/file/avatar/1"
 }
 ```
 
@@ -428,9 +423,9 @@ public interface FilePermissionService {
 公共文件兼容策略：
 
 - 历史本地公共文件保留 `/api/file/public/**` 地址，不因为开启云存储而失效。
-- 新云存储公共文件返回 OSS 或 CDN URL。
-- 如果前端要统一走后端域名，可以公共文件也返回 `/api/file/public/{fileId}`，后端再按 `storage_type` 重定向到 OSS 或读取本地文件。
-- 当前头像场景可以继续保存直接可访问的 `fileUrl`，但建议同时保留 `fileId`，后续迁移更稳。
+- 新云存储公共业务文件返回 `/api/file/avatar/{fileId}` 或 `/api/file/{fileId}/download` 这类后端受控地址。
+- 后端根据 `storage_type=aliyun` 生成短期签名 URL 并 302 跳转，根据 `storage_type=local` 读取本地文件。
+- 当前头像场景保存后端受控 `fileUrl`，不保存 OSS 外链。
 
 私有文件兼容策略：
 
@@ -444,10 +439,10 @@ public interface FilePermissionService {
 
 1. 查询待迁移的 `storage_type=local` 文件记录。
 2. 根据 `local.root-path + object_key` 读取本地文件。
-3. 上传到目标 OSS Bucket，生成新的 `object_key` 和公共 `file_url`。
+3. 上传到目标 OSS 私有 Bucket，生成新的 `object_key`，云存储 `file_url` 保持为空。
 4. 校验文件大小和 `content_hash` 一致。
-5. 在同一事务中更新 `sys_file.storage_type=aliyun`、`bucket_name`、`object_key`、`file_url`、`access_policy`。
-6. 如果该文件是用户头像，同步更新 `sys_user.avatar_url`。
+5. 在同一事务中更新 `sys_file.storage_type=aliyun`、`bucket_name`、`object_key`、`file_url=''`、`access_policy=private_read`。
+6. 如果该文件是用户头像，同步更新 `sys_user.avatar_url=/api/file/avatar/{fileId}`。
 7. 原本地文件先标记待清理，确认一段时间无回滚需求后再物理删除。
 
 云存储迁移到本地建议流程：
@@ -491,15 +486,15 @@ CREATE TABLE sys_file_migration_log (
 
 ### 阶段一：配置与属性类
 
-1. 扩展对象存储配置，支持 `publicBucket`、`publicDomain`、`privateBucket`、`privateUrlExpireSeconds`、`tempBucket`。
+1. 扩展对象存储配置，支持 `privateBucket`、`privateUrlExpireSeconds`、`tempBucket`。
 2. 增加本地存储配置，支持 `local.rootPath`、`local.publicBaseUrl`、`local.privateUrlExpireSeconds`。
 3. 调整 `enabled=false` 语义：不启用云存储时自动使用本地存储，而不是关闭文件能力。
-4. 启动时校验：启用云存储后 `endpoint`、AccessKey、公共 Bucket 必填；启用本地存储后 `rootPath` 必填且目录可创建或可写；启用私有云文件功能时私有 Bucket 必填。
+4. 启动时校验：启用云存储后 `endpoint`、AccessKey、私有 Bucket 必填；启用本地存储后 `rootPath` 必填且目录可创建或可写。
 
 ### 阶段二：数据库升级
 
 1. 新增 SQL 迁移脚本，扩展 `sys_file` 多 Bucket 字段。
-2. 将历史头像文件迁移为 `bucket_type=public`、`access_policy=public_read`。
+2. 将历史头像文件迁移为 `bucket_type=public`、云存储 `access_policy=private_read`、本地存储 `access_policy=public_read`。
 3. 为历史文件补齐 `storage_type`、`bucket_name`、`object_key`、`access_policy`，确保切换 Provider 后仍能按记录读取。
 4. 如需批量迁移物理文件，新增 `sys_file_migration_log` 或等价迁移日志表。
 5. 私有文件历史数据如果不存在，可暂不迁移，后续新增功能时按新字段写入。
@@ -508,9 +503,9 @@ CREATE TABLE sys_file_migration_log (
 
 1. 扩展 `ObjectStorageService`，区分公共上传和私有上传。
 2. 新增 `FileStorageProvider` 抽象，提供阿里云 OSS 与本地文件两个实现。
-3. 阿里云实现类根据 Bucket 类型选择不同 Bucket。
+3. 阿里云实现类统一写入私有 Bucket，并按 `bucket_type` 区分业务分类。
 4. 本地实现类根据 Bucket 类型写入 `local.rootPath/public`、`local.rootPath/private`、`local.rootPath/temp`。
-5. 公共上传返回 `fileUrl`，云存储返回 OSS URL，本地存储返回 `/api/file/public/**`。
+5. 公共上传返回 `fileUrl`，云存储返回后端受控地址，本地存储返回 `/api/file/public/**`。
 6. 私有上传只返回 `bucketName`、`objectKey`、文件元数据，不返回永久 URL。
 7. 云存储增加 `generatePrivateDownloadUrl`，内部调用 OSS SDK `generatePresignedUrl`。
 8. 本地存储私有下载优先使用后端代理流式输出；如需临时 URL，则生成应用内短期签名令牌。
@@ -519,7 +514,7 @@ CREATE TABLE sys_file_migration_log (
 ### 阶段四：文件记录服务改造
 
 1. `FileRecordService` 增加 `uploadPublic`、`uploadPrivate`、`createPrivateDownloadUrl`。
-2. 公共头像上传继续写 `sys_user.avatar_url`，云存储写 OSS URL，本地存储写 `/api/file/public/**`。
+2. 公共头像上传继续写 `sys_user.avatar_url`，云存储写 `/api/file/avatar/{fileId}`，本地存储写 `/api/file/public/**`。
 3. 私有文件上传写入 `bucket_type=private`、`access_policy=private_read`、`file_url=null`。
 4. 私有下载前查询 `sys_file` 并校验文件状态。
 5. 所有业务层只依赖文件服务返回值，不根据 `storage_type` 写分支逻辑。
@@ -543,7 +538,7 @@ CREATE TABLE sys_file_migration_log (
 
 ### 阶段七：测试与验证
 
-1. 对公共头像上传做回归测试，确认 `sys_user.avatar_url` 是公共 OSS URL。
+1. 对云存储头像上传做回归测试，确认 `sys_user.avatar_url` 是 `/api/file/avatar/{fileId}` 且 OSS `file_url` 为空。
 2. 对关闭云存储场景做回归测试，确认头像上传后保存为 `/api/file/public/**` 且页面正常展示。
 3. 对本地存储路径安全测试，确认不能通过 `../` 读取根目录外文件。
 4. 对私有上传测试，确认 `sys_file.file_url` 为空。
@@ -560,7 +555,7 @@ CREATE TABLE sys_file_migration_log (
 1. 先调整配置语义，将 `enabled=false` 明确为本地存储 Provider。
 2. 新增本地存储实现，保证头像上传在无云存储时仍然可上传、保存和展示。
 3. 完成数据库字段扩展，统一记录云存储和本地存储元数据。
-4. 再改造对象存储服务，支持公共 Bucket、私有 Bucket 和本地 public/private/temp 目录。
+4. 再改造对象存储服务，支持统一私有 OSS Bucket 和本地 public/private/temp 目录。
 5. 增加按 `sys_file.storage_type` 路由的读取、下载、删除逻辑，先保证混合存储兼容。
 6. 保持头像公共上传接口行为不变，降低现有功能回归风险。
 7. 新增私有文件接口，不改动现有公共接口语义。

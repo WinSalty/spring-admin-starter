@@ -329,9 +329,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
      * @date 2026-04-23
      */
     private boolean isPersistentAvatarUrl(String avatarUrl) {
-        return avatarUrl.startsWith("http://")
-                || avatarUrl.startsWith("https://")
-                || avatarUrl.startsWith("/api/file/avatar/")
+        return avatarUrl.startsWith("/api/file/avatar/")
                 || avatarUrl.startsWith("/api/file/public/");
     }
 }

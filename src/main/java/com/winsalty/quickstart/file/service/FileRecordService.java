@@ -30,6 +30,8 @@ public interface FileRecordService {
 
     PrivateDownloadUrlVo createPrivateDownloadUrl(String id);
 
+    PrivateDownloadUrlVo createProtectedDownloadUrl(String id);
+
     FileRecordVo delete(String id);
 
     FileRecordVo updateStatus(String id, FileStatusRequest request);

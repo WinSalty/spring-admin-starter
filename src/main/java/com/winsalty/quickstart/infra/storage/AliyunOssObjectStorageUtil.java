@@ -16,7 +16,7 @@ import java.util.Date;
 
 /**
  * 阿里云 OSS 对象存储工具类。
- * 封装服务端直传和外链地址拼接，业务层不直接依赖阿里云 OSS SDK。
+ * 统一使用私有 Bucket 保存文件，访问时由后端生成短期签名 URL。
  * 创建日期：2026-04-23
  * author：sunshengxian
  */
@@ -32,14 +32,14 @@ public class AliyunOssObjectStorageUtil {
     }
 
     /**
-     * 上传文件流到阿里云 OSS 公共 Bucket。
+     * 兼容旧调用，实际写入阿里云 OSS 私有 Bucket。
      */
     public ObjectStorageUploadResult upload(InputStream inputStream, String objectKey, String contentType, long sizeBytes) {
         return uploadPublic(inputStream, objectKey, contentType, sizeBytes);
     }
 
     /**
-     * 上传文件流到阿里云 OSS 公共 Bucket。
+     * 上传公共业务文件到阿里云 OSS 私有 Bucket。
      *
      * @param inputStream 文件输入流
      * @param objectKey 对象 Key
@@ -50,12 +50,12 @@ public class AliyunOssObjectStorageUtil {
      * @date 2026-04-23
      */
     public ObjectStorageUploadResult uploadPublic(InputStream inputStream, String objectKey, String contentType, long sizeBytes) {
-        validatePublicConfig();
-        return uploadToBucket(properties.resolvePublicBucket(), objectKey, contentType, sizeBytes, inputStream, true);
+        validatePrivateConfig();
+        return uploadToBucket(properties.getPrivateBucket(), objectKey, contentType, sizeBytes, inputStream, "public");
     }
 
     /**
-     * 上传文件流到阿里云 OSS 私有 Bucket。
+     * 上传私有业务文件到阿里云 OSS 私有 Bucket。
      *
      * @param inputStream 文件输入流
      * @param objectKey 对象 Key
@@ -67,7 +67,7 @@ public class AliyunOssObjectStorageUtil {
      */
     public ObjectStorageUploadResult uploadPrivate(InputStream inputStream, String objectKey, String contentType, long sizeBytes) {
         validatePrivateConfig();
-        return uploadToBucket(properties.getPrivateBucket(), objectKey, contentType, sizeBytes, inputStream, false);
+        return uploadToBucket(properties.getPrivateBucket(), objectKey, contentType, sizeBytes, inputStream, "private");
     }
 
     private ObjectStorageUploadResult uploadToBucket(String bucketName,
@@ -75,7 +75,7 @@ public class AliyunOssObjectStorageUtil {
                                                      String contentType,
                                                      long sizeBytes,
                                                      InputStream inputStream,
-                                                     boolean publicRead) {
+                                                     String bucketType) {
         OSS ossClient = new OSSClientBuilder().build(
                 properties.getEndpoint(),
                 properties.getAccessKeyId(),
@@ -90,12 +90,12 @@ public class AliyunOssObjectStorageUtil {
             ossClient.putObject(bucketName, objectKey, inputStream, metadata);
             ObjectStorageUploadResult result = new ObjectStorageUploadResult();
             result.setStorageType(STORAGE_TYPE_ALIYUN_OSS);
-            result.setBucketType(publicRead ? "public" : "private");
+            result.setBucketType(bucketType);
             result.setBucketName(bucketName);
-            result.setAccessPolicy(publicRead ? "public_read" : "private_read");
+            result.setAccessPolicy("private_read");
             result.setObjectKey(objectKey);
             result.setFilePath(objectKey);
-            result.setFileUrl(publicRead ? buildPublicUrl(objectKey) : "");
+            result.setFileUrl("");
             return result;
         } catch (OSSException | ClientException exception) {
             throw new BusinessException(ErrorCode.OBJECT_STORAGE_UPLOAD_FAILED, "阿里云 OSS 上传失败");
@@ -105,7 +105,7 @@ public class AliyunOssObjectStorageUtil {
     }
 
     /**
-     * 拼接公开访问地址。
+     * 拼接公开访问地址，仅兼容历史公共 Bucket 数据。
      */
     public String buildPublicUrl(String objectKey) {
         String domain = trimTrailingSlash(properties.resolvePublicDomain());

@@ -214,10 +214,6 @@ app:
         endpoint: ${ALIYUN_OSS_ENDPOINT:}
         access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
         access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
-        bucket: ${ALIYUN_OSS_BUCKET:}
-        domain: ${ALIYUN_OSS_DOMAIN:}
-        public-bucket: ${ALIYUN_OSS_PUBLIC_BUCKET:${ALIYUN_OSS_BUCKET:}}
-        public-domain: ${ALIYUN_OSS_PUBLIC_DOMAIN:${ALIYUN_OSS_DOMAIN:}}
         private-bucket: ${ALIYUN_OSS_PRIVATE_BUCKET:}
         private-url-expire-seconds: ${ALIYUN_OSS_PRIVATE_URL_EXPIRE_SECONDS:600}
         key-prefix: ${ALIYUN_OSS_KEY_PREFIX:uploads}
@@ -231,13 +227,13 @@ app:
 
 - `10MB`
 
-`object-storage.enabled` 默认关闭。关闭时新文件写入本地存储，文件上传能力不关闭；开启时新文件写入阿里云 OSS。开启阿里云 OSS 时必须配置 `ALIYUN_OSS_ENDPOINT`、`ALIYUN_OSS_ACCESS_KEY_ID`、`ALIYUN_OSS_ACCESS_KEY_SECRET`、公共 Bucket 和公共访问域名；如使用私有文件，还需配置 `ALIYUN_OSS_PRIVATE_BUCKET`。当前用户头像通过 `/api/file/avatar/upload` 上传，后端仅允许图片类型并将返回的 `fileUrl` 保存到 `sys_user.avatar_url`。
+`object-storage.enabled` 默认关闭。关闭时新文件写入本地存储，文件上传能力不关闭；开启时新文件统一写入阿里云 OSS 私有 Bucket。开启阿里云 OSS 时必须配置 `ALIYUN_OSS_ENDPOINT`、`ALIYUN_OSS_ACCESS_KEY_ID`、`ALIYUN_OSS_ACCESS_KEY_SECRET`、`ALIYUN_OSS_PRIVATE_BUCKET`。当前用户头像通过 `/api/file/avatar/upload` 上传，云存储模式下 `sys_user.avatar_url` 保存后端受控地址 `/api/file/avatar/{id}`，浏览器访问该地址时由后端生成短期 OSS 签名 URL。
 
 头像展示规则：
 
 1. `APP_OBJECT_STORAGE_ENABLED=false`：头像上传到本地存储，`fileUrl` 返回 `/api/file/public/**`。
-2. `APP_OBJECT_STORAGE_ENABLED=true`：头像上传到阿里云 OSS 公共 Bucket，`fileUrl` 返回公共 OSS 或 CDN URL。
-3. 文件记录会保存 `storage_type`、`bucket_type`、`bucket_name`、`access_policy`、`object_key`、`file_url` 和 `content_hash`。
+2. `APP_OBJECT_STORAGE_ENABLED=true`：头像上传到阿里云 OSS 私有 Bucket，接口不返回 OSS 永久外链，前端保存 `/api/file/avatar/{id}`。
+3. OSS 文件记录统一保存 `access_policy=private_read`，`file_url` 为空，访问时按 `fileId` 生成有效期 URL。
 4. 历史文件读取、下载、删除按 `sys_file.storage_type` 路由，切换本地或 OSS 默认写入配置不会影响存量文件访问。
 5. 私有文件上传接口为 `/api/file/private/upload`，下载前通过 `/api/file/private/{id}/download-url` 获取临时签名 URL 或本地代理下载地址。
 6. 文件上传会计算 SHA-256 内容 Hash，相同内容会复用已有本地文件或 OSS 对象，减少重复上传和存储占用；业务层仍新增文件记录，保留上传人、原始文件名和审计时间。
@@ -281,10 +277,6 @@ export APP_OBJECT_STORAGE_ENABLED=false
 export ALIYUN_OSS_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
 export ALIYUN_OSS_ACCESS_KEY_ID=
 export ALIYUN_OSS_ACCESS_KEY_SECRET=
-export ALIYUN_OSS_BUCKET=
-export ALIYUN_OSS_DOMAIN=
-export ALIYUN_OSS_PUBLIC_BUCKET=
-export ALIYUN_OSS_PUBLIC_DOMAIN=
 export ALIYUN_OSS_PRIVATE_BUCKET=
 export ALIYUN_OSS_PRIVATE_URL_EXPIRE_SECONDS=600
 export ALIYUN_OSS_KEY_PREFIX=uploads

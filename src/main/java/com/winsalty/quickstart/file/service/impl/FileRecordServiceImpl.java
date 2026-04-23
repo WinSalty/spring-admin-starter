@@ -277,11 +277,24 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         if (!BUCKET_TYPE_PRIVATE.equals(entity.getBucketType())) {
             throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "非私有文件不需要生成临时下载地址");
         }
+        return buildProtectedDownloadUrl(entity);
+    }
+
+    /**
+     * 创建受控文件下载地址，云端文件返回短期签名 URL，本地文件返回代理下载地址。
+     */
+    @Override
+    public PrivateDownloadUrlVo createProtectedDownloadUrl(String id) {
+        FileRecordEntity entity = load(parseId(id));
+        return buildProtectedDownloadUrl(entity);
+    }
+
+    private PrivateDownloadUrlVo buildProtectedDownloadUrl(FileRecordEntity entity) {
         PrivateDownloadUrlVo vo = new PrivateDownloadUrlVo();
         vo.setFileId(String.valueOf(entity.getId()));
         if (STORAGE_TYPE_ALIYUN_OSS.equals(entity.getStorageType())) {
             long expireSeconds = aliyunOssStorageProperties.getPrivateUrlExpireSeconds();
-            vo.setDownloadUrl(aliyunOssObjectStorageUtil.generatePresignedUrl(entity.getBucketName(), entity.getObjectKey(), expireSeconds));
+            vo.setDownloadUrl(aliyunOssObjectStorageUtil.generatePresignedUrl(resolveAliyunBucketName(entity), entity.getObjectKey(), expireSeconds));
             vo.setExpireSeconds(expireSeconds);
             vo.setDownloadMode(DOWNLOAD_MODE_SIGNED_URL);
             return vo;
@@ -343,7 +356,10 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
                                                 String bizType,
                                                 String bucketType) {
         String storageType = objectStorageProperties.isEnabled() ? STORAGE_TYPE_ALIYUN_OSS : STORAGE_TYPE_LOCAL;
-        FileRecordEntity reusable = fileRecordMapper.findReusableByContentHash(contentHash, storageType, bucketType);
+        String accessPolicy = STORAGE_TYPE_ALIYUN_OSS.equals(storageType)
+                ? ACCESS_POLICY_PRIVATE_READ
+                : (BUCKET_TYPE_PRIVATE.equals(bucketType) ? ACCESS_POLICY_PRIVATE_READ : ACCESS_POLICY_PUBLIC_READ);
+        FileRecordEntity reusable = fileRecordMapper.findReusableByContentHash(contentHash, storageType, bucketType, accessPolicy);
         if (reusable != null) {
             log.info("file content hash reused, storageType={}, bucketType={}, objectKey={}, contentHash={}",
                     reusable.getStorageType(), reusable.getBucketType(), reusable.getObjectKey(), contentHash);
@@ -454,6 +470,16 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             rootPath = uploadDir;
         }
         return new File(rootPath);
+    }
+
+    private String resolveAliyunBucketName(FileRecordEntity entity) {
+        if (StringUtils.hasText(entity.getBucketName())) {
+            return entity.getBucketName();
+        }
+        if (StringUtils.hasText(aliyunOssStorageProperties.resolvePublicBucket())) {
+            return aliyunOssStorageProperties.resolvePublicBucket();
+        }
+        return aliyunOssStorageProperties.getPrivateBucket();
     }
 
     private File resolveLocalFile(String filePath) {

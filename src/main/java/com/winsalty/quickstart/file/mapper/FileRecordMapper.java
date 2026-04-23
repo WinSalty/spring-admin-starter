@@ -44,8 +44,11 @@ public interface FileRecordMapper {
     @Select("SELECT " + COLUMNS + " FROM sys_file f WHERE f.object_key = #{objectKey} AND f.storage_type = 'local' AND f.bucket_type = 'public' AND f.status = 'active' AND f.deleted = 0 ORDER BY f.id ASC LIMIT 1")
     FileRecordEntity findPublicLocalByObjectKey(@Param("objectKey") String objectKey);
 
-    @Select("SELECT " + COLUMNS + " FROM sys_file f WHERE f.content_hash = #{contentHash} AND f.storage_type = #{storageType} AND f.bucket_type = #{bucketType} AND f.status = 'active' AND f.deleted = 0 ORDER BY f.id ASC LIMIT 1")
-    FileRecordEntity findReusableByContentHash(@Param("contentHash") String contentHash, @Param("storageType") String storageType, @Param("bucketType") String bucketType);
+    @Select("SELECT " + COLUMNS + " FROM sys_file f WHERE f.content_hash = #{contentHash} AND f.storage_type = #{storageType} AND f.bucket_type = #{bucketType} AND f.access_policy = #{accessPolicy} AND f.status = 'active' AND f.deleted = 0 ORDER BY f.id ASC LIMIT 1")
+    FileRecordEntity findReusableByContentHash(@Param("contentHash") String contentHash,
+                                               @Param("storageType") String storageType,
+                                               @Param("bucketType") String bucketType,
+                                               @Param("accessPolicy") String accessPolicy);
 
     @Insert("INSERT INTO sys_file(file_code, original_name, stored_name, file_path, storage_type, bucket_type, bucket_name, access_policy, object_key, file_url, content_hash, content_type, extension, size_bytes, status, deleted, created_by) VALUES(#{fileCode}, #{originalName}, #{storedName}, #{filePath}, #{storageType}, #{bucketType}, #{bucketName}, #{accessPolicy}, #{objectKey}, #{fileUrl}, #{contentHash}, #{contentType}, #{extension}, #{sizeBytes}, #{status}, 0, #{createdBy})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
