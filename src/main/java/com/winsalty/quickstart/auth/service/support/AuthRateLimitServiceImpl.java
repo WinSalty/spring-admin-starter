@@ -25,15 +25,20 @@ public class AuthRateLimitServiceImpl implements AuthRateLimitService {
     private static final String LOGIN_ACCOUNT_PREFIX = "sa:auth:limit:login:account:";
     private static final String LOGIN_FAIL_COUNT_PREFIX = "sa:auth:lock:login:fail-count:";
     private static final String LOGIN_LOCK_PREFIX = "sa:auth:lock:login:";
+    private static final String FILE_UPLOAD_IP_PREFIX = "sa:auth:limit:file-upload:ip:";
+    private static final String FILE_UPLOAD_USER_PREFIX = "sa:auth:limit:file-upload:user:";
     private static final String VERIFY_IP_PREFIX = "sa:auth:limit:verify:ip:";
     private static final String VERIFY_EMAIL_PREFIX = "sa:auth:limit:verify:email:";
     private static final long LOGIN_WINDOW_SECONDS = 600L;
     private static final long LOGIN_FAIL_WINDOW_SECONDS = 900L;
     private static final long LOGIN_LOCK_SECONDS = 900L;
+    private static final long FILE_UPLOAD_WINDOW_SECONDS = 600L;
     private static final long VERIFY_WINDOW_SECONDS = 3600L;
     private static final long LOGIN_IP_LIMIT = 60L;
     private static final long LOGIN_ACCOUNT_LIMIT = 10L;
     private static final long LOGIN_FAIL_LIMIT = 5L;
+    private static final long FILE_UPLOAD_IP_LIMIT = 60L;
+    private static final long FILE_UPLOAD_USER_LIMIT = 20L;
     private static final long VERIFY_IP_LIMIT = 30L;
     private static final long VERIFY_EMAIL_LIMIT = 5L;
     private static final String UNKNOWN_KEY_PART = "unknown";
@@ -94,6 +99,19 @@ public class AuthRateLimitServiceImpl implements AuthRateLimitService {
         redisCacheService.delete(LOGIN_FAIL_COUNT_PREFIX + digest(normalizedUsername));
         redisCacheService.delete(LOGIN_LOCK_PREFIX + digest(normalizedUsername));
         log.info("login failure counter cleared, username={}, clientIp={}", normalizedUsername, normalize(clientIp));
+    }
+
+    /**
+     * 文件上传接口按用户和 IP 双维度限流，降低批量刷文件和恶意占用磁盘风险。
+     */
+    @Override
+    public void checkFileUpload(String username, String clientIp) {
+        String normalizedUsername = normalize(username);
+        String normalizedClientIp = normalize(clientIp);
+        checkLimit(FILE_UPLOAD_IP_PREFIX + digest(normalizedClientIp), FILE_UPLOAD_IP_LIMIT, FILE_UPLOAD_WINDOW_SECONDS,
+                "file-upload-ip", normalizedClientIp);
+        checkLimit(FILE_UPLOAD_USER_PREFIX + digest(normalizedUsername), FILE_UPLOAD_USER_LIMIT, FILE_UPLOAD_WINDOW_SECONDS,
+                "file-upload-user", normalizedUsername);
     }
 
     /**

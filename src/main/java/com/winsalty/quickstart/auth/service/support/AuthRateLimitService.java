@@ -33,6 +33,14 @@ public interface AuthRateLimitService {
     void recordLoginSuccess(String username, String clientIp);
 
     /**
+     * 校验文件上传接口限流。
+     *
+     * @param username 当前登录用户名
+     * @param clientIp 客户端 IP
+     */
+    void checkFileUpload(String username, String clientIp);
+
+    /**
      * 校验注册验证码发送限流。
      *
      * @param email 邮箱

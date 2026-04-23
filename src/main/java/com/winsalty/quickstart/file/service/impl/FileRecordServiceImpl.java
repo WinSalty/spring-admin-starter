@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -37,10 +38,11 @@ import java.util.UUID;
 @Service
 public class FileRecordServiceImpl extends BaseService implements FileRecordService {
 
-    private static final long MAX_FILE_SIZE = 10L * 1024L * 1024L;
+    private static final long MAX_FILE_SIZE_BYTES = 10L * 1024L * 1024L;
     private static final int DEFAULT_PAGE_NO = 1;
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int FILE_SIGNATURE_READ_LENGTH = 16;
 
     private static final Set<String> ALLOWED_EXTENSIONS = new HashSet<String>(Arrays.asList(
             "jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "csv", "xls", "xlsx", "doc", "docx", "zip"
@@ -64,6 +66,38 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         EXTENSION_MIME_MAP.put("zip", "application/zip");
     }
 
+    private static final Map<String, List<byte[]>> EXTENSION_MAGIC_BYTES_MAP = new HashMap<String, List<byte[]>>();
+    static {
+        EXTENSION_MAGIC_BYTES_MAP.put("jpg", Arrays.asList(
+                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}
+        ));
+        EXTENSION_MAGIC_BYTES_MAP.put("jpeg", EXTENSION_MAGIC_BYTES_MAP.get("jpg"));
+        EXTENSION_MAGIC_BYTES_MAP.put("png", Arrays.asList(
+                new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+        ));
+        EXTENSION_MAGIC_BYTES_MAP.put("gif", Arrays.asList(
+                new byte[]{0x47, 0x49, 0x46, 0x38, 0x37, 0x61},
+                new byte[]{0x47, 0x49, 0x46, 0x38, 0x39, 0x61}
+        ));
+        EXTENSION_MAGIC_BYTES_MAP.put("webp", Arrays.asList(
+                new byte[]{0x52, 0x49, 0x46, 0x46}
+        ));
+        EXTENSION_MAGIC_BYTES_MAP.put("pdf", Arrays.asList(
+                new byte[]{0x25, 0x50, 0x44, 0x46, 0x2D}
+        ));
+        EXTENSION_MAGIC_BYTES_MAP.put("zip", Arrays.asList(
+                new byte[]{0x50, 0x4B, 0x03, 0x04},
+                new byte[]{0x50, 0x4B, 0x05, 0x06},
+                new byte[]{0x50, 0x4B, 0x07, 0x08}
+        ));
+        EXTENSION_MAGIC_BYTES_MAP.put("xlsx", EXTENSION_MAGIC_BYTES_MAP.get("zip"));
+        EXTENSION_MAGIC_BYTES_MAP.put("docx", EXTENSION_MAGIC_BYTES_MAP.get("zip"));
+        EXTENSION_MAGIC_BYTES_MAP.put("xls", Arrays.asList(
+                new byte[]{(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0, (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1}
+        ));
+        EXTENSION_MAGIC_BYTES_MAP.put("doc", EXTENSION_MAGIC_BYTES_MAP.get("xls"));
+    }
+
     private final FileRecordMapper fileRecordMapper;
     private final String uploadDir;
 
@@ -82,7 +116,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.FILE_EMPTY);
         }
-        if (file.getSize() > MAX_FILE_SIZE) {
+        if (file.getSize() > MAX_FILE_SIZE_BYTES) {
             throw new BusinessException(ErrorCode.FILE_TOO_LARGE);
         }
         String originalName = StringUtils.cleanPath(file.getOriginalFilename() == null ? "file" : file.getOriginalFilename());
@@ -98,6 +132,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             // Content-Type 不能完全防伪，但能挡住最常见的“改后缀上传”误用。
             throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
         }
+        validateMagicBytes(file, extension);
         File directory = new File(uploadDir);
         if (!directory.exists() && !directory.mkdirs()) {
             throw new BusinessException(ErrorCode.DIRECTORY_CREATE_FAILED);
@@ -195,6 +230,84 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
 
     private String resolveCurrentUsername() {
         return currentUsername();
+    }
+
+    /**
+     * 对二进制文件校验魔数，对文本文件校验是否包含明显二进制控制字节。
+     */
+    private void validateMagicBytes(MultipartFile file, String extension) {
+        try {
+            byte[] signature = readSignature(file);
+            if ("txt".equals(extension) || "csv".equals(extension)) {
+                if (!isPlainText(signature)) {
+                    throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
+                }
+                return;
+            }
+            List<byte[]> allowedMagicBytes = EXTENSION_MAGIC_BYTES_MAP.get(extension);
+            if (allowedMagicBytes == null || allowedMagicBytes.isEmpty()) {
+                return;
+            }
+            for (byte[] expected : allowedMagicBytes) {
+                if (matchesMagicBytes(signature, expected, extension)) {
+                    return;
+                }
+            }
+            throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.FILE_SAVE_FAILED);
+        }
+    }
+
+    private byte[] readSignature(MultipartFile file) throws IOException {
+        byte[] signature = new byte[FILE_SIGNATURE_READ_LENGTH];
+        try (InputStream inputStream = file.getInputStream()) {
+            int readLength = inputStream.read(signature);
+            if (readLength <= 0) {
+                throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
+            }
+            return Arrays.copyOf(signature, readLength);
+        }
+    }
+
+    private boolean matchesMagicBytes(byte[] signature, byte[] expected, String extension) {
+        if ("webp".equals(extension)) {
+            return signature.length >= 12
+                    && hasPrefix(signature, expected)
+                    && signature[8] == 0x57
+                    && signature[9] == 0x45
+                    && signature[10] == 0x42
+                    && signature[11] == 0x50;
+        }
+        return hasPrefix(signature, expected);
+    }
+
+    private boolean hasPrefix(byte[] source, byte[] prefix) {
+        if (source.length < prefix.length) {
+            return false;
+        }
+        for (int index = 0; index < prefix.length; index++) {
+            if (source[index] != prefix[index]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isPlainText(byte[] content) {
+        for (byte current : content) {
+            int value = current & 0xFF;
+            if (value == 0) {
+                return false;
+            }
+            if (value < 0x09) {
+                return false;
+            }
+            if (value > 0x0D && value < 0x20) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private FileRecordEntity load(Long id) {

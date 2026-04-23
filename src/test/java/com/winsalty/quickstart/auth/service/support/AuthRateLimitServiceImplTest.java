@@ -84,4 +84,13 @@ class AuthRateLimitServiceImplTest {
 
         verify(redisCacheService, times(2)).delete(anyString());
     }
+
+    @Test
+    void checkFileUploadThrowsWhenUserLimitExceeded() {
+        RedisCacheService redisCacheService = mock(RedisCacheService.class);
+        AuthRateLimitServiceImpl service = new AuthRateLimitServiceImpl(redisCacheService);
+        when(redisCacheService.increment(anyString())).thenReturn(1L, 21L);
+
+        assertThrows(BusinessException.class, () -> service.checkFileUpload("admin", "127.0.0.1"));
+    }
 }

@@ -1,6 +1,9 @@
 package com.winsalty.quickstart.file.controller;
 
+import com.winsalty.quickstart.auth.service.support.AuthRateLimitService;
 import com.winsalty.quickstart.common.api.ApiResponse;
+import com.winsalty.quickstart.common.base.BaseController;
+import com.winsalty.quickstart.common.util.IpUtils;
 import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.file.dto.FileListRequest;
 import com.winsalty.quickstart.file.dto.FileStatusRequest;
@@ -22,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 import java.nio.charset.StandardCharsets;
 
@@ -32,12 +36,15 @@ import java.nio.charset.StandardCharsets;
 @Validated
 @RestController
 @RequestMapping("/api/file")
-public class FileController {
+public class FileController extends BaseController {
 
     private final FileRecordService fileRecordService;
+    private final AuthRateLimitService authRateLimitService;
 
-    public FileController(FileRecordService fileRecordService) {
+    public FileController(FileRecordService fileRecordService,
+                          AuthRateLimitService authRateLimitService) {
         this.fileRecordService = fileRecordService;
+        this.authRateLimitService = authRateLimitService;
     }
 
     /**
@@ -45,7 +52,9 @@ public class FileController {
      */
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<FileRecordVo> upload(@RequestParam("file") MultipartFile file) {
+    public ApiResponse<FileRecordVo> upload(@RequestParam("file") MultipartFile file,
+                                            HttpServletRequest request) {
+        authRateLimitService.checkFileUpload(currentUsername(), IpUtils.getClientIp(request));
         return ApiResponse.success("上传成功", fileRecordService.upload(file));
     }
 
