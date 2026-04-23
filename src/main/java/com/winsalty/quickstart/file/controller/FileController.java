@@ -1,11 +1,10 @@
 package com.winsalty.quickstart.file.controller;
 
-import com.winsalty.quickstart.auth.service.support.AuthRateLimitService;
+import com.winsalty.quickstart.auth.annotation.FileUploadRateLimit;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.common.base.BaseController;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
-import com.winsalty.quickstart.common.util.IpUtils;
 import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.file.dto.FileListRequest;
 import com.winsalty.quickstart.file.dto.FileStatusRequest;
@@ -48,14 +47,11 @@ import java.nio.charset.StandardCharsets;
 public class FileController extends BaseController {
 
     private final FileRecordService fileRecordService;
-    private final AuthRateLimitService authRateLimitService;
     private final ObjectStorageProperties objectStorageProperties;
 
     public FileController(FileRecordService fileRecordService,
-                          AuthRateLimitService authRateLimitService,
                           ObjectStorageProperties objectStorageProperties) {
         this.fileRecordService = fileRecordService;
-        this.authRateLimitService = authRateLimitService;
         this.objectStorageProperties = objectStorageProperties;
     }
 
@@ -63,20 +59,18 @@ public class FileController extends BaseController {
      * 文件上传仅管理员可用，文件类型和大小由服务层校验。
      */
     @PreAuthorize("hasRole('ADMIN')")
+    @FileUploadRateLimit
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<FileRecordVo> upload(@RequestParam("file") MultipartFile file,
-                                            HttpServletRequest request) {
-        authRateLimitService.checkFileUpload(currentUsername(), IpUtils.getClientIp(request));
+    public ApiResponse<FileRecordVo> upload(@RequestParam("file") MultipartFile file) {
         return ApiResponse.success("上传成功", fileRecordService.upload(file));
     }
 
     /**
      * 当前登录用户头像上传，普通用户可用，服务层仅允许图片类型。
      */
+    @FileUploadRateLimit
     @PostMapping(value = "/avatar/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<FileRecordVo> uploadAvatar(@RequestParam("file") MultipartFile file,
-                                                  HttpServletRequest request) {
-        authRateLimitService.checkFileUpload(currentUsername(), IpUtils.getClientIp(request));
+    public ApiResponse<FileRecordVo> uploadAvatar(@RequestParam("file") MultipartFile file) {
         return ApiResponse.success("头像上传成功", fileRecordService.uploadAvatar(file));
     }
 
@@ -84,10 +78,9 @@ public class FileController extends BaseController {
      * 私有文件上传，仅管理员可用，下载时必须经过后端鉴权。
      */
     @PreAuthorize("hasRole('ADMIN')")
+    @FileUploadRateLimit
     @PostMapping(value = "/private/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<FileRecordVo> uploadPrivate(@RequestParam("file") MultipartFile file,
-                                                   HttpServletRequest request) {
-        authRateLimitService.checkFileUpload(currentUsername(), IpUtils.getClientIp(request));
+    public ApiResponse<FileRecordVo> uploadPrivate(@RequestParam("file") MultipartFile file) {
         return ApiResponse.success("上传成功", fileRecordService.uploadPrivate(file));
     }
 
