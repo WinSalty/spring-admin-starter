@@ -382,6 +382,65 @@ public class WorkflowMailService {
 1. `app.mail.enabled`：控制整个项目的通用邮件服务是否启用。
 2. `app.mail.register.enabled`：只控制注册验证码邮件是否启用。
 
+邮件相关配置项说明：
+
+| 环境变量 | 说明 | 是否必填 |
+| --- | --- | --- |
+| `MAIL_HOST` | SMTP 服务器地址 | 是 |
+| `MAIL_PORT` | SMTP 端口，例如 `465` 或 `587` | 是 |
+| `MAIL_USERNAME` | SMTP 用户名，通常为完整邮箱地址 | 是 |
+| `MAIL_PASSWORD` | SMTP 密码或授权码 | 是 |
+| `MAIL_FROM` | 发件人地址，不配置时默认取 `MAIL_USERNAME` | 否 |
+| `MAIL_ENABLED` | 通用邮件服务总开关 | 否 |
+| `MAIL_REGISTER_ENABLED` | 注册验证码邮件开关 | 否 |
+| `MAIL_REGISTER_SUBJECT` | 注册验证码邮件主题 | 否 |
+| `MAIL_SMTP_AUTH` | 是否开启 SMTP 鉴权 | 否 |
+| `MAIL_SMTP_STARTTLS_ENABLE` | 是否开启 STARTTLS | 否 |
+| `MAIL_SMTP_STARTTLS_REQUIRED` | 是否强制要求 STARTTLS | 否 |
+| `MAIL_SMTP_SSL_ENABLE` | 是否开启 SSL | 否 |
+| `APP_MAIL_DEFAULT_ENCODING` | 邮件默认编码 | 否 |
+| `APP_MAIL_TEMPLATE_BRAND_NAME` | HTML 模板品牌名称 | 否 |
+| `APP_MAIL_TEMPLATE_SIGNATURE` | HTML 模板页脚签名 | 否 |
+| `APP_MAIL_TEMPLATE_PRIMARY_COLOR` | HTML 模板主色 | 否 |
+| `APP_MAIL_TEMPLATE_BACKGROUND_COLOR` | HTML 模板背景色 | 否 |
+| `APP_MAIL_TEMPLATE_CARD_BACKGROUND_COLOR` | HTML 模板卡片背景色 | 否 |
+
+163 邮箱推荐配置示例：
+
+```bash
+export MAIL_HOST=smtp.163.com
+export MAIL_PORT=465
+export MAIL_USERNAME='winsalty@163.com'
+export MAIL_PASSWORD='replace-with-163-auth-code'
+export MAIL_FROM='winsalty@163.com'
+export MAIL_REGISTER_ENABLED=true
+export MAIL_REGISTER_SUBJECT='Spring Admin 注册验证码'
+export MAIL_SMTP_AUTH=true
+export MAIL_SMTP_STARTTLS_ENABLE=false
+export MAIL_SMTP_STARTTLS_REQUIRED=false
+export MAIL_SMTP_SSL_ENABLE=true
+```
+
+说明：
+
+1. 当前项目只依赖 SMTP 发信，不需要配置 POP3 或 IMAP。
+2. `MAIL_PASSWORD` 应填写邮箱服务商提供的 SMTP 授权码，不建议直接使用邮箱登录密码。
+3. 163 邮箱优先推荐 `465 + SSL` 组合；如改用 `587`，通常应切换到 `STARTTLS`。
+
+IDEA Run Configuration 可以直接使用如下环境变量串：
+
+```text
+MAIL_HOST=smtp.163.com;MAIL_PORT=465;MAIL_USERNAME=winsalty@163.com;MAIL_PASSWORD=replace-with-163-auth-code;MAIL_FROM=winsalty@163.com;MAIL_REGISTER_ENABLED=true;MAIL_REGISTER_SUBJECT=Spring Admin 注册验证码;MAIL_SMTP_AUTH=true;MAIL_SMTP_STARTTLS_ENABLE=false;MAIL_SMTP_STARTTLS_REQUIRED=false;MAIL_SMTP_SSL_ENABLE=true
+```
+
+如果在 `prod` 环境需要开放用户自助注册，还要额外追加：
+
+```text
+;APP_SECURITY_REGISTER_ENABLED=true
+```
+
+原因是生产环境 [application-prod.yml](src/main/resources/application-prod.yml) 默认 `app.security.register-enabled=false`，即便邮件服务已经可用，也不会自动开放 `/api/auth/register` 注册入口。
+
 ### 推荐环境变量
 
 ```bash
