@@ -7,8 +7,15 @@ import com.winsalty.quickstart.file.vo.FileRecordVo;
 import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
 
+/**
+ * 文件记录服务接口。
+ * 创建日期：2026-04-18
+ * author：sunshengxian
+ */
 public interface FileRecordService {
     FileRecordVo upload(MultipartFile file);
+
+    FileRecordVo uploadAvatar(MultipartFile file);
 
     PageResponse<FileRecordVo> getPage(FileListRequest request);
 

@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS sys_user (
     email VARCHAR(128) DEFAULT NULL COMMENT '邮箱',
     password VARCHAR(255) NOT NULL COMMENT '密码密文',
     nickname VARCHAR(64) DEFAULT NULL COMMENT '昵称',
-    avatar_url VARCHAR(255) DEFAULT NULL COMMENT '头像地址',
+    avatar_url VARCHAR(500) DEFAULT NULL COMMENT '头像地址',
     country VARCHAR(64) NOT NULL DEFAULT '中国' COMMENT '国家/地区',
     province VARCHAR(64) DEFAULT NULL COMMENT '省份',
     city VARCHAR(64) DEFAULT NULL COMMENT '城市',

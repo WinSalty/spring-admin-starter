@@ -12,7 +12,7 @@ import java.util.List;
 
 @Mapper
 public interface FileRecordMapper {
-    String COLUMNS = "f.id, f.file_code AS fileCode, f.original_name AS originalName, f.stored_name AS storedName, f.file_path AS filePath, f.content_type AS contentType, f.extension, f.size_bytes AS sizeBytes, f.status, f.deleted, f.created_by AS createdBy, "
+    String COLUMNS = "f.id, f.file_code AS fileCode, f.original_name AS originalName, f.stored_name AS storedName, f.file_path AS filePath, f.storage_type AS storageType, f.object_key AS objectKey, f.file_url AS fileUrl, f.content_type AS contentType, f.extension, f.size_bytes AS sizeBytes, f.status, f.deleted, f.created_by AS createdBy, "
             + "DATE_FORMAT(f.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(f.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt";
 
     @Select({
@@ -41,7 +41,7 @@ public interface FileRecordMapper {
     @Select("SELECT " + COLUMNS + " FROM sys_file f WHERE f.id = #{id} AND f.deleted = 0 LIMIT 1")
     FileRecordEntity findById(@Param("id") Long id);
 
-    @Insert("INSERT INTO sys_file(file_code, original_name, stored_name, file_path, content_type, extension, size_bytes, status, deleted, created_by) VALUES(#{fileCode}, #{originalName}, #{storedName}, #{filePath}, #{contentType}, #{extension}, #{sizeBytes}, #{status}, 0, #{createdBy})")
+    @Insert("INSERT INTO sys_file(file_code, original_name, stored_name, file_path, storage_type, object_key, file_url, content_type, extension, size_bytes, status, deleted, created_by) VALUES(#{fileCode}, #{originalName}, #{storedName}, #{filePath}, #{storageType}, #{objectKey}, #{fileUrl}, #{contentType}, #{extension}, #{sizeBytes}, #{status}, 0, #{createdBy})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(FileRecordEntity entity);
 

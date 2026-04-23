@@ -1,0 +1,2 @@
+ALTER TABLE sys_user
+    MODIFY COLUMN avatar_url VARCHAR(500) DEFAULT NULL COMMENT '头像地址';

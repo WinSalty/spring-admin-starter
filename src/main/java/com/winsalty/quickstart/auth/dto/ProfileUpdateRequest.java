@@ -26,7 +26,7 @@ public class ProfileUpdateRequest {
     @Size(max = 255, message = "个人简介长度不能超过 255 个字符")
     private String description;
 
-    @Size(max = 255, message = "头像地址长度不能超过 255 个字符")
+    @Size(max = 500, message = "头像地址长度不能超过 500 个字符")
     private String avatarUrl;
 
     @Size(max = 64, message = "国家/地区长度不能超过 64 个字符")

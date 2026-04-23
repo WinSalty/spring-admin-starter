@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS sys_user (
     email VARCHAR(128) DEFAULT NULL COMMENT '邮箱',
     password VARCHAR(255) NOT NULL COMMENT '密码密文',
     nickname VARCHAR(64) DEFAULT NULL COMMENT '昵称',
-    avatar_url VARCHAR(255) DEFAULT NULL COMMENT '头像地址',
+    avatar_url VARCHAR(500) DEFAULT NULL COMMENT '头像地址',
     country VARCHAR(64) NOT NULL DEFAULT '中国' COMMENT '国家/地区',
     province VARCHAR(64) DEFAULT NULL COMMENT '省份',
     city VARCHAR(64) DEFAULT NULL COMMENT '城市',
@@ -335,7 +335,10 @@ CREATE TABLE IF NOT EXISTS sys_file (
     file_code VARCHAR(32) NOT NULL COMMENT '展示编号',
     original_name VARCHAR(255) NOT NULL COMMENT '原始文件名',
     stored_name VARCHAR(255) NOT NULL COMMENT '存储文件名',
-    file_path VARCHAR(500) NOT NULL COMMENT '本地文件路径',
+    file_path VARCHAR(500) NOT NULL COMMENT '服务端文件路径或对象 key',
+    storage_type VARCHAR(16) NOT NULL DEFAULT 'local' COMMENT '存储类型',
+    object_key VARCHAR(500) NOT NULL DEFAULT '' COMMENT '对象存储 key',
+    file_url VARCHAR(500) NOT NULL DEFAULT '' COMMENT '文件访问地址',
     content_type VARCHAR(128) DEFAULT NULL COMMENT 'MIME 类型',
     extension VARCHAR(16) NOT NULL COMMENT '扩展名',
     size_bytes BIGINT NOT NULL COMMENT '文件大小',
@@ -346,6 +349,7 @@ CREATE TABLE IF NOT EXISTS sys_file (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     UNIQUE KEY uk_sys_file_code (file_code),
     UNIQUE KEY uk_sys_file_stored_name (stored_name),
+    KEY idx_sys_file_storage_type (storage_type),
     KEY idx_sys_file_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文件记录表';
 

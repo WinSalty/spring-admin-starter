@@ -19,6 +19,12 @@ public class FileRecordEntity {
     private String storedName;
     /** 文件存储路径。 */
     private String filePath;
+    /** 存储类型。 */
+    private String storageType;
+    /** 对象存储 key。 */
+    private String objectKey;
+    /** 文件访问地址。 */
+    private String fileUrl;
     /** 文件 MIME 类型。 */
     private String contentType;
     /** 文件扩展名。 */

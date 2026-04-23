@@ -473,6 +473,7 @@ public class SystemServiceImpl implements SystemService {
         if ("users".equals(request.getModuleKey())) {
             // 系统管理页新增用户时密码统一初始化，后续可通过重置密码流程修改。
             entity.setDepartmentId(resolveDepartmentId(request.getDepartmentId(), request.getOwner()));
+            entity.setAvatarUrl(defaultText(request.getAvatarUrl()));
             entity.setRoleCodes(passwordEncoder.encode("SpringAdmin@2026"));
             return;
         }
@@ -537,6 +538,7 @@ public class SystemServiceImpl implements SystemService {
         vo.setStatus(entity.getStatus());
         vo.setOwner(entity.getOwner());
         vo.setDescription(entity.getDescription());
+        vo.setAvatarUrl(entity.getAvatarUrl());
         vo.setDepartment(entity.getDepartment());
         vo.setDepartmentId(entity.getDepartmentId() == null ? "" : String.valueOf(entity.getDepartmentId()));
         vo.setRoleNames(entity.getRoleNames());

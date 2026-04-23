@@ -17,6 +17,7 @@ public class SystemRecordVo {
     private String status;
     private String owner;
     private String description;
+    private String avatarUrl;
     private String department;
     private String departmentId;
     private String roleNames;

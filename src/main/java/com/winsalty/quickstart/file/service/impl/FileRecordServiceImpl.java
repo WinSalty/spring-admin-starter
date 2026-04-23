@@ -11,6 +11,11 @@ import com.winsalty.quickstart.file.entity.FileRecordEntity;
 import com.winsalty.quickstart.file.mapper.FileRecordMapper;
 import com.winsalty.quickstart.file.service.FileRecordService;
 import com.winsalty.quickstart.file.vo.FileRecordVo;
+import com.winsalty.quickstart.infra.storage.ObjectStorageUploadResult;
+import com.winsalty.quickstart.infra.storage.QiniuObjectStorageUtil;
+import com.winsalty.quickstart.infra.storage.QiniuStorageProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -33,19 +38,27 @@ import java.util.UUID;
 
 /**
  * 文件记录服务实现。
- * 使用本地目录保存文件，数据库只记录文件元数据和软删除状态。
+ * 按配置使用本地目录或七牛云对象存储保存文件，数据库记录文件元数据和访问地址。
+ * 创建日期：2026-04-18
+ * author：sunshengxian
  */
 @Service
 public class FileRecordServiceImpl extends BaseService implements FileRecordService {
 
+    private static final Logger log = LoggerFactory.getLogger(FileRecordServiceImpl.class);
     private static final long MAX_FILE_SIZE_BYTES = 10L * 1024L * 1024L;
     private static final int DEFAULT_PAGE_NO = 1;
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
     private static final int FILE_SIGNATURE_READ_LENGTH = 16;
+    private static final String STORAGE_TYPE_LOCAL = "local";
+    private static final String STORAGE_TYPE_QINIU = "qiniu";
 
     private static final Set<String> ALLOWED_EXTENSIONS = new HashSet<String>(Arrays.asList(
             "jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "csv", "xls", "xlsx", "doc", "docx", "zip"
+    ));
+    private static final Set<String> ALLOWED_AVATAR_EXTENSIONS = new HashSet<String>(Arrays.asList(
+            "jpg", "jpeg", "png", "gif", "webp"
     ));
 
     // 扩展名与允许的 MIME type 映射，用于双重校验防止伪造扩展名绕过
@@ -99,12 +112,21 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     }
 
     private final FileRecordMapper fileRecordMapper;
+    private final QiniuObjectStorageUtil qiniuObjectStorageUtil;
+    private final QiniuStorageProperties qiniuStorageProperties;
     private final String uploadDir;
+    private final String storageType;
 
     public FileRecordServiceImpl(FileRecordMapper fileRecordMapper,
-                                 @Value("${app.file.upload-dir:uploads}") String uploadDir) {
+                                 QiniuObjectStorageUtil qiniuObjectStorageUtil,
+                                 QiniuStorageProperties qiniuStorageProperties,
+                                 @Value("${app.file.upload-dir:uploads}") String uploadDir,
+                                 @Value("${app.file.storage-type:local}") String storageType) {
         this.fileRecordMapper = fileRecordMapper;
+        this.qiniuObjectStorageUtil = qiniuObjectStorageUtil;
+        this.qiniuStorageProperties = qiniuStorageProperties;
         this.uploadDir = uploadDir;
+        this.storageType = normalizeStorageType(storageType);
     }
 
     /**
@@ -113,6 +135,19 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo upload(MultipartFile file) {
+        return uploadInternal(file, ALLOWED_EXTENSIONS, "file");
+    }
+
+    /**
+     * 上传用户头像，仅允许图片类型。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public FileRecordVo uploadAvatar(MultipartFile file) {
+        return uploadInternal(file, ALLOWED_AVATAR_EXTENSIONS, "avatar");
+    }
+
+    private FileRecordVo uploadInternal(MultipartFile file, Set<String> allowedExtensions, String bizType) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.FILE_EMPTY);
         }
@@ -121,7 +156,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         }
         String originalName = StringUtils.cleanPath(file.getOriginalFilename() == null ? "file" : file.getOriginalFilename());
         String extension = resolveExtension(originalName);
-        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+        if (!allowedExtensions.contains(extension)) {
             // 扩展名先过白名单，快速拒绝脚本、可执行文件等明显不允许的类型。
             throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
         }
@@ -133,30 +168,25 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
         }
         validateMagicBytes(file, extension);
-        File directory = new File(uploadDir);
-        if (!directory.exists() && !directory.mkdirs()) {
-            throw new BusinessException(ErrorCode.DIRECTORY_CREATE_FAILED);
-        }
         String storedName = UUID.randomUUID().toString().replace("-", "") + "." + extension;
-        File target = new File(directory, storedName);
-        try {
-            // 先落盘再写数据库；若落盘失败，事务不会留下文件元数据。
-            file.transferTo(target);
-        } catch (IOException exception) {
-            throw new BusinessException(ErrorCode.FILE_SAVE_FAILED);
-        }
+        ObjectStorageUploadResult uploadResult = storeFile(file, storedName, extension);
         FileRecordEntity entity = new FileRecordEntity();
         entity.setFileCode("F" + System.currentTimeMillis());
         entity.setOriginalName(originalName);
         // storedName 使用 UUID，避免用户上传同名文件互相覆盖。
         entity.setStoredName(storedName);
-        entity.setFilePath(target.getPath());
+        entity.setFilePath(uploadResult.getFilePath());
+        entity.setStorageType(uploadResult.getStorageType());
+        entity.setObjectKey(uploadResult.getObjectKey());
+        entity.setFileUrl(uploadResult.getFileUrl());
         entity.setContentType(file.getContentType());
         entity.setExtension(extension);
         entity.setSizeBytes(file.getSize());
         entity.setStatus(CommonStatusConstants.ACTIVE);
         entity.setCreatedBy(resolveCurrentUsername());
         fileRecordMapper.insert(entity);
+        log.info("file upload success, bizType={}, storageType={}, objectKey={}, originalName={}, sizeBytes={}",
+                bizType, entity.getStorageType(), entity.getObjectKey(), entity.getOriginalName(), entity.getSizeBytes());
         return toVo(load(entity.getId()));
     }
 
@@ -185,6 +215,9 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Override
     public Resource loadDownloadResource(String id) {
         FileRecordEntity entity = load(parseId(id));
+        if (STORAGE_TYPE_QINIU.equals(entity.getStorageType())) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "七牛云文件请使用 fileUrl 访问");
+        }
         File file = new File(entity.getFilePath());
         if (!file.exists() || !file.isFile()) {
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
@@ -230,6 +263,74 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
 
     private String resolveCurrentUsername() {
         return currentUsername();
+    }
+
+    /**
+     * 根据配置选择本地或七牛云存储。
+     */
+    private ObjectStorageUploadResult storeFile(MultipartFile file, String storedName, String extension) {
+        if (STORAGE_TYPE_QINIU.equals(storageType)) {
+            return uploadToQiniu(file, storedName);
+        }
+        return saveToLocal(file, storedName);
+    }
+
+    private ObjectStorageUploadResult uploadToQiniu(MultipartFile file, String storedName) {
+        String objectKey = buildQiniuObjectKey(storedName);
+        try (InputStream inputStream = file.getInputStream()) {
+            log.info("qiniu upload start, objectKey={}, sizeBytes={}", objectKey, file.getSize());
+            return qiniuObjectStorageUtil.upload(inputStream, objectKey, file.getContentType());
+        } catch (IOException exception) {
+            log.error("qiniu upload input stream open failed, objectKey={}", objectKey);
+            throw new BusinessException(ErrorCode.FILE_SAVE_FAILED);
+        }
+    }
+
+    private ObjectStorageUploadResult saveToLocal(MultipartFile file, String storedName) {
+        File directory = new File(uploadDir);
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw new BusinessException(ErrorCode.DIRECTORY_CREATE_FAILED);
+        }
+        File target = new File(directory, storedName);
+        try {
+            // 先落盘再写数据库；若落盘失败，事务不会留下文件元数据。
+            file.transferTo(target);
+        } catch (IOException exception) {
+            log.error("local file save failed, path={}", target.getPath());
+            throw new BusinessException(ErrorCode.FILE_SAVE_FAILED);
+        }
+        ObjectStorageUploadResult result = new ObjectStorageUploadResult();
+        result.setStorageType(STORAGE_TYPE_LOCAL);
+        result.setObjectKey(storedName);
+        result.setFilePath(target.getPath());
+        result.setFileUrl("");
+        return result;
+    }
+
+    private String buildQiniuObjectKey(String storedName) {
+        String prefix = qiniuStorageProperties.getKeyPrefix();
+        if (!StringUtils.hasText(prefix)) {
+            return storedName;
+        }
+        String normalizedPrefix = prefix.trim();
+        while (normalizedPrefix.startsWith("/")) {
+            normalizedPrefix = normalizedPrefix.substring(1);
+        }
+        while (normalizedPrefix.endsWith("/")) {
+            normalizedPrefix = normalizedPrefix.substring(0, normalizedPrefix.length() - 1);
+        }
+        return normalizedPrefix + "/" + storedName;
+    }
+
+    private String normalizeStorageType(String configuredStorageType) {
+        if (!StringUtils.hasText(configuredStorageType)) {
+            return STORAGE_TYPE_LOCAL;
+        }
+        String value = configuredStorageType.trim().toLowerCase();
+        if (STORAGE_TYPE_LOCAL.equals(value) || STORAGE_TYPE_QINIU.equals(value)) {
+            return value;
+        }
+        throw new BusinessException(ErrorCode.OBJECT_STORAGE_CONFIG_INVALID, "文件存储类型配置不合法");
     }
 
     /**
@@ -339,6 +440,9 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         vo.setId(String.valueOf(entity.getId()));
         vo.setOriginalName(entity.getOriginalName());
         vo.setStoredName(entity.getStoredName());
+        vo.setStorageType(entity.getStorageType());
+        vo.setObjectKey(entity.getObjectKey());
+        vo.setFileUrl(entity.getFileUrl());
         vo.setContentType(entity.getContentType());
         vo.setExtension(entity.getExtension());
         vo.setSizeBytes(entity.getSizeBytes());

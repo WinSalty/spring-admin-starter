@@ -26,6 +26,8 @@ public class SystemRecordEntity {
     private String owner;
     /** 描述信息。 */
     private String description;
+    /** 用户头像地址。 */
+    private String avatarUrl;
     /** 部门名称。 */
     private String department;
     /** 部门ID。 */

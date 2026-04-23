@@ -1,5 +1,5 @@
 ALTER TABLE sys_user
-    ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL COMMENT '头像地址' AFTER nickname,
+    ADD COLUMN avatar_url VARCHAR(500) DEFAULT NULL COMMENT '头像地址' AFTER nickname,
     ADD COLUMN country VARCHAR(64) NOT NULL DEFAULT '中国' COMMENT '国家/地区' AFTER avatar_url,
     ADD COLUMN province VARCHAR(64) DEFAULT NULL COMMENT '省份' AFTER country,
     ADD COLUMN city VARCHAR(64) DEFAULT NULL COMMENT '城市' AFTER province,

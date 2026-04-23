@@ -20,7 +20,7 @@ import java.util.List;
 @Mapper
 public interface SystemMapper {
 
-    String USERS_SELECT = "SELECT u.id, u.record_code AS recordCode, 'users' AS moduleKey, IFNULL(u.nickname, u.username) AS name, u.username AS code, u.status, u.owner, u.description, "
+    String USERS_SELECT = "SELECT u.id, u.record_code AS recordCode, 'users' AS moduleKey, IFNULL(u.nickname, u.username) AS name, u.username AS code, u.status, u.owner, u.description, u.avatar_url AS avatarUrl, "
             + "d.name AS department, u.department_id AS departmentId, "
             + "(SELECT GROUP_CONCAT(DISTINCT r.role_name ORDER BY r.id SEPARATOR ',') FROM sys_user_role ur INNER JOIN sys_role r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.deleted = 0) AS roleNames, "
             + "(SELECT GROUP_CONCAT(DISTINCT r.role_code ORDER BY r.id SEPARATOR ',') FROM sys_user_role ur INNER JOIN sys_role r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.deleted = 0) AS roleCodes, DATE_FORMAT(u.last_login_at, '%Y-%m-%d %H:%i:%s') AS lastLoginAt, "
@@ -28,17 +28,17 @@ public interface SystemMapper {
             + "DATE_FORMAT(u.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(u.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "
             + "FROM sys_user u LEFT JOIN sys_department d ON d.id = u.department_id WHERE u.deleted = 0 ";
 
-    String ROLES_SELECT = "SELECT r.id, r.record_code AS recordCode, 'roles' AS moduleKey, r.role_name AS name, r.role_code AS code, r.status, r.owner, r.description, "
+    String ROLES_SELECT = "SELECT r.id, r.record_code AS recordCode, 'roles' AS moduleKey, r.role_name AS name, r.role_code AS code, r.status, r.owner, r.description, NULL AS avatarUrl, "
             + "NULL AS department, NULL AS departmentId, NULL AS roleNames, NULL AS roleCodes, NULL AS lastLoginAt, r.data_scope AS dataScope, (SELECT COUNT(1) FROM sys_user_role ur WHERE ur.role_id = r.id) AS userCount, NULL AS dictType, NULL AS itemCount, NULL AS cacheKey, NULL AS logType, NULL AS target, NULL AS ipAddress, NULL AS deviceInfo, NULL AS requestInfo, NULL AS responseInfo, NULL AS result, NULL AS durationMs, "
             + "DATE_FORMAT(r.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(r.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "
             + "FROM sys_role r WHERE r.deleted = 0 ";
 
-    String DICTS_SELECT = "SELECT d.id, d.record_code AS recordCode, 'dicts' AS moduleKey, d.name, d.code, d.status, d.owner, d.description, "
+    String DICTS_SELECT = "SELECT d.id, d.record_code AS recordCode, 'dicts' AS moduleKey, d.name, d.code, d.status, d.owner, d.description, NULL AS avatarUrl, "
             + "NULL AS department, NULL AS departmentId, NULL AS roleNames, NULL AS roleCodes, NULL AS lastLoginAt, NULL AS dataScope, NULL AS userCount, d.dict_type AS dictType, d.item_count AS itemCount, d.cache_key AS cacheKey, NULL AS logType, NULL AS target, NULL AS ipAddress, NULL AS deviceInfo, NULL AS requestInfo, NULL AS responseInfo, NULL AS result, NULL AS durationMs, "
             + "DATE_FORMAT(d.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(d.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "
             + "FROM sys_dict_record d WHERE d.deleted = 0 ";
 
-    String LOGS_SELECT = "SELECT l.id, l.record_code AS recordCode, 'logs' AS moduleKey, l.name, l.code, l.status, l.owner, l.description, "
+    String LOGS_SELECT = "SELECT l.id, l.record_code AS recordCode, 'logs' AS moduleKey, l.name, l.code, l.status, l.owner, l.description, NULL AS avatarUrl, "
             + "NULL AS department, NULL AS departmentId, NULL AS roleNames, NULL AS roleCodes, NULL AS lastLoginAt, NULL AS dataScope, NULL AS userCount, NULL AS dictType, NULL AS itemCount, NULL AS cacheKey, l.log_type AS logType, l.target AS target, l.ip_address AS ipAddress, l.device_info AS deviceInfo, l.request_info AS requestInfo, l.response_info AS responseInfo, l.result AS result, l.duration_ms AS durationMs, "
             + "DATE_FORMAT(l.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(l.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "
             + "FROM sys_log_record l WHERE l.deleted = 0 ";
@@ -136,11 +136,11 @@ public interface SystemMapper {
     @Select(MENUS_SELECT + "WHERE m.id = #{id} LIMIT 1")
     SystemMenuEntity findMenuById(@Param("id") Long id);
 
-    @Insert("INSERT INTO sys_user(record_code, username, email, password, nickname, status, owner, description, department_id, deleted) VALUES(#{recordCode}, #{code}, CONCAT(#{code}, '@example.com'), #{roleCodes}, #{name}, #{status}, #{owner}, #{description}, #{departmentId}, 0)")
+    @Insert("INSERT INTO sys_user(record_code, username, email, password, nickname, avatar_url, status, owner, description, department_id, deleted) VALUES(#{recordCode}, #{code}, CONCAT(#{code}, '@example.com'), #{roleCodes}, #{name}, #{avatarUrl}, #{status}, #{owner}, #{description}, #{departmentId}, 0)")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insertUser(SystemRecordEntity entity);
 
-    @Update("UPDATE sys_user SET nickname = #{name}, username = #{code}, status = #{status}, owner = #{owner}, description = #{description}, department_id = #{departmentId} WHERE id = #{id} AND deleted = 0")
+    @Update("UPDATE sys_user SET nickname = #{name}, username = #{code}, avatar_url = #{avatarUrl}, status = #{status}, owner = #{owner}, description = #{description}, department_id = #{departmentId} WHERE id = #{id} AND deleted = 0")
     int updateUser(SystemRecordEntity entity);
 
     @Update("UPDATE sys_user SET status = #{status} WHERE id = #{id} AND deleted = 0")

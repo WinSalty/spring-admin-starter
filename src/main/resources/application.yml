@@ -61,6 +61,14 @@ springdoc:
 app:
   file:
     upload-dir: uploads
+    storage-type: ${APP_FILE_STORAGE_TYPE:local}
+    qiniu:
+      access-key: ${QINIU_ACCESS_KEY:}
+      secret-key: ${QINIU_SECRET_KEY:}
+      bucket: ${QINIU_BUCKET:}
+      domain: ${QINIU_DOMAIN:}
+      region: ${QINIU_REGION:auto}
+      key-prefix: ${QINIU_KEY_PREFIX:uploads}
   security:
     swagger-public-enabled: true
     trusted-proxies: ${TRUSTED_PROXIES:127.0.0.1/32,::1/128}

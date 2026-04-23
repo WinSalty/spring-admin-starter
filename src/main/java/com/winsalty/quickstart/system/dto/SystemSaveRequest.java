@@ -40,6 +40,9 @@ public class SystemSaveRequest {
     @Size(max = 160, message = "描述长度不能超过 160")
     private String description;
 
+    @Size(max = 500, message = "头像地址长度不能超过 500")
+    private String avatarUrl;
+
     @Size(max = 60, message = "扩展值长度不能超过 60")
     private String extraValue;
 
