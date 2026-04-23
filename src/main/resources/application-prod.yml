@@ -35,10 +35,17 @@ spring:
         min-idle: 5
         max-wait: 3000ms
 
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 app:
   cors:
     allowed-origins: []
   security:
+    swagger-public-enabled: false
     # 生产环境必须通过环境变量或外部配置注入 JWT_SECRET；缺失时启动失败。
     jwt-secret: ${JWT_SECRET}
     jwt-expire-seconds: 7200

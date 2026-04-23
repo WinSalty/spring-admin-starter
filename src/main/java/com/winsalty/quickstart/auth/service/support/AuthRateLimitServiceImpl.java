@@ -23,12 +23,17 @@ public class AuthRateLimitServiceImpl implements AuthRateLimitService {
     private static final Logger log = LoggerFactory.getLogger(AuthRateLimitServiceImpl.class);
     private static final String LOGIN_IP_PREFIX = "sa:auth:limit:login:ip:";
     private static final String LOGIN_ACCOUNT_PREFIX = "sa:auth:limit:login:account:";
+    private static final String LOGIN_FAIL_COUNT_PREFIX = "sa:auth:lock:login:fail-count:";
+    private static final String LOGIN_LOCK_PREFIX = "sa:auth:lock:login:";
     private static final String VERIFY_IP_PREFIX = "sa:auth:limit:verify:ip:";
     private static final String VERIFY_EMAIL_PREFIX = "sa:auth:limit:verify:email:";
     private static final long LOGIN_WINDOW_SECONDS = 600L;
+    private static final long LOGIN_FAIL_WINDOW_SECONDS = 900L;
+    private static final long LOGIN_LOCK_SECONDS = 900L;
     private static final long VERIFY_WINDOW_SECONDS = 3600L;
     private static final long LOGIN_IP_LIMIT = 60L;
     private static final long LOGIN_ACCOUNT_LIMIT = 10L;
+    private static final long LOGIN_FAIL_LIMIT = 5L;
     private static final long VERIFY_IP_LIMIT = 30L;
     private static final long VERIFY_EMAIL_LIMIT = 5L;
     private static final String UNKNOWN_KEY_PART = "unknown";
@@ -44,9 +49,51 @@ public class AuthRateLimitServiceImpl implements AuthRateLimitService {
      */
     @Override
     public void checkLogin(String username, String clientIp) {
-        checkLimit(LOGIN_IP_PREFIX + digest(clientIp), LOGIN_IP_LIMIT, LOGIN_WINDOW_SECONDS, "login-ip", clientIp);
-        String accountKey = normalize(username) + ":" + normalize(clientIp);
+        String normalizedUsername = normalize(username);
+        String normalizedClientIp = normalize(clientIp);
+        String lockKey = LOGIN_LOCK_PREFIX + digest(normalizedUsername);
+        if (Boolean.TRUE.equals(redisCacheService.hasKey(lockKey))) {
+            Long lockTtl = redisCacheService.ttl(lockKey);
+            log.info("login blocked by temporary account lock, username={}, clientIp={}, ttlSeconds={}",
+                    normalizedUsername, normalizedClientIp, lockTtl);
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
+        }
+        checkLimit(LOGIN_IP_PREFIX + digest(normalizedClientIp), LOGIN_IP_LIMIT, LOGIN_WINDOW_SECONDS, "login-ip", normalizedClientIp);
+        String accountKey = normalizedUsername + ":" + normalizedClientIp;
         checkLimit(LOGIN_ACCOUNT_PREFIX + digest(accountKey), LOGIN_ACCOUNT_LIMIT, LOGIN_WINDOW_SECONDS, "login-account", username);
+    }
+
+    /**
+     * 登录失败后累计失败次数，达到阈值时对账号做短时锁定。
+     */
+    @Override
+    public void recordLoginFailure(String username, String clientIp) {
+        String normalizedUsername = normalize(username);
+        String normalizedClientIp = normalize(clientIp);
+        String failCountKey = LOGIN_FAIL_COUNT_PREFIX + digest(normalizedUsername);
+        Long current = redisCacheService.increment(failCountKey);
+        if (current != null && current == 1L) {
+            redisCacheService.expire(failCountKey, LOGIN_FAIL_WINDOW_SECONDS);
+        }
+        if (current != null && current >= LOGIN_FAIL_LIMIT) {
+            String lockKey = LOGIN_LOCK_PREFIX + digest(normalizedUsername);
+            redisCacheService.set(lockKey, normalizedClientIp, LOGIN_LOCK_SECONDS);
+            redisCacheService.delete(failCountKey);
+            log.info("login account locked after repeated failures, username={}, clientIp={}, failCount={}, lockSeconds={}",
+                    normalizedUsername, normalizedClientIp, current, LOGIN_LOCK_SECONDS);
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
+        }
+    }
+
+    /**
+     * 登录成功后清理账号失败状态，避免历史失败影响正常使用。
+     */
+    @Override
+    public void recordLoginSuccess(String username, String clientIp) {
+        String normalizedUsername = normalize(username);
+        redisCacheService.delete(LOGIN_FAIL_COUNT_PREFIX + digest(normalizedUsername));
+        redisCacheService.delete(LOGIN_LOCK_PREFIX + digest(normalizedUsername));
+        log.info("login failure counter cleared, username={}, clientIp={}", normalizedUsername, normalize(clientIp));
     }
 
     /**

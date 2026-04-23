@@ -52,12 +52,17 @@ management:
 springdoc:
   api-docs:
     path: /v3/api-docs
+    enabled: true
   swagger-ui:
     path: /swagger-ui.html
+    enabled: true
 
 app:
   file:
     upload-dir: uploads
+  security:
+    swagger-public-enabled: true
+    trusted-proxies: ${TRUSTED_PROXIES:127.0.0.1/32,::1/128}
   mail:
     register:
       enabled: ${MAIL_REGISTER_ENABLED:true}

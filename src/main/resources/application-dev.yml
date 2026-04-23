@@ -48,6 +48,7 @@ app:
     allowed-origins:
       - http://localhost:5173
   security:
+    swagger-public-enabled: true
     # 生产环境请通过环境变量注入，例如：jwt-secret: ${JWT_SECRET}
     jwt-secret: ${JWT_SECRET:winsalty-quickstart-dev-jwt-secret-2026-secure-key}
     jwt-expire-seconds: 7200

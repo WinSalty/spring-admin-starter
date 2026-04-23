@@ -61,8 +61,18 @@ public class AuthController extends BaseController {
     @AuditLog(logType = "login", code = "auth_login", name = "用户登录")
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Validated @RequestBody LoginRequest request, HttpServletRequest servletRequest) {
-        authRateLimitService.checkLogin(request.getUsername(), IpUtils.getClientIp(servletRequest));
-        return ApiResponse.success("登录成功", authService.login(request));
+        String clientIp = IpUtils.getClientIp(servletRequest);
+        authRateLimitService.checkLogin(request.getUsername(), clientIp);
+        try {
+            LoginResponse response = authService.login(request);
+            authRateLimitService.recordLoginSuccess(request.getUsername(), clientIp);
+            return ApiResponse.success("登录成功", response);
+        } catch (BusinessException exception) {
+            if (exception.getCode() == ErrorCode.LOGIN_BAD_CREDENTIALS.getCode()) {
+                authRateLimitService.recordLoginFailure(request.getUsername(), clientIp);
+            }
+            throw exception;
+        }
     }
 
     /**

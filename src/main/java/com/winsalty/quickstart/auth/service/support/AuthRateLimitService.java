@@ -17,6 +17,22 @@ public interface AuthRateLimitService {
     void checkLogin(String username, String clientIp);
 
     /**
+     * 记录登录失败，用于账号锁定控制。
+     *
+     * @param username 用户名
+     * @param clientIp 客户端 IP
+     */
+    void recordLoginFailure(String username, String clientIp);
+
+    /**
+     * 登录成功后清理失败计数和临时锁定。
+     *
+     * @param username 用户名
+     * @param clientIp 客户端 IP
+     */
+    void recordLoginSuccess(String username, String clientIp);
+
+    /**
      * 校验注册验证码发送限流。
      *
      * @param email 邮箱

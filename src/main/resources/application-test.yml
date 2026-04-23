@@ -11,10 +11,17 @@ spring:
         min-idle: 5
         max-wait: 3000ms
 
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 app:
   cors:
     allowed-origins: []
   security:
+    swagger-public-enabled: false
     # 生产环境请通过环境变量注入，例如：jwt-secret: ${JWT_SECRET}
     jwt-secret: ${JWT_SECRET:winsalty-quickstart-test-jwt-secret-2026-secure-key}
     jwt-expire-seconds: 7200
