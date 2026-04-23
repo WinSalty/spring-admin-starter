@@ -24,6 +24,7 @@
 | 定时任务 | Quartz |
 | 搜索能力 | Elasticsearch 7.x |
 | 邮件 | Spring Mail |
+| 对象存储 | 阿里云 OSS Java SDK |
 | 构建工具 | Maven 3.6+ |
 
 ### 服务端分层
@@ -132,7 +133,7 @@
 
 | 文件 | 说明 |
 | --- | --- |
-| `src/main/resources/application.yml` | 通用配置，包含端口、上传限制、邮件、Quartz、ES 等 |
+| `src/main/resources/application.yml` | 通用配置，包含端口、上传限制、对象存储、邮件、Quartz、ES 等 |
 | `src/main/resources/application-dev.yml` | 开发环境数据库、Redis、JWT、CORS 配置 |
 | `src/main/resources/application-prod.yml` | 生产环境数据库、Redis、JWT 与 CORS 外部化配置 |
 | `src/main/resources/logback-spring.xml` | 日志配置 |
@@ -224,6 +225,12 @@ app:
 
 `object-storage.enabled` 默认关闭。关闭时普通文件继续使用本地目录，头像上传接口返回对象存储未开启，前端使用用户名首字作为头像占位。开启阿里云 OSS 时必须配置 `ALIYUN_OSS_ENDPOINT`、`ALIYUN_OSS_ACCESS_KEY_ID`、`ALIYUN_OSS_ACCESS_KEY_SECRET`、`ALIYUN_OSS_BUCKET`、`ALIYUN_OSS_DOMAIN`；`ALIYUN_OSS_DOMAIN` 应为可公开访问的 Bucket 域名或 CDN 域名，例如 `https://static.example.com`。当前用户头像通过 `/api/file/avatar/upload` 上传，后端仅允许图片类型并将返回的 `fileUrl` 保存到 `sys_user.avatar_url`。
 
+头像展示规则：
+
+1. `APP_OBJECT_STORAGE_ENABLED=false`：不允许上传头像，前端显示用户名首字。
+2. `APP_OBJECT_STORAGE_ENABLED=true`：头像上传到阿里云 OSS，用户资料保存 `sys_user.avatar_url`。
+3. 普通文件管理仍支持本地存储兜底；启用对象存储后文件记录会保存 `storage_type`、`object_key` 和 `file_url`。
+
 #### 6. 日志归档
 
 ```yaml
@@ -257,6 +264,14 @@ export ES_PASSWORD=
 
 export JWT_SECRET='replace-with-a-long-random-secret'
 export APP_FILE_UPLOAD_DIR=/data/spring-admin-starter/uploads
+
+export APP_OBJECT_STORAGE_ENABLED=false
+export ALIYUN_OSS_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
+export ALIYUN_OSS_ACCESS_KEY_ID=
+export ALIYUN_OSS_ACCESS_KEY_SECRET=
+export ALIYUN_OSS_BUCKET=
+export ALIYUN_OSS_DOMAIN=
+export ALIYUN_OSS_KEY_PREFIX=uploads
 
 export LOG_ARCHIVE_ENABLED=true
 export LOG_ARCHIVE_CRON='0 0 2 * * ?'
@@ -329,6 +344,7 @@ java -jar target/spring-admin-starter-0.0.1-SNAPSHOT.jar --spring.profiles.activ
 2. `http://localhost:8080/swagger-ui.html`
 3. `POST /api/auth/login`
 4. `GET /api/permission/bootstrap`
+5. `GET /api/file/object-storage/status`
 
 ### 5. 停止服务
 
@@ -392,10 +408,11 @@ echo $! > spring-admin-starter.pid
 3. Elasticsearch 已可连接。
 4. `JWT_SECRET` 已替换为强随机密钥。
 5. 上传目录已创建且应用用户有读写权限。
-6. CORS 白名单已配置前端正式域名。
-7. 默认账号已下线或修改密码。
-8. Swagger 是否对公网暴露已按安全策略处理。
-9. 日志目录与归档策略已确认。
+6. 如启用对象存储，阿里云 OSS Bucket、Endpoint、外链域名和 RAM 权限已确认。
+7. CORS 白名单已配置前端正式域名。
+8. 默认账号已下线或修改密码。
+9. Swagger 是否对公网暴露已按安全策略处理。
+10. 日志目录与归档策略已确认。
 
 ## 与前端配套关系
 
