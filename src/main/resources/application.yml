@@ -85,7 +85,7 @@ app:
     template:
       brand-name: ${APP_MAIL_TEMPLATE_BRAND_NAME:Spring Admin}
       signature: ${APP_MAIL_TEMPLATE_SIGNATURE:Spring Admin Team}
-      primary-color: ${APP_MAIL_TEMPLATE_PRIMARY_COLOR:#2563eb}
+      primary-color: ${APP_MAIL_TEMPLATE_PRIMARY_COLOR:#1677ff}
       background-color: ${APP_MAIL_TEMPLATE_BACKGROUND_COLOR:#f4f7fb}
       card-background-color: ${APP_MAIL_TEMPLATE_CARD_BACKGROUND_COLOR:#ffffff}
     register:

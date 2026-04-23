@@ -321,7 +321,7 @@ app:
     template:
       brand-name: ${APP_MAIL_TEMPLATE_BRAND_NAME:Spring Admin}
       signature: ${APP_MAIL_TEMPLATE_SIGNATURE:Spring Admin Team}
-      primary-color: ${APP_MAIL_TEMPLATE_PRIMARY_COLOR:#2563eb}
+      primary-color: ${APP_MAIL_TEMPLATE_PRIMARY_COLOR:#1677ff}
       background-color: ${APP_MAIL_TEMPLATE_BACKGROUND_COLOR:#f4f7fb}
       card-background-color: ${APP_MAIL_TEMPLATE_CARD_BACKGROUND_COLOR:#ffffff}
     register:
@@ -329,7 +329,7 @@ app:
       subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 注册验证码}
 ```
 
-邮件能力已升级为通用服务，当前内置的注册验证码邮件只是其中一个业务实现。项目内其他业务模块可以直接注入 `com.winsalty.quickstart.infra.mail.MailService` 发送文本或 HTML 邮件，不需要再重复封装 SMTP 逻辑。系统同时内置了统一的卡片式 HTML 邮件模板，支持品牌名、签名和主色调统一配置，并自动附带纯文本 fallback，兼容只支持纯文本的客户端。
+邮件能力已升级为通用服务，当前内置的注册验证码邮件只是其中一个业务实现。项目内其他业务模块可以直接注入 `com.winsalty.quickstart.infra.mail.MailService` 发送文本或 HTML 邮件，不需要再重复封装 SMTP 逻辑。系统同时内置了统一的卡片式 HTML 邮件模板，默认对齐 `react-admin-starter` 的浅色品牌风格，支持品牌名、签名和主色调统一配置，并自动附带纯文本 fallback，兼容只支持纯文本的客户端。
 
 通用邮件服务使用示例：
 

@@ -56,7 +56,7 @@ public class MailProperties {
         /**
          * 主色调。
          */
-        private String primaryColor = "#2563eb";
+        private String primaryColor = "#1677ff";
 
         /**
          * 页面背景色。
