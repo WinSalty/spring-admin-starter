@@ -7,6 +7,7 @@ import com.aliyun.oss.OSSException;
 import com.aliyun.oss.model.ObjectMetadata;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -21,11 +22,12 @@ import java.util.Date;
  * author：sunshengxian
  */
 @Component
-public class AliyunOssObjectStorageUtil {
+public class AliyunOssObjectStorageUtil implements DisposableBean {
 
     private static final String STORAGE_TYPE_ALIYUN_OSS = "aliyun-oss";
 
     private final AliyunOssStorageProperties properties;
+    private volatile OSS ossClient;
 
     public AliyunOssObjectStorageUtil(AliyunOssStorageProperties properties) {
         this.properties = properties;
@@ -58,18 +60,13 @@ public class AliyunOssObjectStorageUtil {
                                                             InputStream inputStream,
                                                             String bucketType) {
         String bucketName = properties.getPrivateBucket();
-        OSS ossClient = new OSSClientBuilder().build(
-                properties.getEndpoint(),
-                properties.getAccessKeyId(),
-                properties.getAccessKeySecret()
-        );
         try {
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(sizeBytes);
             if (StringUtils.hasText(contentType)) {
                 metadata.setContentType(contentType);
             }
-            ossClient.putObject(bucketName, objectKey, inputStream, metadata);
+            getOssClient().putObject(bucketName, objectKey, inputStream, metadata);
             ObjectStorageUploadResult result = new ObjectStorageUploadResult();
             result.setStorageType(STORAGE_TYPE_ALIYUN_OSS);
             result.setBucketType(StringUtils.hasText(bucketType) ? bucketType : "private");
@@ -81,8 +78,6 @@ public class AliyunOssObjectStorageUtil {
             return result;
         } catch (OSSException | ClientException exception) {
             throw new BusinessException(ErrorCode.OBJECT_STORAGE_UPLOAD_FAILED, "阿里云 OSS 上传失败");
-        } finally {
-            ossClient.shutdown();
         }
     }
 
@@ -101,19 +96,12 @@ public class AliyunOssObjectStorageUtil {
         if (!StringUtils.hasText(bucketName) || !StringUtils.hasText(objectKey)) {
             throw new BusinessException(ErrorCode.OBJECT_STORAGE_CONFIG_INVALID);
         }
-        OSS ossClient = new OSSClientBuilder().build(
-                properties.getEndpoint(),
-                properties.getAccessKeyId(),
-                properties.getAccessKeySecret()
-        );
         try {
             Date expiration = new Date(System.currentTimeMillis() + expireSeconds * 1000L);
-            URL url = ossClient.generatePresignedUrl(bucketName, objectKey, expiration);
+            URL url = getOssClient().generatePresignedUrl(bucketName, objectKey, expiration);
             return url.toString();
         } catch (OSSException | ClientException exception) {
             throw new BusinessException(ErrorCode.OBJECT_STORAGE_UPLOAD_FAILED, "阿里云 OSS 签名地址生成失败");
-        } finally {
-            ossClient.shutdown();
         }
     }
 
@@ -136,6 +124,30 @@ public class AliyunOssObjectStorageUtil {
                 || !StringUtils.hasText(properties.getAccessKeyId())
                 || !StringUtils.hasText(properties.getAccessKeySecret())) {
             throw new BusinessException(ErrorCode.OBJECT_STORAGE_CONFIG_INVALID);
+        }
+    }
+
+    private OSS getOssClient() {
+        if (ossClient != null) {
+            return ossClient;
+        }
+        synchronized (this) {
+            if (ossClient == null) {
+                validateBaseConfig();
+                ossClient = new OSSClientBuilder().build(
+                        properties.getEndpoint(),
+                        properties.getAccessKeyId(),
+                        properties.getAccessKeySecret()
+                );
+            }
+        }
+        return ossClient;
+    }
+
+    @Override
+    public void destroy() {
+        if (ossClient != null) {
+            ossClient.shutdown();
         }
     }
 }

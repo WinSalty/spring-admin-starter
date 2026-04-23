@@ -247,6 +247,13 @@ app:
 6. 文件上传会计算 SHA-256 内容 Hash，相同内容会复用已有本地文件或 OSS 对象，减少重复上传和存储占用；业务层仍新增文件记录，保留上传人、原始文件名和审计时间。
 7. 文件上传和头像上传统一按 IP 与用户双维度限流：同一 IP 每 10 分钟最多 60 次，同一用户每 10 分钟最多 20 次。
 
+文件访问控制规则：
+
+1. `/api/file/list`、`/api/file/{id}/download`、`/api/file/private/**`、`/api/file/{id}/delete`、`/api/file/{id}/status` 仅管理员可访问。
+2. `/api/file/public/**` 仅用于读取数据库中状态为 `active` 的本地公共文件。
+3. `/api/file/avatar/{id}` 允许浏览器匿名读取，但文件必须同时满足“公开文件、状态启用、图片类型、且已被用户资料引用为头像”四个条件。
+4. 上传与列表接口不再向前端返回对象存储 `bucketName`、`accessPolicy`、`objectKey`、`contentHash` 等内部字段。
+
 OSS 模式最小环境变量：
 
 ```bash

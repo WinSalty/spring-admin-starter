@@ -11,14 +11,9 @@ import lombok.Data;
 public class FileRecordVo {
     private String id;
     private String originalName;
-    private String storedName;
     private String storageType;
     private String bucketType;
-    private String bucketName;
-    private String accessPolicy;
-    private String objectKey;
     private String fileUrl;
-    private String contentHash;
     private String contentType;
     private String extension;
     private Long sizeBytes;

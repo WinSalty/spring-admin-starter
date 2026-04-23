@@ -24,6 +24,8 @@ public interface FileRecordService {
 
     FileRecordVo getDetail(String id);
 
+    FileRecordVo getPublicAvatarDetail(String id);
+
     Resource loadDownloadResource(String id);
 
     Resource loadPublicResource(String objectKey);

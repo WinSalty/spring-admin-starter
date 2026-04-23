@@ -2,10 +2,10 @@ package com.winsalty.quickstart.file.controller;
 
 import com.winsalty.quickstart.auth.annotation.FileUploadRateLimit;
 import com.winsalty.quickstart.common.api.ApiResponse;
+import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.common.base.BaseController;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
-import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.file.dto.FileListRequest;
 import com.winsalty.quickstart.file.dto.FileStatusRequest;
 import com.winsalty.quickstart.file.service.FileRecordService;
@@ -100,6 +100,7 @@ public class FileController extends BaseController {
     /**
      * 文件记录分页列表。
      */
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/list")
     public ApiResponse<PageResponse<FileRecordVo>> list(@Validated FileListRequest request) {
         return ApiResponse.success("获取成功", fileRecordService.getPage(request));
@@ -108,6 +109,7 @@ public class FileController extends BaseController {
     /**
      * 文件下载会按原始文件名设置 attachment 响应头。
      */
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/{id}/download")
     public ResponseEntity<?> download(@PathVariable("id") String id) {
         FileRecordVo detail = fileRecordService.getDetail(id);
@@ -166,10 +168,7 @@ public class FileController extends BaseController {
      */
     @GetMapping("/avatar/{id}")
     public ResponseEntity<?> avatar(@PathVariable("id") String id) {
-        FileRecordVo detail = fileRecordService.getDetail(id);
-        if (detail.getContentType() == null || !detail.getContentType().startsWith("image/")) {
-            throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
-        }
+        FileRecordVo detail = fileRecordService.getPublicAvatarDetail(id);
         if ("aliyun-oss".equals(detail.getStorageType())) {
             PrivateDownloadUrlVo downloadUrl = fileRecordService.createProtectedDownloadUrl(id);
             return ResponseEntity.status(302).location(URI.create(downloadUrl.getDownloadUrl())).build();
