@@ -295,7 +295,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         if (avatarUrl == null) {
             return null;
         }
-        if (avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://") || avatarUrl.startsWith("/api/file/avatar/")) {
+        if (isPersistentAvatarUrl(avatarUrl)) {
             return avatarUrl;
         }
         throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "头像地址不合法");
@@ -314,9 +314,24 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         if (avatarUrl == null) {
             return null;
         }
-        if (avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://") || avatarUrl.startsWith("/api/file/avatar/")) {
+        if (isPersistentAvatarUrl(avatarUrl)) {
             return avatarUrl;
         }
         return null;
+    }
+
+    /**
+     * 判断头像地址是否为可长期读取的持久地址。
+     *
+     * @param avatarUrl 头像地址
+     * @return 是否为持久地址
+     * @author sunshengxian
+     * @date 2026-04-23
+     */
+    private boolean isPersistentAvatarUrl(String avatarUrl) {
+        return avatarUrl.startsWith("http://")
+                || avatarUrl.startsWith("https://")
+                || avatarUrl.startsWith("/api/file/avatar/")
+                || avatarUrl.startsWith("/api/file/public/");
     }
 }

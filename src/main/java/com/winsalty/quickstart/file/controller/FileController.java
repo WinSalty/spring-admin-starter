@@ -12,6 +12,7 @@ import com.winsalty.quickstart.file.dto.FileStatusRequest;
 import com.winsalty.quickstart.file.service.FileRecordService;
 import com.winsalty.quickstart.file.vo.FileRecordVo;
 import com.winsalty.quickstart.file.vo.ObjectStorageStatusVo;
+import com.winsalty.quickstart.file.vo.PrivateDownloadUrlVo;
 import com.winsalty.quickstart.infra.storage.ObjectStorageProperties;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
@@ -20,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -79,6 +81,17 @@ public class FileController extends BaseController {
     }
 
     /**
+     * 私有文件上传，仅管理员可用，下载时必须经过后端鉴权。
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping(value = "/private/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<FileRecordVo> uploadPrivate(@RequestParam("file") MultipartFile file,
+                                                   HttpServletRequest request) {
+        authRateLimitService.checkFileUpload(currentUsername(), IpUtils.getClientIp(request));
+        return ApiResponse.success("上传成功", fileRecordService.uploadPrivate(file));
+    }
+
+    /**
      * 查询对象存储开关状态，前端据此决定是否展示头像上传入口。
      */
     @GetMapping("/object-storage/status")
@@ -86,6 +99,8 @@ public class FileController extends BaseController {
         ObjectStorageStatusVo vo = new ObjectStorageStatusVo();
         vo.setEnabled(objectStorageProperties.isEnabled());
         vo.setProvider(objectStorageProperties.getProvider());
+        vo.setFileUploadEnabled(true);
+        vo.setActiveStorageType(objectStorageProperties.isEnabled() ? "aliyun-oss" : "local");
         return ApiResponse.success("获取成功", vo);
     }
 
@@ -117,6 +132,42 @@ public class FileController extends BaseController {
     }
 
     /**
+     * 私有文件临时下载地址。OSS 文件返回临时签名 URL，本地文件返回后端代理下载地址。
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/private/{id}/download-url")
+    public ApiResponse<PrivateDownloadUrlVo> privateDownloadUrl(@PathVariable("id") String id) {
+        return ApiResponse.success("获取成功", fileRecordService.createPrivateDownloadUrl(id));
+    }
+
+    /**
+     * 私有文件代理下载，主要用于本地存储或高敏文件。
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/private/{id}/download")
+    public ResponseEntity<Resource> privateDownload(@PathVariable("id") String id) {
+        FileRecordVo detail = fileRecordService.getDetail(id);
+        Resource resource = fileRecordService.loadDownloadResource(id);
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(detail.getOriginalName(), StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resource);
+    }
+
+    /**
+     * 本地公共文件访问入口。仅允许读取数据库中处于启用状态的 public 本地文件。
+     */
+    @GetMapping("/public/**")
+    public ResponseEntity<Resource> publicFile(HttpServletRequest request) {
+        String objectKey = extractPublicObjectKey(request);
+        Resource resource = fileRecordService.loadPublicResource(objectKey);
+        return ResponseEntity.ok().body(resource);
+    }
+
+    /**
      * 头像图片访问入口。仅用于浏览器展示已保存头像，阿里云 OSS 文件直接跳转外链。
      */
     @GetMapping("/avatar/{id}")
@@ -133,6 +184,19 @@ public class FileController extends BaseController {
                 ? MediaType.APPLICATION_OCTET_STREAM
                 : MediaType.parseMediaType(detail.getContentType());
         return ResponseEntity.ok().contentType(mediaType).body(resource);
+    }
+
+    private String extractPublicObjectKey(HttpServletRequest request) {
+        String pathWithinMapping = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
+        String bestMatchingPattern = (String) request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        if (pathWithinMapping == null || bestMatchingPattern == null) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+        }
+        String prefix = bestMatchingPattern.replace("**", "");
+        if (!pathWithinMapping.startsWith(prefix)) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+        }
+        return pathWithinMapping.substring(prefix.length());
     }
 
     /**

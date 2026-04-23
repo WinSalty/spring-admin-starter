@@ -84,6 +84,8 @@ public class SecurityConfig {
         matchers.add(new AntPathRequestMatcher("/api/auth/register/verify-code"));
         // 头像需要被浏览器 img 标签直接加载，不能依赖 Authorization 请求头。
         matchers.add(new AntPathRequestMatcher("/api/file/avatar/*"));
+        // 本地公共文件需要被浏览器直接加载，私有文件仍走鉴权接口。
+        matchers.add(new AntPathRequestMatcher("/api/file/public/**"));
         if (swaggerPublicEnabled) {
             // Swagger 只在显式放开时允许匿名访问，生产环境默认关闭。
             matchers.add(new AntPathRequestMatcher("/swagger-ui.html"));

@@ -70,7 +70,15 @@ app:
         access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
         bucket: ${ALIYUN_OSS_BUCKET:}
         domain: ${ALIYUN_OSS_DOMAIN:}
+        public-bucket: ${ALIYUN_OSS_PUBLIC_BUCKET:${ALIYUN_OSS_BUCKET:}}
+        public-domain: ${ALIYUN_OSS_PUBLIC_DOMAIN:${ALIYUN_OSS_DOMAIN:}}
+        private-bucket: ${ALIYUN_OSS_PRIVATE_BUCKET:}
+        private-url-expire-seconds: ${ALIYUN_OSS_PRIVATE_URL_EXPIRE_SECONDS:600}
         key-prefix: ${ALIYUN_OSS_KEY_PREFIX:uploads}
+      local:
+        root-path: ${LOCAL_STORAGE_ROOT_PATH:${app.file.upload-dir}}
+        public-base-url: ${LOCAL_STORAGE_PUBLIC_BASE_URL:/api/file/public}
+        private-url-expire-seconds: ${LOCAL_STORAGE_PRIVATE_URL_EXPIRE_SECONDS:600}
   security:
     swagger-public-enabled: true
     trusted-proxies: ${TRUSTED_PROXIES:127.0.0.1/32,::1/128}

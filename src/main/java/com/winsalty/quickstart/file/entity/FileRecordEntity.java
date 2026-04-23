@@ -21,6 +21,12 @@ public class FileRecordEntity {
     private String filePath;
     /** 存储类型。 */
     private String storageType;
+    /** Bucket 类型。 */
+    private String bucketType;
+    /** 实际 Bucket 名称或本地逻辑空间。 */
+    private String bucketName;
+    /** 访问策略。 */
+    private String accessPolicy;
     /** 对象存储 key。 */
     private String objectKey;
     /** 文件访问地址。 */

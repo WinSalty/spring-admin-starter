@@ -14,4 +14,8 @@ public class ObjectStorageStatusVo {
     private Boolean enabled;
     /** 对象存储服务商。 */
     private String provider;
+    /** 文件上传能力是否启用。 */
+    private Boolean fileUploadEnabled;
+    /** 当前新文件写入存储类型。 */
+    private String activeStorageType;
 }

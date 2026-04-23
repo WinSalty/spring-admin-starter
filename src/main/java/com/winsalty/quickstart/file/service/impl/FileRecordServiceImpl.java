@@ -11,6 +11,7 @@ import com.winsalty.quickstart.file.entity.FileRecordEntity;
 import com.winsalty.quickstart.file.mapper.FileRecordMapper;
 import com.winsalty.quickstart.file.service.FileRecordService;
 import com.winsalty.quickstart.file.vo.FileRecordVo;
+import com.winsalty.quickstart.file.vo.PrivateDownloadUrlVo;
 import com.winsalty.quickstart.infra.storage.AliyunOssObjectStorageUtil;
 import com.winsalty.quickstart.infra.storage.AliyunOssStorageProperties;
 import com.winsalty.quickstart.infra.storage.ObjectStorageUploadResult;
@@ -58,6 +59,14 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     private static final int FILE_SIGNATURE_READ_LENGTH = 16;
     private static final String STORAGE_TYPE_LOCAL = "local";
     private static final String STORAGE_TYPE_ALIYUN_OSS = "aliyun-oss";
+    private static final String BUCKET_TYPE_PUBLIC = "public";
+    private static final String BUCKET_TYPE_PRIVATE = "private";
+    private static final String ACCESS_POLICY_PUBLIC_READ = "public_read";
+    private static final String ACCESS_POLICY_PRIVATE_READ = "private_read";
+    private static final String LOCAL_PUBLIC_BUCKET_NAME = "local-public";
+    private static final String LOCAL_PRIVATE_BUCKET_NAME = "local-private";
+    private static final String DOWNLOAD_MODE_SIGNED_URL = "signed_url";
+    private static final String DOWNLOAD_MODE_PROXY_STREAM = "proxy_stream";
     private static final String HASH_ALGORITHM_SHA_256 = "SHA-256";
 
     private static final Set<String> ALLOWED_EXTENSIONS = new HashSet<String>(Arrays.asList(
@@ -141,7 +150,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo upload(MultipartFile file) {
-        return uploadInternal(file, ALLOWED_EXTENSIONS, "file");
+        return uploadInternal(file, ALLOWED_EXTENSIONS, "file", BUCKET_TYPE_PUBLIC);
     }
 
     /**
@@ -150,13 +159,19 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo uploadAvatar(MultipartFile file) {
-        if (!objectStorageProperties.isEnabled()) {
-            throw new BusinessException(ErrorCode.OBJECT_STORAGE_DISABLED);
-        }
-        return uploadInternal(file, ALLOWED_AVATAR_EXTENSIONS, "avatar");
+        return uploadInternal(file, ALLOWED_AVATAR_EXTENSIONS, "avatar", BUCKET_TYPE_PUBLIC);
     }
 
-    private FileRecordVo uploadInternal(MultipartFile file, Set<String> allowedExtensions, String bizType) {
+    /**
+     * 上传私有文件，文件访问必须通过后端鉴权后的下载接口完成。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public FileRecordVo uploadPrivate(MultipartFile file) {
+        return uploadInternal(file, ALLOWED_EXTENSIONS, "private", BUCKET_TYPE_PRIVATE);
+    }
+
+    private FileRecordVo uploadInternal(MultipartFile file, Set<String> allowedExtensions, String bizType, String bucketType) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.FILE_EMPTY);
         }
@@ -180,7 +195,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         validateMagicBytes(fileBytes, extension);
         String contentHash = sha256Hex(fileBytes);
         String storedName = UUID.randomUUID().toString().replace("-", "") + "." + extension;
-        ObjectStorageUploadResult uploadResult = storeFile(file, fileBytes, storedName, extension, contentHash);
+        ObjectStorageUploadResult uploadResult = storeFile(file, fileBytes, storedName, extension, contentHash, bizType, bucketType);
         FileRecordEntity entity = new FileRecordEntity();
         entity.setFileCode("F" + System.currentTimeMillis());
         entity.setOriginalName(originalName);
@@ -188,6 +203,9 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         entity.setStoredName(storedName);
         entity.setFilePath(uploadResult.getFilePath());
         entity.setStorageType(uploadResult.getStorageType());
+        entity.setBucketType(uploadResult.getBucketType());
+        entity.setBucketName(uploadResult.getBucketName());
+        entity.setAccessPolicy(uploadResult.getAccessPolicy());
         entity.setObjectKey(uploadResult.getObjectKey());
         entity.setFileUrl(uploadResult.getFileUrl());
         entity.setContentHash(contentHash);
@@ -228,13 +246,50 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     public Resource loadDownloadResource(String id) {
         FileRecordEntity entity = load(parseId(id));
         if (STORAGE_TYPE_ALIYUN_OSS.equals(entity.getStorageType())) {
-            throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "阿里云 OSS 文件请使用 fileUrl 访问");
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "阿里云 OSS 文件请使用文件访问地址或私有下载地址");
         }
-        File file = new File(entity.getFilePath());
+        File file = resolveLocalFile(entity.getFilePath());
         if (!file.exists() || !file.isFile()) {
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
         }
         return new FileSystemResource(file);
+    }
+
+    /**
+     * 加载本地公共文件资源，仅允许读取 public 逻辑空间内的有效文件记录。
+     */
+    @Override
+    public Resource loadPublicResource(String objectKey) {
+        String normalizedObjectKey = normalizeObjectKey(objectKey);
+        FileRecordEntity entity = fileRecordMapper.findPublicLocalByObjectKey(normalizedObjectKey);
+        if (entity == null) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+        }
+        return loadDownloadResource(String.valueOf(entity.getId()));
+    }
+
+    /**
+     * 创建私有文件下载地址，OSS 返回临时签名 URL，本地存储返回后端代理下载地址。
+     */
+    @Override
+    public PrivateDownloadUrlVo createPrivateDownloadUrl(String id) {
+        FileRecordEntity entity = load(parseId(id));
+        if (!BUCKET_TYPE_PRIVATE.equals(entity.getBucketType())) {
+            throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "非私有文件不需要生成临时下载地址");
+        }
+        PrivateDownloadUrlVo vo = new PrivateDownloadUrlVo();
+        vo.setFileId(String.valueOf(entity.getId()));
+        if (STORAGE_TYPE_ALIYUN_OSS.equals(entity.getStorageType())) {
+            long expireSeconds = aliyunOssStorageProperties.getPrivateUrlExpireSeconds();
+            vo.setDownloadUrl(aliyunOssObjectStorageUtil.generatePresignedUrl(entity.getBucketName(), entity.getObjectKey(), expireSeconds));
+            vo.setExpireSeconds(expireSeconds);
+            vo.setDownloadMode(DOWNLOAD_MODE_SIGNED_URL);
+            return vo;
+        }
+        vo.setDownloadUrl("/api/file/private/" + entity.getId() + "/download");
+        vo.setExpireSeconds(objectStorageProperties.getLocal().getPrivateUrlExpireSeconds());
+        vo.setDownloadMode(DOWNLOAD_MODE_PROXY_STREAM);
+        return vo;
     }
 
     /**
@@ -280,37 +335,58 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     /**
      * 根据对象存储开关选择本地或阿里云 OSS 存储；相同内容 Hash 直接复用已有对象，减少重复上传。
      */
-    private ObjectStorageUploadResult storeFile(MultipartFile file, byte[] fileBytes, String storedName, String extension, String contentHash) {
+    private ObjectStorageUploadResult storeFile(MultipartFile file,
+                                                byte[] fileBytes,
+                                                String storedName,
+                                                String extension,
+                                                String contentHash,
+                                                String bizType,
+                                                String bucketType) {
         String storageType = objectStorageProperties.isEnabled() ? STORAGE_TYPE_ALIYUN_OSS : STORAGE_TYPE_LOCAL;
-        FileRecordEntity reusable = fileRecordMapper.findReusableByContentHash(contentHash, storageType);
+        FileRecordEntity reusable = fileRecordMapper.findReusableByContentHash(contentHash, storageType, bucketType);
         if (reusable != null) {
-            log.info("file content hash reused, storageType={}, objectKey={}, contentHash={}",
-                    reusable.getStorageType(), reusable.getObjectKey(), contentHash);
+            log.info("file content hash reused, storageType={}, bucketType={}, objectKey={}, contentHash={}",
+                    reusable.getStorageType(), reusable.getBucketType(), reusable.getObjectKey(), contentHash);
             return toUploadResult(reusable);
         }
         if (objectStorageProperties.isEnabled()) {
-            return uploadToAliyunOss(file, fileBytes, contentHash, extension);
+            return uploadToAliyunOss(file, fileBytes, contentHash, extension, bizType, bucketType);
         }
-        return saveToLocal(fileBytes, storedName);
+        return saveToLocal(fileBytes, storedName, contentHash, extension, bizType, bucketType);
     }
 
-    private ObjectStorageUploadResult uploadToAliyunOss(MultipartFile file, byte[] fileBytes, String contentHash, String extension) {
-        String objectKey = buildAliyunOssObjectKey(contentHash, extension);
+    private ObjectStorageUploadResult uploadToAliyunOss(MultipartFile file,
+                                                        byte[] fileBytes,
+                                                        String contentHash,
+                                                        String extension,
+                                                        String bizType,
+                                                        String bucketType) {
+        String objectKey = buildAliyunOssObjectKey(contentHash, extension, bizType, bucketType);
         try (InputStream inputStream = new ByteArrayInputStream(fileBytes)) {
-            log.info("aliyun oss upload start, objectKey={}, sizeBytes={}", objectKey, file.getSize());
-            return aliyunOssObjectStorageUtil.upload(inputStream, objectKey, file.getContentType(), file.getSize());
+            log.info("aliyun oss upload start, bucketType={}, objectKey={}, sizeBytes={}", bucketType, objectKey, file.getSize());
+            if (BUCKET_TYPE_PRIVATE.equals(bucketType)) {
+                return aliyunOssObjectStorageUtil.uploadPrivate(inputStream, objectKey, file.getContentType(), file.getSize());
+            }
+            return aliyunOssObjectStorageUtil.uploadPublic(inputStream, objectKey, file.getContentType(), file.getSize());
         } catch (IOException exception) {
             log.error("aliyun oss upload input stream open failed, objectKey={}", objectKey);
             throw new BusinessException(ErrorCode.FILE_SAVE_FAILED);
         }
     }
 
-    private ObjectStorageUploadResult saveToLocal(byte[] fileBytes, String storedName) {
-        File directory = new File(uploadDir);
-        if (!directory.exists() && !directory.mkdirs()) {
+    private ObjectStorageUploadResult saveToLocal(byte[] fileBytes,
+                                                  String storedName,
+                                                  String contentHash,
+                                                  String extension,
+                                                  String bizType,
+                                                  String bucketType) {
+        String objectKey = buildLocalObjectKey(contentHash, extension, bizType, bucketType);
+        File rootDirectory = resolveLocalRootDirectory();
+        File target = new File(rootDirectory, objectKey);
+        File directory = target.getParentFile();
+        if (directory == null || (!directory.exists() && !directory.mkdirs())) {
             throw new BusinessException(ErrorCode.DIRECTORY_CREATE_FAILED);
         }
-        File target = new File(directory, storedName);
         try {
             // 先落盘再写数据库；若落盘失败，事务不会留下文件元数据。
             Files.write(target.toPath(), fileBytes);
@@ -320,24 +396,30 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         }
         ObjectStorageUploadResult result = new ObjectStorageUploadResult();
         result.setStorageType(STORAGE_TYPE_LOCAL);
-        result.setObjectKey(storedName);
+        result.setBucketType(bucketType);
+        result.setBucketName(BUCKET_TYPE_PRIVATE.equals(bucketType) ? LOCAL_PRIVATE_BUCKET_NAME : LOCAL_PUBLIC_BUCKET_NAME);
+        result.setAccessPolicy(BUCKET_TYPE_PRIVATE.equals(bucketType) ? ACCESS_POLICY_PRIVATE_READ : ACCESS_POLICY_PUBLIC_READ);
+        result.setObjectKey(objectKey);
         result.setFilePath(target.getPath());
-        result.setFileUrl("");
+        result.setFileUrl(BUCKET_TYPE_PRIVATE.equals(bucketType) ? "" : buildLocalPublicUrl(objectKey));
         return result;
     }
 
     private ObjectStorageUploadResult toUploadResult(FileRecordEntity entity) {
         ObjectStorageUploadResult result = new ObjectStorageUploadResult();
         result.setStorageType(entity.getStorageType());
+        result.setBucketType(entity.getBucketType());
+        result.setBucketName(entity.getBucketName());
+        result.setAccessPolicy(entity.getAccessPolicy());
         result.setObjectKey(entity.getObjectKey());
         result.setFilePath(entity.getFilePath());
         result.setFileUrl(entity.getFileUrl());
         return result;
     }
 
-    private String buildAliyunOssObjectKey(String contentHash, String extension) {
+    private String buildAliyunOssObjectKey(String contentHash, String extension, String bizType, String bucketType) {
         String prefix = aliyunOssStorageProperties.getKeyPrefix();
-        String hashPath = contentHash.substring(0, 2) + "/" + contentHash + "." + extension;
+        String hashPath = bucketType + "/" + bizType + "/" + contentHash.substring(0, 2) + "/" + contentHash + "." + extension;
         if (!StringUtils.hasText(prefix)) {
             return hashPath;
         }
@@ -349,6 +431,69 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             normalizedPrefix = normalizedPrefix.substring(0, normalizedPrefix.length() - 1);
         }
         return normalizedPrefix + "/" + hashPath;
+    }
+
+    private String buildLocalObjectKey(String contentHash, String extension, String bizType, String bucketType) {
+        return bucketType + "/" + bizType + "/" + contentHash.substring(0, 2) + "/" + contentHash + "." + extension;
+    }
+
+    private String buildLocalPublicUrl(String objectKey) {
+        String baseUrl = objectStorageProperties.getLocal().getPublicBaseUrl();
+        if (!StringUtils.hasText(baseUrl)) {
+            baseUrl = "/api/file/public";
+        }
+        while (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+        return baseUrl + "/" + objectKey;
+    }
+
+    private File resolveLocalRootDirectory() {
+        String rootPath = objectStorageProperties.getLocal().getRootPath();
+        if (!StringUtils.hasText(rootPath)) {
+            rootPath = uploadDir;
+        }
+        return new File(rootPath);
+    }
+
+    private File resolveLocalFile(String filePath) {
+        if (!StringUtils.hasText(filePath)) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+        }
+        File rootDirectory = resolveLocalRootDirectory();
+        File file = new File(filePath);
+        if (!file.isAbsolute()) {
+            file = new File(filePath);
+        }
+        try {
+            File canonicalRoot = rootDirectory.getCanonicalFile();
+            File canonicalFile = file.getCanonicalFile();
+            String rootPath = canonicalRoot.getPath();
+            String targetPath = canonicalFile.getPath();
+            if (!targetPath.equals(rootPath) && !targetPath.startsWith(rootPath + File.separator)) {
+                throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+            }
+            return canonicalFile;
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+        }
+    }
+
+    private String normalizeObjectKey(String objectKey) {
+        if (!StringUtils.hasText(objectKey)) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+        }
+        String normalized = objectKey.trim().replace("\\", "/");
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.contains("../") || normalized.contains("..\\")) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+        }
+        if (!normalized.startsWith(BUCKET_TYPE_PUBLIC + "/")) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+        }
+        return normalized;
     }
 
     /**
@@ -480,6 +625,9 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         vo.setOriginalName(entity.getOriginalName());
         vo.setStoredName(entity.getStoredName());
         vo.setStorageType(entity.getStorageType());
+        vo.setBucketType(entity.getBucketType());
+        vo.setBucketName(entity.getBucketName());
+        vo.setAccessPolicy(entity.getAccessPolicy());
         vo.setObjectKey(entity.getObjectKey());
         vo.setFileUrl(entity.getFileUrl());
         vo.setContentHash(entity.getContentHash());
