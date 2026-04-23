@@ -10,7 +10,7 @@ import lombok.Data;
 @Data
 public class ObjectStorageUploadResult {
 
-    /** 存储类型，例如 local 或 qiniu。 */
+    /** 存储类型，例如 local 或 aliyun-oss。 */
     private String storageType;
     /** 对象存储 key。 */
     private String objectKey;

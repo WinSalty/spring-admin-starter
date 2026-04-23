@@ -11,9 +11,10 @@ import com.winsalty.quickstart.file.entity.FileRecordEntity;
 import com.winsalty.quickstart.file.mapper.FileRecordMapper;
 import com.winsalty.quickstart.file.service.FileRecordService;
 import com.winsalty.quickstart.file.vo.FileRecordVo;
+import com.winsalty.quickstart.infra.storage.AliyunOssObjectStorageUtil;
+import com.winsalty.quickstart.infra.storage.AliyunOssStorageProperties;
 import com.winsalty.quickstart.infra.storage.ObjectStorageUploadResult;
-import com.winsalty.quickstart.infra.storage.QiniuObjectStorageUtil;
-import com.winsalty.quickstart.infra.storage.QiniuStorageProperties;
+import com.winsalty.quickstart.infra.storage.ObjectStorageProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,7 +39,7 @@ import java.util.UUID;
 
 /**
  * 文件记录服务实现。
- * 按配置使用本地目录或七牛云对象存储保存文件，数据库记录文件元数据和访问地址。
+ * 按配置使用本地目录或阿里云 OSS 对象存储保存文件，数据库记录文件元数据和访问地址。
  * 创建日期：2026-04-18
  * author：sunshengxian
  */
@@ -52,7 +53,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     private static final int MAX_PAGE_SIZE = 100;
     private static final int FILE_SIGNATURE_READ_LENGTH = 16;
     private static final String STORAGE_TYPE_LOCAL = "local";
-    private static final String STORAGE_TYPE_QINIU = "qiniu";
+    private static final String STORAGE_TYPE_ALIYUN_OSS = "aliyun-oss";
 
     private static final Set<String> ALLOWED_EXTENSIONS = new HashSet<String>(Arrays.asList(
             "jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "csv", "xls", "xlsx", "doc", "docx", "zip"
@@ -112,21 +113,21 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     }
 
     private final FileRecordMapper fileRecordMapper;
-    private final QiniuObjectStorageUtil qiniuObjectStorageUtil;
-    private final QiniuStorageProperties qiniuStorageProperties;
+    private final AliyunOssObjectStorageUtil aliyunOssObjectStorageUtil;
+    private final AliyunOssStorageProperties aliyunOssStorageProperties;
+    private final ObjectStorageProperties objectStorageProperties;
     private final String uploadDir;
-    private final String storageType;
 
     public FileRecordServiceImpl(FileRecordMapper fileRecordMapper,
-                                 QiniuObjectStorageUtil qiniuObjectStorageUtil,
-                                 QiniuStorageProperties qiniuStorageProperties,
-                                 @Value("${app.file.upload-dir:uploads}") String uploadDir,
-                                 @Value("${app.file.storage-type:local}") String storageType) {
+                                 AliyunOssObjectStorageUtil aliyunOssObjectStorageUtil,
+                                 AliyunOssStorageProperties aliyunOssStorageProperties,
+                                 ObjectStorageProperties objectStorageProperties,
+                                 @Value("${app.file.upload-dir:uploads}") String uploadDir) {
         this.fileRecordMapper = fileRecordMapper;
-        this.qiniuObjectStorageUtil = qiniuObjectStorageUtil;
-        this.qiniuStorageProperties = qiniuStorageProperties;
+        this.aliyunOssObjectStorageUtil = aliyunOssObjectStorageUtil;
+        this.aliyunOssStorageProperties = aliyunOssStorageProperties;
+        this.objectStorageProperties = objectStorageProperties;
         this.uploadDir = uploadDir;
-        this.storageType = normalizeStorageType(storageType);
     }
 
     /**
@@ -144,6 +145,9 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo uploadAvatar(MultipartFile file) {
+        if (!objectStorageProperties.isEnabled()) {
+            throw new BusinessException(ErrorCode.OBJECT_STORAGE_DISABLED);
+        }
         return uploadInternal(file, ALLOWED_AVATAR_EXTENSIONS, "avatar");
     }
 
@@ -215,8 +219,8 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Override
     public Resource loadDownloadResource(String id) {
         FileRecordEntity entity = load(parseId(id));
-        if (STORAGE_TYPE_QINIU.equals(entity.getStorageType())) {
-            throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "七牛云文件请使用 fileUrl 访问");
+        if (STORAGE_TYPE_ALIYUN_OSS.equals(entity.getStorageType())) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "阿里云 OSS 文件请使用 fileUrl 访问");
         }
         File file = new File(entity.getFilePath());
         if (!file.exists() || !file.isFile()) {
@@ -266,22 +270,22 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     }
 
     /**
-     * 根据配置选择本地或七牛云存储。
+     * 根据对象存储开关选择本地或阿里云 OSS 存储。
      */
     private ObjectStorageUploadResult storeFile(MultipartFile file, String storedName, String extension) {
-        if (STORAGE_TYPE_QINIU.equals(storageType)) {
-            return uploadToQiniu(file, storedName);
+        if (objectStorageProperties.isEnabled()) {
+            return uploadToAliyunOss(file, storedName);
         }
         return saveToLocal(file, storedName);
     }
 
-    private ObjectStorageUploadResult uploadToQiniu(MultipartFile file, String storedName) {
-        String objectKey = buildQiniuObjectKey(storedName);
+    private ObjectStorageUploadResult uploadToAliyunOss(MultipartFile file, String storedName) {
+        String objectKey = buildAliyunOssObjectKey(storedName);
         try (InputStream inputStream = file.getInputStream()) {
-            log.info("qiniu upload start, objectKey={}, sizeBytes={}", objectKey, file.getSize());
-            return qiniuObjectStorageUtil.upload(inputStream, objectKey, file.getContentType());
+            log.info("aliyun oss upload start, objectKey={}, sizeBytes={}", objectKey, file.getSize());
+            return aliyunOssObjectStorageUtil.upload(inputStream, objectKey, file.getContentType(), file.getSize());
         } catch (IOException exception) {
-            log.error("qiniu upload input stream open failed, objectKey={}", objectKey);
+            log.error("aliyun oss upload input stream open failed, objectKey={}", objectKey);
             throw new BusinessException(ErrorCode.FILE_SAVE_FAILED);
         }
     }
@@ -307,8 +311,8 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         return result;
     }
 
-    private String buildQiniuObjectKey(String storedName) {
-        String prefix = qiniuStorageProperties.getKeyPrefix();
+    private String buildAliyunOssObjectKey(String storedName) {
+        String prefix = aliyunOssStorageProperties.getKeyPrefix();
         if (!StringUtils.hasText(prefix)) {
             return storedName;
         }
@@ -320,17 +324,6 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             normalizedPrefix = normalizedPrefix.substring(0, normalizedPrefix.length() - 1);
         }
         return normalizedPrefix + "/" + storedName;
-    }
-
-    private String normalizeStorageType(String configuredStorageType) {
-        if (!StringUtils.hasText(configuredStorageType)) {
-            return STORAGE_TYPE_LOCAL;
-        }
-        String value = configuredStorageType.trim().toLowerCase();
-        if (STORAGE_TYPE_LOCAL.equals(value) || STORAGE_TYPE_QINIU.equals(value)) {
-            return value;
-        }
-        throw new BusinessException(ErrorCode.OBJECT_STORAGE_CONFIG_INVALID, "文件存储类型配置不合法");
     }
 
     /**

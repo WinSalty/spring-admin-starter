@@ -26,7 +26,7 @@
         <jjwt.version>0.11.5</jjwt.version>
         <druid.version>1.2.27</druid.version>
         <fastjson2.version>2.0.61</fastjson2.version>
-        <qiniu-java-sdk.version>7.19.0</qiniu-java-sdk.version>
+        <aliyun-oss-sdk.version>3.18.5</aliyun-oss-sdk.version>
     </properties>
 
     <dependencies>
@@ -87,9 +87,9 @@
             <version>${mybatis-plus.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.qiniu</groupId>
-            <artifactId>qiniu-java-sdk</artifactId>
-            <version>${qiniu-java-sdk.version}</version>
+            <groupId>com.aliyun.oss</groupId>
+            <artifactId>aliyun-sdk-oss</artifactId>
+            <version>${aliyun-oss-sdk.version}</version>
         </dependency>
         <dependency>
             <groupId>com.mysql</groupId>

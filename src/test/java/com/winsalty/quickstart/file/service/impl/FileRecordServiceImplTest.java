@@ -2,8 +2,9 @@ package com.winsalty.quickstart.file.service.impl;
 
 import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.file.mapper.FileRecordMapper;
-import com.winsalty.quickstart.infra.storage.QiniuObjectStorageUtil;
-import com.winsalty.quickstart.infra.storage.QiniuStorageProperties;
+import com.winsalty.quickstart.infra.storage.AliyunOssObjectStorageUtil;
+import com.winsalty.quickstart.infra.storage.AliyunOssStorageProperties;
+import com.winsalty.quickstart.infra.storage.ObjectStorageProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
@@ -22,13 +23,13 @@ class FileRecordServiceImplTest {
     @Test
     void uploadShouldRejectFileWhenMagicBytesDoNotMatchExtension() {
         FileRecordMapper fileRecordMapper = mock(FileRecordMapper.class);
-        QiniuStorageProperties qiniuStorageProperties = new QiniuStorageProperties();
+        AliyunOssStorageProperties aliyunOssStorageProperties = new AliyunOssStorageProperties();
         FileRecordServiceImpl service = new FileRecordServiceImpl(
                 fileRecordMapper,
-                mock(QiniuObjectStorageUtil.class),
-                qiniuStorageProperties,
-                "target/test-uploads",
-                "local"
+                mock(AliyunOssObjectStorageUtil.class),
+                aliyunOssStorageProperties,
+                new ObjectStorageProperties(),
+                "target/test-uploads"
         );
         MockMultipartFile file = new MockMultipartFile(
                 "file",

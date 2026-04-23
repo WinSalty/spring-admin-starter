@@ -61,14 +61,16 @@ springdoc:
 app:
   file:
     upload-dir: uploads
-    storage-type: ${APP_FILE_STORAGE_TYPE:local}
-    qiniu:
-      access-key: ${QINIU_ACCESS_KEY:}
-      secret-key: ${QINIU_SECRET_KEY:}
-      bucket: ${QINIU_BUCKET:}
-      domain: ${QINIU_DOMAIN:}
-      region: ${QINIU_REGION:auto}
-      key-prefix: ${QINIU_KEY_PREFIX:uploads}
+    object-storage:
+      enabled: ${APP_OBJECT_STORAGE_ENABLED:false}
+      provider: aliyun-oss
+      aliyun:
+        endpoint: ${ALIYUN_OSS_ENDPOINT:}
+        access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
+        access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
+        bucket: ${ALIYUN_OSS_BUCKET:}
+        domain: ${ALIYUN_OSS_DOMAIN:}
+        key-prefix: ${ALIYUN_OSS_KEY_PREFIX:uploads}
   security:
     swagger-public-enabled: true
     trusted-proxies: ${TRUSTED_PROXIES:127.0.0.1/32,::1/128}

@@ -40,7 +40,7 @@
 | `com.winsalty.quickstart.notice` | 公告通知管理 |
 | `com.winsalty.quickstart.department` | 部门树与部门状态管理 |
 | `com.winsalty.quickstart.param` | 参数配置管理与缓存刷新 |
-| `com.winsalty.quickstart.file` | 本地/七牛云文件上传、下载、状态管理 |
+| `com.winsalty.quickstart.file` | 本地/阿里云 OSS 文件上传、下载、状态管理 |
 | `com.winsalty.quickstart.log` | 登录日志、操作日志、接口日志与归档 |
 | `com.winsalty.quickstart.common` | 统一响应、异常、常量、基础父类、工具类 |
 | `com.winsalty.quickstart.infra` | CORS、Redis、Quartz、OpenAPI、ES、JSON、对象存储等基础设施配置 |
@@ -94,7 +94,7 @@
 | 公告通知 | `/api/system/notices/list`、`/detail`、`/save`、`/status`、`/active` |
 | 部门管理 | `/api/system/departments/tree`、`/save`、`/status` |
 | 参数配置 | `/api/system/params/list`、`/detail`、`/save`、`/status`、`/cache/refresh` |
-| 文件管理 | `/api/file/upload`、`/avatar/upload`、`/avatar/{id}`、`/list`、`/{id}/download`、`/{id}/delete`、`/{id}/status` |
+| 文件管理 | `/api/file/upload`、`/avatar/upload`、`/avatar/{id}`、`/object-storage/status`、`/list`、`/{id}/download`、`/{id}/delete`、`/{id}/status` |
 
 ## 配套环境说明
 
@@ -206,21 +206,23 @@ app:
 app:
   file:
     upload-dir: uploads
-    storage-type: ${APP_FILE_STORAGE_TYPE:local}
-    qiniu:
-      access-key: ${QINIU_ACCESS_KEY:}
-      secret-key: ${QINIU_SECRET_KEY:}
-      bucket: ${QINIU_BUCKET:}
-      domain: ${QINIU_DOMAIN:}
-      region: ${QINIU_REGION:auto}
-      key-prefix: ${QINIU_KEY_PREFIX:uploads}
+    object-storage:
+      enabled: ${APP_OBJECT_STORAGE_ENABLED:false}
+      provider: aliyun-oss
+      aliyun:
+        endpoint: ${ALIYUN_OSS_ENDPOINT:}
+        access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
+        access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
+        bucket: ${ALIYUN_OSS_BUCKET:}
+        domain: ${ALIYUN_OSS_DOMAIN:}
+        key-prefix: ${ALIYUN_OSS_KEY_PREFIX:uploads}
 ```
 
 默认单文件大小限制：
 
 - `10MB`
 
-`storage-type` 默认为 `local`，可设置为 `qiniu` 启用七牛云对象存储。启用七牛云时必须配置 `QINIU_ACCESS_KEY`、`QINIU_SECRET_KEY`、`QINIU_BUCKET`、`QINIU_DOMAIN`；`QINIU_DOMAIN` 应为可公开访问的空间域名或 CDN 域名，例如 `https://static.example.com`。当前用户头像通过 `/api/file/avatar/upload` 上传，后端仅允许图片类型并将返回的 `fileUrl` 保存到 `sys_user.avatar_url`。
+`object-storage.enabled` 默认关闭。关闭时普通文件继续使用本地目录，头像上传接口返回对象存储未开启，前端使用用户名首字作为头像占位。开启阿里云 OSS 时必须配置 `ALIYUN_OSS_ENDPOINT`、`ALIYUN_OSS_ACCESS_KEY_ID`、`ALIYUN_OSS_ACCESS_KEY_SECRET`、`ALIYUN_OSS_BUCKET`、`ALIYUN_OSS_DOMAIN`；`ALIYUN_OSS_DOMAIN` 应为可公开访问的 Bucket 域名或 CDN 域名，例如 `https://static.example.com`。当前用户头像通过 `/api/file/avatar/upload` 上传，后端仅允许图片类型并将返回的 `fileUrl` 保存到 `sys_user.avatar_url`。
 
 #### 6. 日志归档
 
@@ -348,7 +350,7 @@ kill <PID>
 ### 部署原则
 
 1. 生产环境只使用 `prod` profile。
-2. 数据库、Redis、JWT 密钥、上传目录或七牛云密钥、CORS 域名等必须外部化配置。
+2. 数据库、Redis、JWT 密钥、上传目录或阿里云 OSS 密钥、CORS 域名等必须外部化配置。
 3. 不要继续使用开发环境默认数据库账号、JWT 密钥和默认演示密码。
 4. 建议由 Nginx、网关、systemd、Supervisor、Docker 或 Kubernetes 托管进程。
 

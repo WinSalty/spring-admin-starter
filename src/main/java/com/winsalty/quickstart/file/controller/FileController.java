@@ -11,6 +11,8 @@ import com.winsalty.quickstart.file.dto.FileListRequest;
 import com.winsalty.quickstart.file.dto.FileStatusRequest;
 import com.winsalty.quickstart.file.service.FileRecordService;
 import com.winsalty.quickstart.file.vo.FileRecordVo;
+import com.winsalty.quickstart.file.vo.ObjectStorageStatusVo;
+import com.winsalty.quickstart.infra.storage.ObjectStorageProperties;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -45,11 +47,14 @@ public class FileController extends BaseController {
 
     private final FileRecordService fileRecordService;
     private final AuthRateLimitService authRateLimitService;
+    private final ObjectStorageProperties objectStorageProperties;
 
     public FileController(FileRecordService fileRecordService,
-                          AuthRateLimitService authRateLimitService) {
+                          AuthRateLimitService authRateLimitService,
+                          ObjectStorageProperties objectStorageProperties) {
         this.fileRecordService = fileRecordService;
         this.authRateLimitService = authRateLimitService;
+        this.objectStorageProperties = objectStorageProperties;
     }
 
     /**
@@ -74,6 +79,17 @@ public class FileController extends BaseController {
     }
 
     /**
+     * 查询对象存储开关状态，前端据此决定是否展示头像上传入口。
+     */
+    @GetMapping("/object-storage/status")
+    public ApiResponse<ObjectStorageStatusVo> objectStorageStatus() {
+        ObjectStorageStatusVo vo = new ObjectStorageStatusVo();
+        vo.setEnabled(objectStorageProperties.isEnabled());
+        vo.setProvider(objectStorageProperties.getProvider());
+        return ApiResponse.success("获取成功", vo);
+    }
+
+    /**
      * 文件记录分页列表。
      */
     @GetMapping("/list")
@@ -87,7 +103,7 @@ public class FileController extends BaseController {
     @GetMapping("/{id}/download")
     public ResponseEntity<?> download(@PathVariable("id") String id) {
         FileRecordVo detail = fileRecordService.getDetail(id);
-        if ("qiniu".equals(detail.getStorageType()) && detail.getFileUrl() != null && !detail.getFileUrl().isEmpty()) {
+        if ("aliyun-oss".equals(detail.getStorageType()) && detail.getFileUrl() != null && !detail.getFileUrl().isEmpty()) {
             return ResponseEntity.status(302).location(URI.create(detail.getFileUrl())).build();
         }
         Resource resource = fileRecordService.loadDownloadResource(id);
@@ -101,7 +117,7 @@ public class FileController extends BaseController {
     }
 
     /**
-     * 头像图片访问入口。仅用于浏览器展示已保存头像，七牛云文件直接跳转外链。
+     * 头像图片访问入口。仅用于浏览器展示已保存头像，阿里云 OSS 文件直接跳转外链。
      */
     @GetMapping("/avatar/{id}")
     public ResponseEntity<?> avatar(@PathVariable("id") String id) {
@@ -109,7 +125,7 @@ public class FileController extends BaseController {
         if (detail.getContentType() == null || !detail.getContentType().startsWith("image/")) {
             throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
         }
-        if ("qiniu".equals(detail.getStorageType()) && detail.getFileUrl() != null && !detail.getFileUrl().isEmpty()) {
+        if ("aliyun-oss".equals(detail.getStorageType()) && detail.getFileUrl() != null && !detail.getFileUrl().isEmpty()) {
             return ResponseEntity.status(302).location(URI.create(detail.getFileUrl())).build();
         }
         Resource resource = fileRecordService.loadDownloadResource(id);

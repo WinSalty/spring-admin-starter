@@ -62,7 +62,8 @@ public enum ErrorCode {
     PARAM_CONFIG_NOT_FOUND(4060, "参数配置不存在"),
     INVALID_ID(4061, "id 不合法"),
     OBJECT_STORAGE_CONFIG_INVALID(4062, "对象存储配置不完整"),
-    OBJECT_STORAGE_UPLOAD_FAILED(4063, "对象存储上传失败");
+    OBJECT_STORAGE_UPLOAD_FAILED(4063, "对象存储上传失败"),
+    OBJECT_STORAGE_DISABLED(4064, "对象存储服务未开启");
 
     private final int code;
     private final String message;
