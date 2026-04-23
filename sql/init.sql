@@ -339,6 +339,7 @@ CREATE TABLE IF NOT EXISTS sys_file (
     storage_type VARCHAR(16) NOT NULL DEFAULT 'local' COMMENT '存储类型',
     object_key VARCHAR(500) NOT NULL DEFAULT '' COMMENT '对象存储 key',
     file_url VARCHAR(500) NOT NULL DEFAULT '' COMMENT '文件访问地址',
+    content_hash VARCHAR(64) NOT NULL DEFAULT '' COMMENT '文件内容SHA-256',
     content_type VARCHAR(128) DEFAULT NULL COMMENT 'MIME 类型',
     extension VARCHAR(16) NOT NULL COMMENT '扩展名',
     size_bytes BIGINT NOT NULL COMMENT '文件大小',
@@ -349,6 +350,7 @@ CREATE TABLE IF NOT EXISTS sys_file (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     UNIQUE KEY uk_sys_file_code (file_code),
     UNIQUE KEY uk_sys_file_stored_name (stored_name),
+    KEY idx_sys_file_content_hash (content_hash),
     KEY idx_sys_file_storage_type (storage_type),
     KEY idx_sys_file_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文件记录表';

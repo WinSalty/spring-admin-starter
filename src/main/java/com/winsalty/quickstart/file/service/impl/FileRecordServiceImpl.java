@@ -25,9 +25,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -54,6 +58,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     private static final int FILE_SIGNATURE_READ_LENGTH = 16;
     private static final String STORAGE_TYPE_LOCAL = "local";
     private static final String STORAGE_TYPE_ALIYUN_OSS = "aliyun-oss";
+    private static final String HASH_ALGORITHM_SHA_256 = "SHA-256";
 
     private static final Set<String> ALLOWED_EXTENSIONS = new HashSet<String>(Arrays.asList(
             "jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "csv", "xls", "xlsx", "doc", "docx", "zip"
@@ -171,9 +176,11 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             // Content-Type 不能完全防伪，但能挡住最常见的“改后缀上传”误用。
             throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
         }
-        validateMagicBytes(file, extension);
+        byte[] fileBytes = readFileBytes(file);
+        validateMagicBytes(fileBytes, extension);
+        String contentHash = sha256Hex(fileBytes);
         String storedName = UUID.randomUUID().toString().replace("-", "") + "." + extension;
-        ObjectStorageUploadResult uploadResult = storeFile(file, storedName, extension);
+        ObjectStorageUploadResult uploadResult = storeFile(file, fileBytes, storedName, extension, contentHash);
         FileRecordEntity entity = new FileRecordEntity();
         entity.setFileCode("F" + System.currentTimeMillis());
         entity.setOriginalName(originalName);
@@ -183,14 +190,15 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         entity.setStorageType(uploadResult.getStorageType());
         entity.setObjectKey(uploadResult.getObjectKey());
         entity.setFileUrl(uploadResult.getFileUrl());
+        entity.setContentHash(contentHash);
         entity.setContentType(file.getContentType());
         entity.setExtension(extension);
         entity.setSizeBytes(file.getSize());
         entity.setStatus(CommonStatusConstants.ACTIVE);
         entity.setCreatedBy(resolveCurrentUsername());
         fileRecordMapper.insert(entity);
-        log.info("file upload success, bizType={}, storageType={}, objectKey={}, originalName={}, sizeBytes={}",
-                bizType, entity.getStorageType(), entity.getObjectKey(), entity.getOriginalName(), entity.getSizeBytes());
+        log.info("file upload success, bizType={}, storageType={}, objectKey={}, contentHash={}, originalName={}, sizeBytes={}",
+                bizType, entity.getStorageType(), entity.getObjectKey(), entity.getContentHash(), entity.getOriginalName(), entity.getSizeBytes());
         return toVo(load(entity.getId()));
     }
 
@@ -270,18 +278,25 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     }
 
     /**
-     * 根据对象存储开关选择本地或阿里云 OSS 存储。
+     * 根据对象存储开关选择本地或阿里云 OSS 存储；相同内容 Hash 直接复用已有对象，减少重复上传。
      */
-    private ObjectStorageUploadResult storeFile(MultipartFile file, String storedName, String extension) {
-        if (objectStorageProperties.isEnabled()) {
-            return uploadToAliyunOss(file, storedName);
+    private ObjectStorageUploadResult storeFile(MultipartFile file, byte[] fileBytes, String storedName, String extension, String contentHash) {
+        String storageType = objectStorageProperties.isEnabled() ? STORAGE_TYPE_ALIYUN_OSS : STORAGE_TYPE_LOCAL;
+        FileRecordEntity reusable = fileRecordMapper.findReusableByContentHash(contentHash, storageType);
+        if (reusable != null) {
+            log.info("file content hash reused, storageType={}, objectKey={}, contentHash={}",
+                    reusable.getStorageType(), reusable.getObjectKey(), contentHash);
+            return toUploadResult(reusable);
         }
-        return saveToLocal(file, storedName);
+        if (objectStorageProperties.isEnabled()) {
+            return uploadToAliyunOss(file, fileBytes, contentHash, extension);
+        }
+        return saveToLocal(fileBytes, storedName);
     }
 
-    private ObjectStorageUploadResult uploadToAliyunOss(MultipartFile file, String storedName) {
-        String objectKey = buildAliyunOssObjectKey(storedName);
-        try (InputStream inputStream = file.getInputStream()) {
+    private ObjectStorageUploadResult uploadToAliyunOss(MultipartFile file, byte[] fileBytes, String contentHash, String extension) {
+        String objectKey = buildAliyunOssObjectKey(contentHash, extension);
+        try (InputStream inputStream = new ByteArrayInputStream(fileBytes)) {
             log.info("aliyun oss upload start, objectKey={}, sizeBytes={}", objectKey, file.getSize());
             return aliyunOssObjectStorageUtil.upload(inputStream, objectKey, file.getContentType(), file.getSize());
         } catch (IOException exception) {
@@ -290,7 +305,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         }
     }
 
-    private ObjectStorageUploadResult saveToLocal(MultipartFile file, String storedName) {
+    private ObjectStorageUploadResult saveToLocal(byte[] fileBytes, String storedName) {
         File directory = new File(uploadDir);
         if (!directory.exists() && !directory.mkdirs()) {
             throw new BusinessException(ErrorCode.DIRECTORY_CREATE_FAILED);
@@ -298,7 +313,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         File target = new File(directory, storedName);
         try {
             // 先落盘再写数据库；若落盘失败，事务不会留下文件元数据。
-            file.transferTo(target);
+            Files.write(target.toPath(), fileBytes);
         } catch (IOException exception) {
             log.error("local file save failed, path={}", target.getPath());
             throw new BusinessException(ErrorCode.FILE_SAVE_FAILED);
@@ -311,10 +326,20 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         return result;
     }
 
-    private String buildAliyunOssObjectKey(String storedName) {
+    private ObjectStorageUploadResult toUploadResult(FileRecordEntity entity) {
+        ObjectStorageUploadResult result = new ObjectStorageUploadResult();
+        result.setStorageType(entity.getStorageType());
+        result.setObjectKey(entity.getObjectKey());
+        result.setFilePath(entity.getFilePath());
+        result.setFileUrl(entity.getFileUrl());
+        return result;
+    }
+
+    private String buildAliyunOssObjectKey(String contentHash, String extension) {
         String prefix = aliyunOssStorageProperties.getKeyPrefix();
+        String hashPath = contentHash.substring(0, 2) + "/" + contentHash + "." + extension;
         if (!StringUtils.hasText(prefix)) {
-            return storedName;
+            return hashPath;
         }
         String normalizedPrefix = prefix.trim();
         while (normalizedPrefix.startsWith("/")) {
@@ -323,45 +348,66 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         while (normalizedPrefix.endsWith("/")) {
             normalizedPrefix = normalizedPrefix.substring(0, normalizedPrefix.length() - 1);
         }
-        return normalizedPrefix + "/" + storedName;
+        return normalizedPrefix + "/" + hashPath;
     }
 
     /**
      * 对二进制文件校验魔数，对文本文件校验是否包含明显二进制控制字节。
      */
-    private void validateMagicBytes(MultipartFile file, String extension) {
+    private void validateMagicBytes(byte[] fileBytes, String extension) {
+        byte[] signature = readSignature(fileBytes);
+        if ("txt".equals(extension) || "csv".equals(extension)) {
+            if (!isPlainText(signature)) {
+                throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
+            }
+            return;
+        }
+        List<byte[]> allowedMagicBytes = EXTENSION_MAGIC_BYTES_MAP.get(extension);
+        if (allowedMagicBytes == null || allowedMagicBytes.isEmpty()) {
+            return;
+        }
+        for (byte[] expected : allowedMagicBytes) {
+            if (matchesMagicBytes(signature, expected, extension)) {
+                return;
+            }
+        }
+        throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
+    }
+
+    private byte[] readFileBytes(MultipartFile file) {
         try {
-            byte[] signature = readSignature(file);
-            if ("txt".equals(extension) || "csv".equals(extension)) {
-                if (!isPlainText(signature)) {
-                    throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
-                }
-                return;
-            }
-            List<byte[]> allowedMagicBytes = EXTENSION_MAGIC_BYTES_MAP.get(extension);
-            if (allowedMagicBytes == null || allowedMagicBytes.isEmpty()) {
-                return;
-            }
-            for (byte[] expected : allowedMagicBytes) {
-                if (matchesMagicBytes(signature, expected, extension)) {
-                    return;
-                }
-            }
-            throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
+            return file.getBytes();
         } catch (IOException exception) {
             throw new BusinessException(ErrorCode.FILE_SAVE_FAILED);
         }
     }
 
-    private byte[] readSignature(MultipartFile file) throws IOException {
-        byte[] signature = new byte[FILE_SIGNATURE_READ_LENGTH];
-        try (InputStream inputStream = file.getInputStream()) {
-            int readLength = inputStream.read(signature);
-            if (readLength <= 0) {
-                throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
-            }
-            return Arrays.copyOf(signature, readLength);
+    private byte[] readSignature(byte[] fileBytes) {
+        if (fileBytes.length == 0) {
+            throw new BusinessException(ErrorCode.FILE_TYPE_UNSUPPORTED);
         }
+        return Arrays.copyOf(fileBytes, Math.min(fileBytes.length, FILE_SIGNATURE_READ_LENGTH));
+    }
+
+    private String sha256Hex(byte[] fileBytes) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance(HASH_ALGORITHM_SHA_256);
+            return toHex(digest.digest(fileBytes));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new BusinessException(ErrorCode.FILE_SAVE_FAILED);
+        }
+    }
+
+    private String toHex(byte[] bytes) {
+        StringBuilder builder = new StringBuilder(bytes.length * 2);
+        for (byte current : bytes) {
+            String hex = Integer.toHexString(current & 0xFF);
+            if (hex.length() == 1) {
+                builder.append('0');
+            }
+            builder.append(hex);
+        }
+        return builder.toString();
     }
 
     private boolean matchesMagicBytes(byte[] signature, byte[] expected, String extension) {
@@ -436,6 +482,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         vo.setStorageType(entity.getStorageType());
         vo.setObjectKey(entity.getObjectKey());
         vo.setFileUrl(entity.getFileUrl());
+        vo.setContentHash(entity.getContentHash());
         vo.setContentType(entity.getContentType());
         vo.setExtension(entity.getExtension());
         vo.setSizeBytes(entity.getSizeBytes());

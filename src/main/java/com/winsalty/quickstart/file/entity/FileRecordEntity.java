@@ -25,6 +25,8 @@ public class FileRecordEntity {
     private String objectKey;
     /** 文件访问地址。 */
     private String fileUrl;
+    /** 文件内容 SHA-256。 */
+    private String contentHash;
     /** 文件 MIME 类型。 */
     private String contentType;
     /** 文件扩展名。 */

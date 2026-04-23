@@ -15,6 +15,7 @@ public class FileRecordVo {
     private String storageType;
     private String objectKey;
     private String fileUrl;
+    private String contentHash;
     private String contentType;
     private String extension;
     private Long sizeBytes;

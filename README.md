@@ -229,7 +229,9 @@ app:
 
 1. `APP_OBJECT_STORAGE_ENABLED=false`：不允许上传头像，前端显示用户名首字。
 2. `APP_OBJECT_STORAGE_ENABLED=true`：头像上传到阿里云 OSS，用户资料保存 `sys_user.avatar_url`。
-3. 普通文件管理仍支持本地存储兜底；启用对象存储后文件记录会保存 `storage_type`、`object_key` 和 `file_url`。
+3. 普通文件管理仍支持本地存储兜底；启用对象存储后文件记录会保存 `storage_type`、`object_key`、`file_url` 和 `content_hash`。
+4. 文件上传会计算 SHA-256 内容 Hash，相同内容会复用已有本地文件或 OSS 对象，减少重复上传和存储占用；业务层仍新增文件记录，保留上传人、原始文件名和审计时间。
+5. 文件上传和头像上传统一按 IP 与用户双维度限流：同一 IP 每 10 分钟最多 60 次，同一用户每 10 分钟最多 20 次。
 
 #### 6. 日志归档
 
