@@ -47,7 +47,7 @@ app:
       access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
       access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
       key-prefix: uploads
-      private-bucket: ${ALIYUN_OSS_PRIVATE_BUCKET:ai-quick-web-private}
+      private-bucket: ${ALIYUN_OSS_PRIVATE_BUCKET:ai-web-private}
       private-url-expire-seconds: ${ALIYUN_OSS_PRIVATE_URL_EXPIRE_SECONDS:600}
       temp-bucket: ${ALIYUN_OSS_TEMP_BUCKET:}
       temp-file-expire-days: ${ALIYUN_OSS_TEMP_FILE_EXPIRE_DAYS:1}
@@ -62,7 +62,7 @@ app:
 ```bash
 APP_OBJECT_STORAGE_ENABLED=true
 ALIYUN_OSS_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
-ALIYUN_OSS_PRIVATE_BUCKET=ai-quick-web-private
+ALIYUN_OSS_PRIVATE_BUCKET=ai-web-private
 ALIYUN_OSS_PRIVATE_URL_EXPIRE_SECONDS=600
 ```
 

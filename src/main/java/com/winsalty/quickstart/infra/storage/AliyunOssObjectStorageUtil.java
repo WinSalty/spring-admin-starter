@@ -105,17 +105,6 @@ public class AliyunOssObjectStorageUtil {
     }
 
     /**
-     * 拼接公开访问地址，仅兼容历史公共 Bucket 数据。
-     */
-    public String buildPublicUrl(String objectKey) {
-        String domain = trimTrailingSlash(properties.resolvePublicDomain());
-        if (!StringUtils.hasText(domain)) {
-            throw new BusinessException(ErrorCode.OBJECT_STORAGE_CONFIG_INVALID);
-        }
-        return domain + "/" + objectKey;
-    }
-
-    /**
      * 为私有文件生成临时下载地址。
      *
      * @param bucketName 私有 Bucket 名称
@@ -150,15 +139,7 @@ public class AliyunOssObjectStorageUtil {
      * 校验阿里云 OSS 必填配置，避免缺少密钥时发起远端请求。
      */
     public void validateConfig() {
-        validatePublicConfig();
-    }
-
-    public void validatePublicConfig() {
-        validateBaseConfig();
-        if (!StringUtils.hasText(properties.resolvePublicBucket())
-                || !StringUtils.hasText(properties.resolvePublicDomain())) {
-            throw new BusinessException(ErrorCode.OBJECT_STORAGE_CONFIG_INVALID);
-        }
+        validatePrivateConfig();
     }
 
     public void validatePrivateConfig() {
@@ -174,16 +155,5 @@ public class AliyunOssObjectStorageUtil {
                 || !StringUtils.hasText(properties.getAccessKeySecret())) {
             throw new BusinessException(ErrorCode.OBJECT_STORAGE_CONFIG_INVALID);
         }
-    }
-
-    private String trimTrailingSlash(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        String result = value.trim();
-        while (result.endsWith("/")) {
-            result = result.substring(0, result.length() - 1);
-        }
-        return result;
     }
 }

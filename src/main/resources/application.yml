@@ -68,10 +68,6 @@ app:
         endpoint: ${ALIYUN_OSS_ENDPOINT:}
         access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
         access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
-        bucket: ${ALIYUN_OSS_BUCKET:}
-        domain: ${ALIYUN_OSS_DOMAIN:}
-        public-bucket: ${ALIYUN_OSS_PUBLIC_BUCKET:${ALIYUN_OSS_BUCKET:}}
-        public-domain: ${ALIYUN_OSS_PUBLIC_DOMAIN:${ALIYUN_OSS_DOMAIN:}}
         private-bucket: ${ALIYUN_OSS_PRIVATE_BUCKET:}
         private-url-expire-seconds: ${ALIYUN_OSS_PRIVATE_URL_EXPIRE_SECONDS:600}
         key-prefix: ${ALIYUN_OSS_KEY_PREFIX:uploads}

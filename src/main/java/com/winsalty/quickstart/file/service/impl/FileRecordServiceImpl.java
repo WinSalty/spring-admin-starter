@@ -476,9 +476,6 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         if (StringUtils.hasText(entity.getBucketName())) {
             return entity.getBucketName();
         }
-        if (StringUtils.hasText(aliyunOssStorageProperties.resolvePublicBucket())) {
-            return aliyunOssStorageProperties.resolvePublicBucket();
-        }
         return aliyunOssStorageProperties.getPrivateBucket();
     }
 

@@ -256,15 +256,6 @@ export ALIYUN_OSS_PRIVATE_URL_EXPIRE_SECONDS=600
 export ALIYUN_OSS_KEY_PREFIX=uploads
 ```
 
-当前版本不再需要公开 Bucket 相关配置，以下变量无需配置：
-
-```bash
-ALIYUN_OSS_BUCKET
-ALIYUN_OSS_DOMAIN
-ALIYUN_OSS_PUBLIC_BUCKET
-ALIYUN_OSS_PUBLIC_DOMAIN
-```
-
 阿里云准备步骤：
 
 1. 进入阿里云控制台，打开对象存储 OSS，创建 Bucket，例如 `ai-web-private`。
