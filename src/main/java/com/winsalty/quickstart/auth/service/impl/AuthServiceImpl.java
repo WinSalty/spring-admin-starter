@@ -199,7 +199,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         user.setEmail(trimToNull(request.getEmail()));
         user.setNickname(trimToNull(request.getNickname()));
         user.setDescription(trimToDefault(request.getDescription(), ""));
-        user.setAvatarUrl(trimToNull(request.getAvatarUrl()));
+        user.setAvatarUrl(normalizeAvatarUrl(request.getAvatarUrl()));
         user.setCountry(trimToDefault(request.getCountry(), "中国"));
         user.setProvince(trimToNull(request.getProvince()));
         user.setCity(trimToNull(request.getCity()));
@@ -242,7 +242,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         response.setEmail(user.getEmail());
         response.setNickname(user.getNickname());
         response.setDescription(user.getDescription());
-        response.setAvatarUrl(user.getAvatarUrl());
+        response.setAvatarUrl(resolveReadableAvatarUrl(user.getAvatarUrl()));
         response.setCountry(StringUtils.hasText(user.getCountry()) ? user.getCountry() : "中国");
         response.setProvince(user.getProvince());
         response.setCity(user.getCity());
@@ -280,5 +280,43 @@ public class AuthServiceImpl extends BaseService implements AuthService {
             return defaultValue;
         }
         return value.trim();
+    }
+
+    /**
+     * 头像必须是后端文件接口或对象存储返回的持久 URL，禁止保存浏览器本地 blob 临时地址。
+     *
+     * @param value 原始头像地址
+     * @return 可持久化头像地址
+     * @author sunshengxian
+     * @date 2026-04-23
+     */
+    private String normalizeAvatarUrl(String value) {
+        String avatarUrl = trimToNull(value);
+        if (avatarUrl == null) {
+            return null;
+        }
+        if (avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://") || avatarUrl.startsWith("/api/file/avatar/")) {
+            return avatarUrl;
+        }
+        throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "头像地址不合法");
+    }
+
+    /**
+     * 读取用户信息时过滤历史脏头像地址，避免临时 blob 地址影响前端展示。
+     *
+     * @param value 数据库存储头像地址
+     * @return 可读头像地址
+     * @author sunshengxian
+     * @date 2026-04-23
+     */
+    private String resolveReadableAvatarUrl(String value) {
+        String avatarUrl = trimToNull(value);
+        if (avatarUrl == null) {
+            return null;
+        }
+        if (avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://") || avatarUrl.startsWith("/api/file/avatar/")) {
+            return avatarUrl;
+        }
+        return null;
     }
 }
