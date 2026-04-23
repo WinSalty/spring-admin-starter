@@ -24,7 +24,7 @@
 | 定时任务 | Quartz |
 | 搜索能力 | Elasticsearch 7.x |
 | 邮件 | Spring Mail |
-| 对象存储 | 阿里云 OSS Java SDK |
+| 文件存储 | 本地存储兜底，推荐接入阿里云 OSS 私有 Bucket |
 | 构建工具 | Maven 3.6+ |
 
 ### 服务端分层
@@ -227,7 +227,15 @@ app:
 
 - `10MB`
 
-`object-storage.enabled` 默认关闭。关闭时新文件写入本地存储，文件上传能力不关闭；开启时新文件统一写入阿里云 OSS 私有 Bucket。开启阿里云 OSS 时必须配置 `ALIYUN_OSS_ENDPOINT`、`ALIYUN_OSS_ACCESS_KEY_ID`、`ALIYUN_OSS_ACCESS_KEY_SECRET`、`ALIYUN_OSS_PRIVATE_BUCKET`。当前用户头像通过 `/api/file/avatar/upload` 上传，云存储模式下 `sys_user.avatar_url` 保存后端受控地址 `/api/file/avatar/{id}`，浏览器访问该地址时由后端生成短期 OSS 签名 URL。
+阿里云 OSS 不是系统运行的必需依赖，但生产环境推荐启用。`object-storage.enabled` 默认关闭，关闭时新文件写入本地存储，文件上传能力不关闭；开启时新文件统一写入阿里云 OSS 私有 Bucket。开启阿里云 OSS 时必须配置 `ALIYUN_OSS_ENDPOINT`、`ALIYUN_OSS_ACCESS_KEY_ID`、`ALIYUN_OSS_ACCESS_KEY_SECRET`、`ALIYUN_OSS_PRIVATE_BUCKET`。当前用户头像通过 `/api/file/avatar/upload` 上传，云存储模式下 `sys_user.avatar_url` 保存后端受控地址 `/api/file/avatar/{id}`，浏览器访问该地址时由后端生成短期 OSS 签名 URL。
+
+当前文件存储方案：
+
+1. 本地存储是默认兜底方案，适合本地开发、单机测试和未配置 OSS 的环境。
+2. 阿里云 OSS 是推荐生产方案，所有云端文件统一写入私有 Bucket，不使用公共 Bucket。
+3. OSS 不返回永久外链，数据库 `sys_file.file_url` 为空；访问时后端按 `fileId` 生成有效期 URL。
+4. 头像这类业务公开文件也不直接暴露 OSS 地址，前端保存 `/api/file/avatar/{id}`。
+5. 本地文件和 OSS 文件可以长期混合存在，系统按 `sys_file.storage_type` 路由读取。
 
 头像展示规则：
 
@@ -406,7 +414,7 @@ kill <PID>
 ### 部署原则
 
 1. 生产环境只使用 `prod` profile。
-2. 数据库、Redis、JWT 密钥、上传目录或阿里云 OSS 密钥、CORS 域名等必须外部化配置。
+2. 数据库、Redis、JWT 密钥、上传目录、阿里云 OSS 密钥和 CORS 域名等必须外部化配置；未启用 OSS 时必须保证本地上传目录持久化。
 3. 不要继续使用开发环境默认数据库账号、JWT 密钥和默认演示密码。
 4. 建议由 Nginx、网关、systemd、Supervisor、Docker 或 Kubernetes 托管进程。
 
@@ -448,7 +456,7 @@ echo $! > spring-admin-starter.pid
 3. Elasticsearch 已可连接。
 4. `JWT_SECRET` 已替换为强随机密钥。
 5. 上传目录已创建且应用用户有读写权限。
-6. 如启用对象存储，阿里云 OSS 私有 Bucket、Endpoint、RAM 权限和 AccessKey 注入方式已确认。
+6. 如启用阿里云 OSS，私有 Bucket、Endpoint、RAM 权限和 AccessKey 注入方式已确认；如未启用 OSS，本地存储目录已挂载到持久化磁盘。
 7. CORS 白名单已配置前端正式域名。
 8. 默认账号已下线或修改密码。
 9. Swagger 是否对公网暴露已按安全策略处理。
