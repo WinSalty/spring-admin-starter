@@ -239,6 +239,44 @@ app:
 6. 文件上传会计算 SHA-256 内容 Hash，相同内容会复用已有本地文件或 OSS 对象，减少重复上传和存储占用；业务层仍新增文件记录，保留上传人、原始文件名和审计时间。
 7. 文件上传和头像上传统一按 IP 与用户双维度限流：同一 IP 每 10 分钟最多 60 次，同一用户每 10 分钟最多 20 次。
 
+OSS 模式最小环境变量：
+
+```bash
+export APP_OBJECT_STORAGE_ENABLED=true
+export ALIYUN_OSS_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
+export ALIYUN_OSS_ACCESS_KEY_ID=
+export ALIYUN_OSS_ACCESS_KEY_SECRET=
+export ALIYUN_OSS_PRIVATE_BUCKET=ai-web-private
+```
+
+可选环境变量：
+
+```bash
+export ALIYUN_OSS_PRIVATE_URL_EXPIRE_SECONDS=600
+export ALIYUN_OSS_KEY_PREFIX=uploads
+```
+
+当前版本不再需要公开 Bucket 相关配置，以下变量无需配置：
+
+```bash
+ALIYUN_OSS_BUCKET
+ALIYUN_OSS_DOMAIN
+ALIYUN_OSS_PUBLIC_BUCKET
+ALIYUN_OSS_PUBLIC_DOMAIN
+```
+
+阿里云准备步骤：
+
+1. 进入阿里云控制台，打开对象存储 OSS，创建 Bucket，例如 `ai-web-private`。
+2. Bucket 地域选择业务所在地域，例如华东 1 杭州，对应 Endpoint 为 `https://oss-cn-hangzhou.aliyuncs.com`。
+3. Bucket 读写权限选择私有，不要开启公共读。
+4. 进入 RAM 访问控制，创建一个专用用户，例如 `spring-admin-oss`，访问方式选择 OpenAPI 调用访问。
+5. 为该 RAM 用户创建 AccessKey，得到 `AccessKeyId` 和 `AccessKeySecret`。
+6. 给 RAM 用户授权最小 OSS 权限，建议只允许访问目标 Bucket 的 `GetObject`、`PutObject`、`DeleteObject`、`ListObjects` 等必要操作。
+7. 将 AccessKey 和 Bucket 信息通过环境变量注入运行环境，不要写入 Git 仓库、README 示例值或配置文件。
+
+本地开发如果使用 IDEA 启动后端，建议在 Run Configuration 的 Environment variables 中显式配置 OSS 环境变量。仅写入 `~/.zshrc` 后，已经启动的 IDEA 通常不会自动继承，需要重启 IDEA 或手动配置。
+
 #### 6. 日志归档
 
 ```yaml
@@ -277,7 +315,7 @@ export APP_OBJECT_STORAGE_ENABLED=false
 export ALIYUN_OSS_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
 export ALIYUN_OSS_ACCESS_KEY_ID=
 export ALIYUN_OSS_ACCESS_KEY_SECRET=
-export ALIYUN_OSS_PRIVATE_BUCKET=
+export ALIYUN_OSS_PRIVATE_BUCKET=ai-web-private
 export ALIYUN_OSS_PRIVATE_URL_EXPIRE_SECONDS=600
 export ALIYUN_OSS_KEY_PREFIX=uploads
 export LOCAL_STORAGE_ROOT_PATH=/data/spring-admin-starter/uploads
@@ -419,7 +457,7 @@ echo $! > spring-admin-starter.pid
 3. Elasticsearch 已可连接。
 4. `JWT_SECRET` 已替换为强随机密钥。
 5. 上传目录已创建且应用用户有读写权限。
-6. 如启用对象存储，阿里云 OSS Bucket、Endpoint、外链域名和 RAM 权限已确认。
+6. 如启用对象存储，阿里云 OSS 私有 Bucket、Endpoint、RAM 权限和 AccessKey 注入方式已确认。
 7. CORS 白名单已配置前端正式域名。
 8. 默认账号已下线或修改密码。
 9. Swagger 是否对公网暴露已按安全策略处理。
