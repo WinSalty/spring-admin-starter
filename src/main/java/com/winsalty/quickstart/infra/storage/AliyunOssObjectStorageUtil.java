@@ -32,50 +32,32 @@ public class AliyunOssObjectStorageUtil {
     }
 
     /**
-     * 兼容旧调用，实际写入阿里云 OSS 私有 Bucket。
-     */
-    public ObjectStorageUploadResult upload(InputStream inputStream, String objectKey, String contentType, long sizeBytes) {
-        return uploadPublic(inputStream, objectKey, contentType, sizeBytes);
-    }
-
-    /**
-     * 上传公共业务文件到阿里云 OSS 私有 Bucket。
-     *
-     * @param inputStream 文件输入流
-     * @param objectKey 对象 Key
-     * @param contentType 文件 MIME
-     * @param sizeBytes 文件大小
-     * @return 上传结果
-     * @author sunshengxian
-     * @date 2026-04-23
-     */
-    public ObjectStorageUploadResult uploadPublic(InputStream inputStream, String objectKey, String contentType, long sizeBytes) {
-        validatePrivateConfig();
-        return uploadToBucket(properties.getPrivateBucket(), objectKey, contentType, sizeBytes, inputStream, "public");
-    }
-
-    /**
      * 上传私有业务文件到阿里云 OSS 私有 Bucket。
      *
      * @param inputStream 文件输入流
      * @param objectKey 对象 Key
      * @param contentType 文件 MIME
      * @param sizeBytes 文件大小
+     * @param bucketType 业务文件类型
      * @return 上传结果
      * @author sunshengxian
      * @date 2026-04-23
      */
-    public ObjectStorageUploadResult uploadPrivate(InputStream inputStream, String objectKey, String contentType, long sizeBytes) {
+    public ObjectStorageUploadResult uploadPrivate(InputStream inputStream,
+                                                   String objectKey,
+                                                   String contentType,
+                                                   long sizeBytes,
+                                                   String bucketType) {
         validatePrivateConfig();
-        return uploadToBucket(properties.getPrivateBucket(), objectKey, contentType, sizeBytes, inputStream, "private");
+        return uploadToPrivateBucket(objectKey, contentType, sizeBytes, inputStream, bucketType);
     }
 
-    private ObjectStorageUploadResult uploadToBucket(String bucketName,
-                                                     String objectKey,
-                                                     String contentType,
-                                                     long sizeBytes,
-                                                     InputStream inputStream,
-                                                     String bucketType) {
+    private ObjectStorageUploadResult uploadToPrivateBucket(String objectKey,
+                                                            String contentType,
+                                                            long sizeBytes,
+                                                            InputStream inputStream,
+                                                            String bucketType) {
+        String bucketName = properties.getPrivateBucket();
         OSS ossClient = new OSSClientBuilder().build(
                 properties.getEndpoint(),
                 properties.getAccessKeyId(),
@@ -90,7 +72,7 @@ public class AliyunOssObjectStorageUtil {
             ossClient.putObject(bucketName, objectKey, inputStream, metadata);
             ObjectStorageUploadResult result = new ObjectStorageUploadResult();
             result.setStorageType(STORAGE_TYPE_ALIYUN_OSS);
-            result.setBucketType(bucketType);
+            result.setBucketType(StringUtils.hasText(bucketType) ? bucketType : "private");
             result.setBucketName(bucketName);
             result.setAccessPolicy("private_read");
             result.setObjectKey(objectKey);

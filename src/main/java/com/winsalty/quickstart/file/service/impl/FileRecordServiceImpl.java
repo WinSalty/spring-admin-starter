@@ -380,10 +380,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         String objectKey = buildAliyunOssObjectKey(contentHash, extension, bizType, bucketType);
         try (InputStream inputStream = new ByteArrayInputStream(fileBytes)) {
             log.info("aliyun oss upload start, bucketType={}, objectKey={}, sizeBytes={}", bucketType, objectKey, file.getSize());
-            if (BUCKET_TYPE_PRIVATE.equals(bucketType)) {
-                return aliyunOssObjectStorageUtil.uploadPrivate(inputStream, objectKey, file.getContentType(), file.getSize());
-            }
-            return aliyunOssObjectStorageUtil.uploadPublic(inputStream, objectKey, file.getContentType(), file.getSize());
+            return aliyunOssObjectStorageUtil.uploadPrivate(inputStream, objectKey, file.getContentType(), file.getSize(), bucketType);
         } catch (IOException exception) {
             log.error("aliyun oss upload input stream open failed, objectKey={}", objectKey);
             throw new BusinessException(ErrorCode.FILE_SAVE_FAILED);
