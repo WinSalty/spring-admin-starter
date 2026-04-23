@@ -1,13 +1,16 @@
 package com.winsalty.quickstart.file.service.impl;
 
 import com.winsalty.quickstart.auth.mapper.UserMapper;
+import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.common.base.BaseService;
 import com.winsalty.quickstart.common.constant.CommonStatusConstants;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
+import com.winsalty.quickstart.file.dto.FileBizUploadRequest;
 import com.winsalty.quickstart.file.dto.FileListRequest;
 import com.winsalty.quickstart.file.dto.FileStatusRequest;
+import com.winsalty.quickstart.file.dto.FileUploadCommand;
 import com.winsalty.quickstart.file.entity.FileRecordEntity;
 import com.winsalty.quickstart.file.mapper.FileRecordMapper;
 import com.winsalty.quickstart.file.service.FileRecordService;
@@ -72,6 +75,13 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     private static final String DOWNLOAD_MODE_PROXY_STREAM = "proxy_stream";
     private static final String HASH_ALGORITHM_SHA_256 = "SHA-256";
     private static final String AVATAR_ACCESS_PATH_PREFIX = "/api/file/avatar/";
+    private static final String VISIBILITY_PUBLIC = "public";
+    private static final String VISIBILITY_PRIVATE = "private";
+    private static final String OWNER_TYPE_USER = "user";
+    private static final String OWNER_TYPE_ADMIN = "admin";
+    private static final String BIZ_MODULE_AVATAR = "user_avatar";
+    private static final String BIZ_MODULE_ADMIN_FILE = "admin_file";
+    private static final String BIZ_MODULE_ADMIN_PRIVATE = "admin_private_file";
 
     private static final Set<String> ALLOWED_EXTENSIONS = new HashSet<String>(Arrays.asList(
             "jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "csv", "xls", "xlsx", "doc", "docx", "zip"
@@ -157,7 +167,14 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo upload(MultipartFile file) {
-        return uploadInternal(file, ALLOWED_EXTENSIONS, "file", BUCKET_TYPE_PUBLIC);
+        FileUploadCommand command = new FileUploadCommand();
+        command.setBizModule(BIZ_MODULE_ADMIN_FILE);
+        command.setBizId(String.valueOf(currentUserId()));
+        command.setVisibility(VISIBILITY_PUBLIC);
+        command.setOwnerType(OWNER_TYPE_ADMIN);
+        command.setOwnerId(String.valueOf(currentUserId()));
+        command.setUploadBizType("file");
+        return uploadInternal(file, ALLOWED_EXTENSIONS, command);
     }
 
     /**
@@ -166,7 +183,14 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo uploadAvatar(MultipartFile file) {
-        return uploadInternal(file, ALLOWED_AVATAR_EXTENSIONS, "avatar", BUCKET_TYPE_PUBLIC);
+        FileUploadCommand command = new FileUploadCommand();
+        command.setBizModule(BIZ_MODULE_AVATAR);
+        command.setBizId(String.valueOf(currentUserId()));
+        command.setVisibility(VISIBILITY_PUBLIC);
+        command.setOwnerType(OWNER_TYPE_USER);
+        command.setOwnerId(String.valueOf(currentUserId()));
+        command.setUploadBizType("avatar");
+        return uploadInternal(file, ALLOWED_AVATAR_EXTENSIONS, command);
     }
 
     /**
@@ -175,10 +199,37 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo uploadPrivate(MultipartFile file) {
-        return uploadInternal(file, ALLOWED_EXTENSIONS, "private", BUCKET_TYPE_PRIVATE);
+        FileUploadCommand command = new FileUploadCommand();
+        command.setBizModule(BIZ_MODULE_ADMIN_PRIVATE);
+        command.setBizId(String.valueOf(currentUserId()));
+        command.setVisibility(VISIBILITY_PRIVATE);
+        command.setOwnerType(OWNER_TYPE_ADMIN);
+        command.setOwnerId(String.valueOf(currentUserId()));
+        command.setUploadBizType("private");
+        return uploadInternal(file, ALLOWED_EXTENSIONS, command);
     }
 
-    private FileRecordVo uploadInternal(MultipartFile file, Set<String> allowedExtensions, String bizType, String bucketType) {
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public FileRecordVo uploadBiz(MultipartFile file, FileBizUploadRequest request) {
+        FileUploadCommand command = new FileUploadCommand();
+        command.setBizModule(request.getBizModule());
+        command.setBizId(request.getBizId());
+        command.setVisibility(request.getVisibility());
+        command.setOwnerType(OWNER_TYPE_USER);
+        command.setOwnerId(String.valueOf(currentUserId()));
+        command.setUploadBizType(request.getBizModule());
+        return uploadWithCommand(file, command);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public FileRecordVo uploadWithCommand(MultipartFile file, FileUploadCommand command) {
+        validateUploadCommand(command);
+        return uploadInternal(file, ALLOWED_EXTENSIONS, command);
+    }
+
+    private FileRecordVo uploadInternal(MultipartFile file, Set<String> allowedExtensions, FileUploadCommand command) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.FILE_EMPTY);
         }
@@ -202,11 +253,12 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         try {
             validateMagicBytes(readSignature(tempFile), extension);
             String contentHash = sha256Hex(tempFile);
-            ObjectStorageUploadResult uploadResult = storeFile(file, tempFile, extension, contentHash, bizType, bucketType);
+            ObjectStorageUploadResult uploadResult = storeFile(file, tempFile, extension, contentHash,
+                    command.getUploadBizType(), resolveBucketType(command.getVisibility()));
             FileRecordEntity entity = new FileRecordEntity();
             entity.setFileCode("F" + System.currentTimeMillis());
             entity.setOriginalName(originalName);
-            entity.setStoredName(resolveStoredName(uploadResult.getObjectKey(), extension));
+            entity.setStoredName(generateStoredName(extension));
             entity.setFilePath(uploadResult.getFilePath());
             entity.setStorageType(uploadResult.getStorageType());
             entity.setBucketType(uploadResult.getBucketType());
@@ -214,6 +266,11 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             entity.setAccessPolicy(uploadResult.getAccessPolicy());
             entity.setObjectKey(uploadResult.getObjectKey());
             entity.setFileUrl(uploadResult.getFileUrl());
+            entity.setBizModule(command.getBizModule());
+            entity.setBizId(command.getBizId());
+            entity.setVisibility(command.getVisibility());
+            entity.setOwnerType(command.getOwnerType());
+            entity.setOwnerId(command.getOwnerId());
             entity.setContentHash(contentHash);
             entity.setContentType(file.getContentType());
             entity.setExtension(extension);
@@ -222,7 +279,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             entity.setCreatedBy(resolveCurrentUsername());
             fileRecordMapper.insert(entity);
             log.info("file upload success, bizType={}, storageType={}, objectKey={}, contentHash={}, originalName={}, sizeBytes={}",
-                    bizType, entity.getStorageType(), entity.getObjectKey(), entity.getContentHash(), entity.getOriginalName(), entity.getSizeBytes());
+                    command.getUploadBizType(), entity.getStorageType(), entity.getObjectKey(), entity.getContentHash(), entity.getOriginalName(), entity.getSizeBytes());
             return toVo(load(entity.getId()));
         } finally {
             deleteTempFileQuietly(tempFile);
@@ -251,6 +308,11 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Override
     public FileRecordVo getPublicAvatarDetail(String id) {
         return toVo(loadPublicAvatar(parseId(id)));
+    }
+
+    @Override
+    public FileRecordVo getAuthorizedDetail(String id) {
+        return toVo(loadAuthorized(parseId(id)));
     }
 
     /**
@@ -303,6 +365,12 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         return buildProtectedDownloadUrl(entity);
     }
 
+    @Override
+    public PrivateDownloadUrlVo createAuthorizedDownloadUrl(String id) {
+        FileRecordEntity entity = loadAuthorized(parseId(id));
+        return buildProtectedDownloadUrl(entity);
+    }
+
     private PrivateDownloadUrlVo buildProtectedDownloadUrl(FileRecordEntity entity) {
         PrivateDownloadUrlVo vo = new PrivateDownloadUrlVo();
         vo.setFileId(String.valueOf(entity.getId()));
@@ -313,10 +381,20 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             vo.setDownloadMode(DOWNLOAD_MODE_SIGNED_URL);
             return vo;
         }
-        vo.setDownloadUrl("/api/file/private/" + entity.getId() + "/download");
+        vo.setDownloadUrl(buildLocalDownloadUrl(entity));
         vo.setExpireSeconds(objectStorageProperties.getLocal().getPrivateUrlExpireSeconds());
         vo.setDownloadMode(DOWNLOAD_MODE_PROXY_STREAM);
         return vo;
+    }
+
+    private String buildLocalDownloadUrl(FileRecordEntity entity) {
+        if (BUCKET_TYPE_PRIVATE.equals(entity.getBucketType())) {
+            return "/api/file/private/" + entity.getId() + "/download";
+        }
+        if (BIZ_MODULE_AVATAR.equals(entity.getBizModule())) {
+            return AVATAR_ACCESS_PATH_PREFIX + entity.getId();
+        }
+        return "/api/file/biz/" + entity.getId() + "/download";
     }
 
     /**
@@ -357,6 +435,25 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
 
     private String resolveCurrentUsername() {
         return currentUsername();
+    }
+
+    private void validateUploadCommand(FileUploadCommand command) {
+        if (command == null
+                || !StringUtils.hasText(command.getBizModule())
+                || !StringUtils.hasText(command.getBizId())
+                || !StringUtils.hasText(command.getVisibility())
+                || !StringUtils.hasText(command.getOwnerType())
+                || !StringUtils.hasText(command.getOwnerId())
+                || !StringUtils.hasText(command.getUploadBizType())) {
+            throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "文件业务上下文不完整");
+        }
+        if (!VISIBILITY_PUBLIC.equals(command.getVisibility()) && !VISIBILITY_PRIVATE.equals(command.getVisibility())) {
+            throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "文件可见性不合法");
+        }
+    }
+
+    private String resolveBucketType(String visibility) {
+        return VISIBILITY_PRIVATE.equals(visibility) ? BUCKET_TYPE_PRIVATE : BUCKET_TYPE_PUBLIC;
     }
 
     /**
@@ -590,12 +687,8 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         }
     }
 
-    private String resolveStoredName(String objectKey, String extension) {
-        if (!StringUtils.hasText(objectKey)) {
-            return UUID.randomUUID().toString().replace("-", "") + "." + extension;
-        }
-        int index = objectKey.lastIndexOf('/');
-        return index >= 0 ? objectKey.substring(index + 1) : objectKey;
+    private String generateStoredName(String extension) {
+        return UUID.randomUUID().toString().replace("-", "") + "." + extension;
     }
 
     private void deleteTempFileQuietly(Path tempFile) {
@@ -626,6 +719,38 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
         }
         return entity;
+    }
+
+    private FileRecordEntity loadAuthorized(Long id) {
+        FileRecordEntity entity = load(id);
+        ensureAuthorized(entity);
+        return entity;
+    }
+
+    private void ensureAuthorized(FileRecordEntity entity) {
+        AuthUser authUser = requireCurrentUser();
+        if (isAdmin(authUser)) {
+            return;
+        }
+        if (!CommonStatusConstants.ACTIVE.equals(entity.getStatus())) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+        }
+        if (VISIBILITY_PUBLIC.equals(entity.getVisibility())) {
+            return;
+        }
+        if (OWNER_TYPE_USER.equals(entity.getOwnerType())
+                && StringUtils.hasText(entity.getOwnerId())
+                && entity.getOwnerId().equals(String.valueOf(authUser.getUserId()))) {
+            return;
+        }
+        if (StringUtils.hasText(entity.getCreatedBy()) && entity.getCreatedBy().equals(authUser.getUsername())) {
+            return;
+        }
+        throw new BusinessException(ErrorCode.ACCESS_DENIED);
+    }
+
+    private boolean isAdmin(AuthUser authUser) {
+        return authUser != null && "admin".equalsIgnoreCase(authUser.getRoleCode());
     }
 
     private String toHex(byte[] bytes) {
@@ -711,6 +836,9 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         vo.setStorageType(entity.getStorageType());
         vo.setBucketType(entity.getBucketType());
         vo.setFileUrl(entity.getFileUrl());
+        vo.setBizModule(entity.getBizModule());
+        vo.setBizId(entity.getBizId());
+        vo.setVisibility(entity.getVisibility());
         vo.setContentType(entity.getContentType());
         vo.setExtension(entity.getExtension());
         vo.setSizeBytes(entity.getSizeBytes());

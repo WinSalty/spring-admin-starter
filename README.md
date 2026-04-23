@@ -95,7 +95,7 @@
 | 公告通知 | `/api/system/notices/list`、`/detail`、`/save`、`/status`、`/active` |
 | 部门管理 | `/api/system/departments/tree`、`/save`、`/status` |
 | 参数配置 | `/api/system/params/list`、`/detail`、`/save`、`/status`、`/cache/refresh` |
-| 文件管理 | `/api/file/upload`、`/avatar/upload`、`/public/**`、`/private/upload`、`/private/{id}/download-url`、`/private/{id}/download`、`/avatar/{id}`、`/object-storage/status`、`/list`、`/{id}/download`、`/{id}/delete`、`/{id}/status` |
+| 文件管理 | `/api/file/upload`、`/avatar/upload`、`/biz/upload`、`/biz/{id}/download-url`、`/biz/{id}/download`、`/public/**`、`/private/upload`、`/private/{id}/download-url`、`/private/{id}/download`、`/avatar/{id}`、`/object-storage/status`、`/list`、`/{id}/download`、`/{id}/delete`、`/{id}/status` |
 
 ## 配套环境说明
 
@@ -246,6 +246,7 @@ app:
 5. 私有文件上传接口为 `/api/file/private/upload`，下载前通过 `/api/file/private/{id}/download-url` 获取临时签名 URL 或本地代理下载地址。
 6. 文件上传会计算 SHA-256 内容 Hash，相同内容会复用已有本地文件或 OSS 对象，减少重复上传和存储占用；业务层仍新增文件记录，保留上传人、原始文件名和审计时间。
 7. 文件上传和头像上传统一按 IP 与用户双维度限流：同一 IP 每 10 分钟最多 60 次，同一用户每 10 分钟最多 20 次。
+8. `sys_file` 额外记录 `biz_module`、`biz_id`、`visibility`、`owner_type`、`owner_id`，支持多个业务模块共享同一文件中心并按归属做授权。
 
 文件访问控制规则：
 
@@ -253,6 +254,13 @@ app:
 2. `/api/file/public/**` 仅用于读取数据库中状态为 `active` 的本地公共文件。
 3. `/api/file/avatar/{id}` 允许浏览器匿名读取，但文件必须同时满足“公开文件、状态启用、图片类型、且已被用户资料引用为头像”四个条件。
 4. 上传与列表接口不再向前端返回对象存储 `bucketName`、`accessPolicy`、`objectKey`、`contentHash` 等内部字段。
+5. `/api/file/biz/upload` 默认把文件归属到当前登录用户；`/api/file/biz/{id}/download-url` 与 `/api/file/biz/{id}/download` 会按当前用户、文件状态、可见性和归属信息执行授权。
+
+业务文件接口约定：
+
+1. 业务模块上传使用 `POST /api/file/biz/upload`，表单字段包含 `file`、`bizModule`、`bizId`、`visibility`。
+2. 通用上传接口适合订单附件、工单图片、文章素材等“归属当前用户”的场景；更复杂的跨角色授权场景可直接复用服务层 `uploadWithCommand` 能力扩展。
+3. 业务文件下载优先使用 `/api/file/biz/{id}/download-url` 或 `/api/file/biz/{id}/download`，不要直接复用管理员下载接口。
 
 OSS 模式最小环境变量：
 

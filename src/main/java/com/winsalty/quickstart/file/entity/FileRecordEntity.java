@@ -31,6 +31,16 @@ public class FileRecordEntity {
     private String objectKey;
     /** 文件访问地址。 */
     private String fileUrl;
+    /** 业务模块编码。 */
+    private String bizModule;
+    /** 业务主键。 */
+    private String bizId;
+    /** 文件可见性。 */
+    private String visibility;
+    /** 归属对象类型。 */
+    private String ownerType;
+    /** 归属对象ID。 */
+    private String ownerId;
     /** 文件内容 SHA-256。 */
     private String contentHash;
     /** 文件 MIME 类型。 */

@@ -6,6 +6,7 @@ import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.common.base.BaseController;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
+import com.winsalty.quickstart.file.dto.FileBizUploadRequest;
 import com.winsalty.quickstart.file.dto.FileListRequest;
 import com.winsalty.quickstart.file.dto.FileStatusRequest;
 import com.winsalty.quickstart.file.service.FileRecordService;
@@ -75,6 +76,16 @@ public class FileController extends BaseController {
     }
 
     /**
+     * 业务模块通用文件上传，默认归属当前登录用户。
+     */
+    @FileUploadRateLimit
+    @PostMapping(value = "/biz/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<FileRecordVo> uploadBiz(@Validated FileBizUploadRequest request,
+                                               @RequestParam("file") MultipartFile file) {
+        return ApiResponse.success("上传成功", fileRecordService.uploadBiz(file, request));
+    }
+
+    /**
      * 私有文件上传，仅管理员可用，下载时必须经过后端鉴权。
      */
     @PreAuthorize("hasRole('ADMIN')")
@@ -115,6 +126,34 @@ public class FileController extends BaseController {
         FileRecordVo detail = fileRecordService.getDetail(id);
         if ("aliyun-oss".equals(detail.getStorageType())) {
             PrivateDownloadUrlVo downloadUrl = fileRecordService.createProtectedDownloadUrl(id);
+            return ResponseEntity.status(302).location(URI.create(downloadUrl.getDownloadUrl())).build();
+        }
+        Resource resource = fileRecordService.loadDownloadResource(id);
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(detail.getOriginalName(), StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resource);
+    }
+
+    /**
+     * 业务文件临时下载地址。根据当前登录用户和文件归属做授权校验。
+     */
+    @GetMapping("/biz/{id}/download-url")
+    public ApiResponse<PrivateDownloadUrlVo> bizDownloadUrl(@PathVariable("id") String id) {
+        return ApiResponse.success("获取成功", fileRecordService.createAuthorizedDownloadUrl(id));
+    }
+
+    /**
+     * 业务文件受控下载入口。当前登录用户仅可下载本人或本人有权限访问的文件。
+     */
+    @GetMapping("/biz/{id}/download")
+    public ResponseEntity<?> bizDownload(@PathVariable("id") String id) {
+        FileRecordVo detail = fileRecordService.getAuthorizedDetail(id);
+        if ("aliyun-oss".equals(detail.getStorageType())) {
+            PrivateDownloadUrlVo downloadUrl = fileRecordService.createAuthorizedDownloadUrl(id);
             return ResponseEntity.status(302).location(URI.create(downloadUrl.getDownloadUrl())).build();
         }
         Resource resource = fileRecordService.loadDownloadResource(id);

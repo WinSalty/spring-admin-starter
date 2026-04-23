@@ -337,8 +337,16 @@ CREATE TABLE IF NOT EXISTS sys_file (
     stored_name VARCHAR(255) NOT NULL COMMENT '存储文件名',
     file_path VARCHAR(500) NOT NULL COMMENT '服务端文件路径或对象 key',
     storage_type VARCHAR(16) NOT NULL DEFAULT 'local' COMMENT '存储类型',
+    bucket_type VARCHAR(32) NOT NULL DEFAULT 'public' COMMENT 'Bucket类型：public/private/temp',
+    bucket_name VARCHAR(128) NOT NULL DEFAULT '' COMMENT '实际Bucket名称或本地逻辑空间',
+    access_policy VARCHAR(32) NOT NULL DEFAULT 'public_read' COMMENT '访问策略：public_read/private_read',
     object_key VARCHAR(500) NOT NULL DEFAULT '' COMMENT '对象存储 key',
     file_url VARCHAR(500) NOT NULL DEFAULT '' COMMENT '文件访问地址',
+    biz_module VARCHAR(64) NOT NULL DEFAULT 'legacy_file' COMMENT '业务模块编码',
+    biz_id VARCHAR(64) NOT NULL DEFAULT '0' COMMENT '业务主键',
+    visibility VARCHAR(16) NOT NULL DEFAULT 'public' COMMENT '文件可见性：public/private',
+    owner_type VARCHAR(32) NOT NULL DEFAULT 'admin' COMMENT '归属对象类型：user/admin/system',
+    owner_id VARCHAR(64) NOT NULL DEFAULT '0' COMMENT '归属对象ID',
     content_hash VARCHAR(64) NOT NULL DEFAULT '' COMMENT '文件内容SHA-256',
     content_type VARCHAR(128) DEFAULT NULL COMMENT 'MIME 类型',
     extension VARCHAR(16) NOT NULL COMMENT '扩展名',
@@ -352,7 +360,11 @@ CREATE TABLE IF NOT EXISTS sys_file (
     UNIQUE KEY uk_sys_file_stored_name (stored_name),
     KEY idx_sys_file_content_hash (content_hash),
     KEY idx_sys_file_storage_type (storage_type),
-    KEY idx_sys_file_status (status)
+    KEY idx_sys_file_bucket_type (bucket_type),
+    KEY idx_sys_file_bucket_name (bucket_name),
+    KEY idx_sys_file_status (status),
+    KEY idx_sys_file_biz_module_biz_id (biz_module, biz_id),
+    KEY idx_sys_file_visibility_owner (visibility, owner_type, owner_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文件记录表';
 
 CREATE TABLE IF NOT EXISTS sys_notice (

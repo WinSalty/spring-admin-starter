@@ -12,7 +12,7 @@ import java.util.List;
 
 @Mapper
 public interface FileRecordMapper {
-    String COLUMNS = "f.id, f.file_code AS fileCode, f.original_name AS originalName, f.stored_name AS storedName, f.file_path AS filePath, f.storage_type AS storageType, f.bucket_type AS bucketType, f.bucket_name AS bucketName, f.access_policy AS accessPolicy, f.object_key AS objectKey, f.file_url AS fileUrl, f.content_hash AS contentHash, f.content_type AS contentType, f.extension, f.size_bytes AS sizeBytes, f.status, f.deleted, f.created_by AS createdBy, "
+    String COLUMNS = "f.id, f.file_code AS fileCode, f.original_name AS originalName, f.stored_name AS storedName, f.file_path AS filePath, f.storage_type AS storageType, f.bucket_type AS bucketType, f.bucket_name AS bucketName, f.access_policy AS accessPolicy, f.object_key AS objectKey, f.file_url AS fileUrl, f.biz_module AS bizModule, f.biz_id AS bizId, f.visibility, f.owner_type AS ownerType, f.owner_id AS ownerId, f.content_hash AS contentHash, f.content_type AS contentType, f.extension, f.size_bytes AS sizeBytes, f.status, f.deleted, f.created_by AS createdBy, "
             + "DATE_FORMAT(f.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(f.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt";
 
     @Select({
@@ -50,7 +50,7 @@ public interface FileRecordMapper {
                                                @Param("bucketType") String bucketType,
                                                @Param("accessPolicy") String accessPolicy);
 
-    @Insert("INSERT INTO sys_file(file_code, original_name, stored_name, file_path, storage_type, bucket_type, bucket_name, access_policy, object_key, file_url, content_hash, content_type, extension, size_bytes, status, deleted, created_by) VALUES(#{fileCode}, #{originalName}, #{storedName}, #{filePath}, #{storageType}, #{bucketType}, #{bucketName}, #{accessPolicy}, #{objectKey}, #{fileUrl}, #{contentHash}, #{contentType}, #{extension}, #{sizeBytes}, #{status}, 0, #{createdBy})")
+    @Insert("INSERT INTO sys_file(file_code, original_name, stored_name, file_path, storage_type, bucket_type, bucket_name, access_policy, object_key, file_url, biz_module, biz_id, visibility, owner_type, owner_id, content_hash, content_type, extension, size_bytes, status, deleted, created_by) VALUES(#{fileCode}, #{originalName}, #{storedName}, #{filePath}, #{storageType}, #{bucketType}, #{bucketName}, #{accessPolicy}, #{objectKey}, #{fileUrl}, #{bizModule}, #{bizId}, #{visibility}, #{ownerType}, #{ownerId}, #{contentHash}, #{contentType}, #{extension}, #{sizeBytes}, #{status}, 0, #{createdBy})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(FileRecordEntity entity);
 

@@ -1,6 +1,8 @@
 package com.winsalty.quickstart.file.service.impl;
 
 import com.winsalty.quickstart.auth.mapper.UserMapper;
+import com.winsalty.quickstart.auth.security.AuthContext;
+import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.common.constant.CommonStatusConstants;
 import com.winsalty.quickstart.file.entity.FileRecordEntity;
@@ -107,10 +109,94 @@ class FileRecordServiceImplTest {
         assertEquals("avatar.png", service.getPublicAvatarDetail("3").getOriginalName());
     }
 
+    @Test
+    void getAuthorizedDetailShouldAllowOwnerUserToReadPrivateBizFile() {
+        FileRecordMapper fileRecordMapper = mock(FileRecordMapper.class);
+        UserMapper userMapper = mock(UserMapper.class);
+        FileRecordServiceImpl service = new FileRecordServiceImpl(
+                fileRecordMapper,
+                userMapper,
+                mock(AliyunOssObjectStorageUtil.class),
+                new AliyunOssStorageProperties(),
+                new ObjectStorageProperties(),
+                "target/test-uploads"
+        );
+        FileRecordEntity entity = buildImageRecord("private", CommonStatusConstants.ACTIVE, "");
+        entity.setId(4L);
+        entity.setVisibility("private");
+        entity.setOwnerType("user");
+        entity.setOwnerId("101");
+        entity.setBizModule("order_attachment");
+        entity.setBizId("A001");
+        when(fileRecordMapper.findById(4L)).thenReturn(entity);
+
+        AuthContext.set(new AuthUser(101L, "user101", "user", "session-1"));
+        try {
+            assertEquals("4", service.getAuthorizedDetail("4").getId());
+        } finally {
+            AuthContext.clear();
+        }
+    }
+
+    @Test
+    void getAuthorizedDetailShouldRejectOtherUserToReadPrivateBizFile() {
+        FileRecordMapper fileRecordMapper = mock(FileRecordMapper.class);
+        UserMapper userMapper = mock(UserMapper.class);
+        FileRecordServiceImpl service = new FileRecordServiceImpl(
+                fileRecordMapper,
+                userMapper,
+                mock(AliyunOssObjectStorageUtil.class),
+                new AliyunOssStorageProperties(),
+                new ObjectStorageProperties(),
+                "target/test-uploads"
+        );
+        FileRecordEntity entity = buildImageRecord("private", CommonStatusConstants.ACTIVE, "");
+        entity.setId(5L);
+        entity.setVisibility("private");
+        entity.setOwnerType("user");
+        entity.setOwnerId("202");
+        when(fileRecordMapper.findById(5L)).thenReturn(entity);
+
+        AuthContext.set(new AuthUser(101L, "user101", "user", "session-2"));
+        try {
+            assertThrows(BusinessException.class, () -> service.getAuthorizedDetail("5"));
+        } finally {
+            AuthContext.clear();
+        }
+    }
+
+    @Test
+    void createAuthorizedDownloadUrlShouldReturnBizDownloadPathForLocalPublicFile() {
+        FileRecordMapper fileRecordMapper = mock(FileRecordMapper.class);
+        UserMapper userMapper = mock(UserMapper.class);
+        FileRecordServiceImpl service = new FileRecordServiceImpl(
+                fileRecordMapper,
+                userMapper,
+                mock(AliyunOssObjectStorageUtil.class),
+                new AliyunOssStorageProperties(),
+                new ObjectStorageProperties(),
+                "target/test-uploads"
+        );
+        FileRecordEntity entity = buildImageRecord("public", CommonStatusConstants.ACTIVE, "/api/file/public/public/file/aa/hash.png");
+        entity.setId(6L);
+        entity.setVisibility("public");
+        entity.setOwnerType("user");
+        entity.setOwnerId("303");
+        when(fileRecordMapper.findById(6L)).thenReturn(entity);
+
+        AuthContext.set(new AuthUser(303L, "user303", "user", "session-3"));
+        try {
+            assertEquals("/api/file/biz/6/download", service.createAuthorizedDownloadUrl("6").getDownloadUrl());
+        } finally {
+            AuthContext.clear();
+        }
+    }
+
     private FileRecordEntity buildImageRecord(String bucketType, String status, String fileUrl) {
         FileRecordEntity entity = new FileRecordEntity();
         entity.setId(1L);
         entity.setBucketType(bucketType);
+        entity.setVisibility(bucketType);
         entity.setStatus(status);
         entity.setContentType("image/png");
         entity.setFileUrl(fileUrl);

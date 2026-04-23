@@ -14,6 +14,9 @@ public class FileRecordVo {
     private String storageType;
     private String bucketType;
     private String fileUrl;
+    private String bizModule;
+    private String bizId;
+    private String visibility;
     private String contentType;
     private String extension;
     private Long sizeBytes;
