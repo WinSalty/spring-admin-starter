@@ -82,7 +82,7 @@ class FileRecordServiceImplTest {
                 "target/test-uploads"
         );
         when(fileRecordMapper.findById(2L)).thenReturn(buildImageRecord("public", CommonStatusConstants.ACTIVE, "/api/file/public/public/avatar/aa/hash.png"));
-        when(userMapper.countByAvatarUrls(org.mockito.ArgumentMatchers.anyList())).thenReturn(0L);
+        when(userMapper.countByAvatarUrl("/api/file/avatar/2")).thenReturn(0L);
 
         assertThrows(BusinessException.class, () -> service.getPublicAvatarDetail("2"));
     }
@@ -103,10 +103,11 @@ class FileRecordServiceImplTest {
         entity.setId(3L);
         entity.setOriginalName("avatar.png");
         when(fileRecordMapper.findById(3L)).thenReturn(entity);
-        when(userMapper.countByAvatarUrls(org.mockito.ArgumentMatchers.anyList())).thenReturn(1L);
+        when(userMapper.countByAvatarUrl("/api/file/avatar/3")).thenReturn(1L);
 
         assertEquals("3", service.getPublicAvatarDetail("3").getId());
         assertEquals("avatar.png", service.getPublicAvatarDetail("3").getOriginalName());
+        assertEquals("/api/file/avatar/3", service.getPublicAvatarDetail("3").getFileUrl());
     }
 
     @Test

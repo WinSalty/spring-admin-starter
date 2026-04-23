@@ -34,13 +34,6 @@ public interface UserMapper extends BaseMapper<UserEntity> {
     @Update("UPDATE sys_user SET notify_account = #{notifyAccount}, notify_system = #{notifySystem}, notify_todo = #{notifyTodo} WHERE id = #{id} AND deleted = 0")
     int updateNotificationSettings(UserEntity user);
 
-    @Select({
-            "<script>",
-            "SELECT COUNT(1) FROM sys_user u WHERE u.deleted = 0 AND u.avatar_url IN ",
-            "<foreach collection='avatarUrls' item='avatarUrl' open='(' separator=',' close=')'>",
-            "#{avatarUrl}",
-            "</foreach>",
-            "</script>"
-    })
-    long countByAvatarUrls(@Param("avatarUrls") java.util.List<String> avatarUrls);
+    @Select("SELECT COUNT(1) FROM sys_user u WHERE u.deleted = 0 AND u.avatar_url = #{avatarUrl}")
+    long countByAvatarUrl(@Param("avatarUrl") String avatarUrl);
 }

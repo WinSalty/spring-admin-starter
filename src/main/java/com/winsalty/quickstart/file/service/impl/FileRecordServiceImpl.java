@@ -190,7 +190,9 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         command.setOwnerType(OWNER_TYPE_USER);
         command.setOwnerId(String.valueOf(currentUserId()));
         command.setUploadBizType("avatar");
-        return uploadInternal(file, ALLOWED_AVATAR_EXTENSIONS, command);
+        FileRecordVo vo = uploadInternal(file, ALLOWED_AVATAR_EXTENSIONS, command);
+        vo.setFileUrl(buildAvatarAccessUrl(vo.getId()));
+        return vo;
     }
 
     /**
@@ -307,7 +309,14 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
 
     @Override
     public FileRecordVo getPublicAvatarDetail(String id) {
-        return toVo(loadPublicAvatar(parseId(id)));
+        FileRecordVo vo = toVo(loadPublicAvatar(parseId(id)));
+        vo.setFileUrl(buildAvatarAccessUrl(vo.getId()));
+        return vo;
+    }
+
+    @Override
+    public String buildAvatarAccessUrl(String id) {
+        return AVATAR_ACCESS_PATH_PREFIX + parseId(id);
     }
 
     @Override
@@ -710,12 +719,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
                 || !entity.getContentType().startsWith("image/")) {
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
         }
-        List<String> avatarUrls = new ArrayList<String>();
-        avatarUrls.add(AVATAR_ACCESS_PATH_PREFIX + entity.getId());
-        if (StringUtils.hasText(entity.getFileUrl())) {
-            avatarUrls.add(entity.getFileUrl());
-        }
-        if (userMapper.countByAvatarUrls(avatarUrls) < 1) {
+        if (userMapper.countByAvatarUrl(AVATAR_ACCESS_PATH_PREFIX + entity.getId()) < 1) {
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
         }
         return entity;
