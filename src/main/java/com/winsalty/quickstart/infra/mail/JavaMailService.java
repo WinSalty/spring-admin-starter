@@ -37,13 +37,14 @@ public class JavaMailService implements MailService {
         validateRequest(request);
         MimeMessage mimeMessage = javaMailSender.createMimeMessage();
         try {
-            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, resolveEncoding());
+            boolean multipart = hasHtmlContent(request) && hasTextContent(request);
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, multipart, resolveEncoding());
             helper.setFrom(resolveFrom(request));
             helper.setTo(request.getTo().trim());
             helper.setSubject(request.getSubject().trim());
-            helper.setText(request.getContent(), request.isHtml());
+            applyContent(helper, request);
             javaMailSender.send(mimeMessage);
-            log.info("mail sent success, to={}, subject={}, html={}", request.getTo().trim(), request.getSubject().trim(), request.isHtml());
+            log.info("mail sent success, to={}, subject={}, html={}", request.getTo().trim(), request.getSubject().trim(), hasHtmlContent(request));
         } catch (MessagingException exception) {
             log.error("mail message build failed, to={}, subject={}", safeTrim(request.getTo()), safeTrim(request.getSubject()), exception);
             throw new BusinessException(ErrorCode.MAIL_SEND_FAILED, "邮件内容构建失败");
@@ -67,7 +68,7 @@ public class JavaMailService implements MailService {
         if (!StringUtils.hasText(request.getSubject())) {
             throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "邮件主题不能为空");
         }
-        if (!StringUtils.hasText(request.getContent())) {
+        if (!hasTextContent(request) && !hasHtmlContent(request)) {
             throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "邮件内容不能为空");
         }
         if (!StringUtils.hasText(resolveFrom(request))) {
@@ -83,6 +84,26 @@ public class JavaMailService implements MailService {
         return StringUtils.hasText(mailProperties.getDefaultEncoding())
                 ? mailProperties.getDefaultEncoding().trim()
                 : "UTF-8";
+    }
+
+    private void applyContent(MimeMessageHelper helper, MailSendRequest request) throws MessagingException {
+        if (hasTextContent(request) && hasHtmlContent(request)) {
+            helper.setText(request.getTextContent().trim(), request.getHtmlContent().trim());
+            return;
+        }
+        if (hasHtmlContent(request)) {
+            helper.setText(request.getHtmlContent().trim(), true);
+            return;
+        }
+        helper.setText(request.getTextContent().trim(), false);
+    }
+
+    private boolean hasTextContent(MailSendRequest request) {
+        return StringUtils.hasText(request.getTextContent());
+    }
+
+    private boolean hasHtmlContent(MailSendRequest request) {
+        return StringUtils.hasText(request.getHtmlContent());
     }
 
     private String safeTrim(String value) {

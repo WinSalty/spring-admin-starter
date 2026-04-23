@@ -17,4 +17,8 @@ public interface MailService {
     default void sendHtml(String to, String subject, String content) {
         send(MailSendRequest.html(to, subject, content));
     }
+
+    default void sendHtml(String to, String subject, String textContent, String htmlContent) {
+        send(MailSendRequest.html(to, subject, textContent, htmlContent));
+    }
 }

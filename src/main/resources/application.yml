@@ -82,6 +82,12 @@ app:
     enabled: ${MAIL_ENABLED:true}
     from: ${MAIL_FROM:${MAIL_USERNAME:}}
     default-encoding: ${APP_MAIL_DEFAULT_ENCODING:${spring.mail.default-encoding:UTF-8}}
+    template:
+      brand-name: ${APP_MAIL_TEMPLATE_BRAND_NAME:Spring Admin}
+      signature: ${APP_MAIL_TEMPLATE_SIGNATURE:Spring Admin Team}
+      primary-color: ${APP_MAIL_TEMPLATE_PRIMARY_COLOR:#2563eb}
+      background-color: ${APP_MAIL_TEMPLATE_BACKGROUND_COLOR:#f4f7fb}
+      card-background-color: ${APP_MAIL_TEMPLATE_CARD_BACKGROUND_COLOR:#ffffff}
     register:
       enabled: ${MAIL_REGISTER_ENABLED:true}
       subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 注册验证码}

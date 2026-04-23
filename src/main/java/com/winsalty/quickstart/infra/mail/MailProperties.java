@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 通用邮件服务配置。
- * 管理邮件服务总开关、默认发件人和默认编码。
+ * 管理邮件服务总开关、默认发件人、默认编码和统一模板样式。
  * 创建日期：2026-04-23
  * author：sunshengxian
  */
@@ -29,4 +29,43 @@ public class MailProperties {
      * 默认编码，和 spring.mail.default-encoding 保持一致。
      */
     private String defaultEncoding = "UTF-8";
+
+    /**
+     * 邮件模板统一配置。
+     */
+    private Template template = new Template();
+
+    /**
+     * 邮件模板样式配置。
+     * 创建日期：2026-04-23
+     * author：sunshengxian
+     */
+    @Data
+    public static class Template {
+
+        /**
+         * 品牌展示名称。
+         */
+        private String brandName = "Spring Admin";
+
+        /**
+         * 模板页脚签名。
+         */
+        private String signature = "Spring Admin Team";
+
+        /**
+         * 主色调。
+         */
+        private String primaryColor = "#2563eb";
+
+        /**
+         * 页面背景色。
+         */
+        private String backgroundColor = "#f4f7fb";
+
+        /**
+         * 卡片背景色。
+         */
+        private String cardBackgroundColor = "#ffffff";
+    }
 }

@@ -318,12 +318,18 @@ app:
     enabled: ${MAIL_ENABLED:true}
     from: ${MAIL_FROM:${MAIL_USERNAME:}}
     default-encoding: ${APP_MAIL_DEFAULT_ENCODING:UTF-8}
+    template:
+      brand-name: ${APP_MAIL_TEMPLATE_BRAND_NAME:Spring Admin}
+      signature: ${APP_MAIL_TEMPLATE_SIGNATURE:Spring Admin Team}
+      primary-color: ${APP_MAIL_TEMPLATE_PRIMARY_COLOR:#2563eb}
+      background-color: ${APP_MAIL_TEMPLATE_BACKGROUND_COLOR:#f4f7fb}
+      card-background-color: ${APP_MAIL_TEMPLATE_CARD_BACKGROUND_COLOR:#ffffff}
     register:
       enabled: ${MAIL_REGISTER_ENABLED:true}
       subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 注册验证码}
 ```
 
-邮件能力已升级为通用服务，当前内置的注册验证码邮件只是其中一个业务实现。项目内其他业务模块可以直接注入 `com.winsalty.quickstart.infra.mail.MailService` 发送文本或 HTML 邮件，不需要再重复封装 SMTP 逻辑。
+邮件能力已升级为通用服务，当前内置的注册验证码邮件只是其中一个业务实现。项目内其他业务模块可以直接注入 `com.winsalty.quickstart.infra.mail.MailService` 发送文本或 HTML 邮件，不需要再重复封装 SMTP 逻辑。系统同时内置了统一的卡片式 HTML 邮件模板，支持品牌名、签名和主色调统一配置，并自动附带纯文本 fallback，兼容只支持纯文本的客户端。
 
 通用邮件服务使用示例：
 
@@ -339,6 +345,34 @@ public class NoticeMailService {
 
     public void sendNotice(String email, String noticeTitle, String content) {
         mailService.sendText(email, noticeTitle, content);
+    }
+}
+```
+
+如果业务需要统一样式模板，可注入 `MailTemplateService` 先生成 HTML 和纯文本内容，再调用 `MailService` 发送：
+
+```java
+@Service
+public class WorkflowMailService {
+
+    private final MailService mailService;
+    private final MailTemplateService mailTemplateService;
+
+    public WorkflowMailService(MailService mailService, MailTemplateService mailTemplateService) {
+        this.mailService = mailService;
+        this.mailTemplateService = mailTemplateService;
+    }
+
+    public void sendApproveNotice(String email, String approveUrl) {
+        StandardMailTemplate template = new StandardMailTemplate();
+        template.setTitle("审批待处理提醒");
+        template.setGreeting("您好，");
+        template.setSummary("您有一条新的审批任务待处理，请尽快登录系统查看。");
+        template.setActionText("立即处理");
+        template.setActionUrl(approveUrl);
+        template.setFooterNote("此邮件由系统自动发送，请勿直接回复。");
+        MailTemplateContent content = mailTemplateService.renderStandard(template);
+        mailService.sendHtml(email, "审批待处理提醒", content.getTextContent(), content.getHtmlContent());
     }
 }
 ```
