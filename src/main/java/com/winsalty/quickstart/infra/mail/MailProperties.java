@@ -46,12 +46,12 @@ public class MailProperties {
         /**
          * 品牌展示名称。
          */
-        private String brandName = "Spring Admin";
+        private String brandName = "React Admin Starter";
 
         /**
          * 模板页脚签名。
          */
-        private String signature = "Spring Admin Team";
+        private String signature = "React Admin Starter";
 
         /**
          * 主色调。

@@ -28,6 +28,8 @@ public class StandardMailTemplateService implements MailTemplateService {
 
     private String buildTextContent(StandardMailTemplate template) {
         StringBuilder builder = new StringBuilder();
+        appendLine(builder, resolveText(template.getTitle(), resolveBrandName()));
+        appendBlankLine(builder);
         appendLine(builder, resolveText(template.getGreeting(), "您好，"));
         appendBlankLine(builder);
         appendLine(builder, resolveText(template.getSummary(), ""));
@@ -131,7 +133,7 @@ public class StandardMailTemplateService implements MailTemplateService {
             builder.append("<div style=\"border:1px solid #f0f0f0;border-radius:16px;background:#fafcff;")
                     .append("padding:18px 20px;margin-top:0;\">")
                     .append("<div style=\"font-size:12px;color:").append(primaryColor)
-                    .append(";font-weight:600;margin-bottom:8px;\">操作说明</div>")
+                    .append(";font-weight:600;margin-bottom:8px;\">校验说明</div>")
                     .append("<div style=\"font-size:14px;line-height:1.85;color:").append(textSecondaryColor).append(";\">")
                     .append(escapeHtml(template.getDescription().trim()))
                     .append("</div></div>");
@@ -185,11 +187,11 @@ public class StandardMailTemplateService implements MailTemplateService {
     }
 
     private String resolveBrandName() {
-        return resolveText(mailProperties.getTemplate().getBrandName(), "Spring Admin");
+        return resolveText(mailProperties.getTemplate().getBrandName(), "React Admin Starter");
     }
 
     private String resolveSignature() {
-        return resolveText(mailProperties.getTemplate().getSignature(), "Spring Admin Team");
+        return resolveText(mailProperties.getTemplate().getSignature(), "React Admin Starter");
     }
 
     private String resolveBrandMark(String brandName) {
