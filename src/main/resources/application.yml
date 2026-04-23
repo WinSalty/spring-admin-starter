@@ -79,9 +79,11 @@ app:
     swagger-public-enabled: true
     trusted-proxies: ${TRUSTED_PROXIES:127.0.0.1/32,::1/128}
   mail:
+    enabled: ${MAIL_ENABLED:true}
+    from: ${MAIL_FROM:${MAIL_USERNAME:}}
+    default-encoding: ${APP_MAIL_DEFAULT_ENCODING:${spring.mail.default-encoding:UTF-8}}
     register:
       enabled: ${MAIL_REGISTER_ENABLED:true}
-      from: ${MAIL_FROM:${MAIL_USERNAME:}}
       subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 注册验证码}
   batch:
     log-archive:

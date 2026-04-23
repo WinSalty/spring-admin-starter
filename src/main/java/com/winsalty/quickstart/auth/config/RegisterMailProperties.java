@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 注册验证码邮件配置。
- * 由环境变量注入 SMTP 发件账号、发件人和邮件主题。
+ * 只管理注册场景专属模板和开关，通用发件人配置由 app.mail 统一维护。
  * 创建日期：2026-04-19
  * author：sunshengxian
  */
@@ -16,6 +16,5 @@ import org.springframework.stereotype.Component;
 public class RegisterMailProperties {
 
     private boolean enabled = true;
-    private String from;
     private String subject = "Spring Admin 注册验证码";
 }

@@ -303,6 +303,51 @@ app:
       batch-size: ${LOG_ARCHIVE_BATCH_SIZE:1000}
 ```
 
+#### 7. 邮件服务
+
+```yaml
+spring:
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+
+app:
+  mail:
+    enabled: ${MAIL_ENABLED:true}
+    from: ${MAIL_FROM:${MAIL_USERNAME:}}
+    default-encoding: ${APP_MAIL_DEFAULT_ENCODING:UTF-8}
+    register:
+      enabled: ${MAIL_REGISTER_ENABLED:true}
+      subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 注册验证码}
+```
+
+邮件能力已升级为通用服务，当前内置的注册验证码邮件只是其中一个业务实现。项目内其他业务模块可以直接注入 `com.winsalty.quickstart.infra.mail.MailService` 发送文本或 HTML 邮件，不需要再重复封装 SMTP 逻辑。
+
+通用邮件服务使用示例：
+
+```java
+@Service
+public class NoticeMailService {
+
+    private final MailService mailService;
+
+    public NoticeMailService(MailService mailService) {
+        this.mailService = mailService;
+    }
+
+    public void sendNotice(String email, String noticeTitle, String content) {
+        mailService.sendText(email, noticeTitle, content);
+    }
+}
+```
+
+当前邮件开关分为两层：
+
+1. `app.mail.enabled`：控制整个项目的通用邮件服务是否启用。
+2. `app.mail.register.enabled`：只控制注册验证码邮件是否启用。
+
 ### 推荐环境变量
 
 ```bash

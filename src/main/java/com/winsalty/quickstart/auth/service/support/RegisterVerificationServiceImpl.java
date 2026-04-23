@@ -41,6 +41,9 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
         if (!StringUtils.hasText(email)) {
             throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "邮箱不能为空");
         }
+        if (!registerMailService.isEnabled()) {
+            throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_SEND_FAILED, "邮箱验证码服务未启用");
+        }
         // SecureRandom 用于验证码，避免普通 Random 在高并发注册场景下可预测。
         String code = String.format("%06d", random.nextInt(1000000));
         // 先发邮件再缓存，避免邮件发送失败但 Redis 中留下一个用户永远收不到的验证码。
