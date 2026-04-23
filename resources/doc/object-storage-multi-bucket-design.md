@@ -30,6 +30,8 @@
 - OSS SDK 只负责生成私有对象临时访问地址，不负责业务用户是否有权访问该文件。
 - 业务层只依赖统一文件服务接口，不感知底层是阿里云 OSS 还是本地磁盘。
 - `object-storage.enabled=false` 不代表关闭文件上传能力，而是切换到本地存储 Provider。
+- 文件读取、下载、删除必须按 `sys_file.storage_type` 和 `bucket_type` 路由到原始存储位置，不能只按当前配置的默认 Provider 路由。
+- 本地存储与云存储允许长期混合存在，切换默认 Provider 不影响历史文件访问。
 
 ## 3. 配置方案
 
@@ -81,11 +83,13 @@ LOCAL_STORAGE_PRIVATE_URL_EXPIRE_SECONDS=600
 
 | 配置 | 含义 |
 | --- | --- |
-| `object-storage.enabled=true` | 使用云存储 Provider，例如阿里云 OSS |
-| `object-storage.enabled=false` | 使用本地存储 Provider，不关闭文件能力 |
+| `object-storage.enabled=true` | 新上传文件默认使用云存储 Provider，例如阿里云 OSS |
+| `object-storage.enabled=false` | 新上传文件默认使用本地存储 Provider，不关闭文件能力 |
 | `local.root-path` | 本地文件根目录，生产环境必须配置到持久化磁盘 |
 | `local.public-base-url` | 本地公共文件访问入口，由后端静态资源映射或 Controller 输出 |
 | `local.private-url-expire-seconds` | 本地私有文件临时访问令牌有效期 |
+
+`enabled` 只决定新文件写入位置，不决定历史文件读取位置。历史文件必须依据数据库记录中的 `storage_type`、`bucket_name` 和 `object_key` 访问。
 
 生产环境建议：
 
@@ -136,6 +140,17 @@ ALTER TABLE sys_file
 
 本地存储不要把服务器绝对路径保存到 `file_url`，避免泄露部署目录，也避免迁移云存储时改动前端。
 
+切换存储 Provider 后的字段示例：
+
+| 场景 | storage_type | bucket_name | object_key | file_url |
+| --- | --- | --- | --- | --- |
+| 历史本地头像 | local | local-public | public/avatar/ab/hash.png | /api/file/public/public/avatar/ab/hash.png |
+| 新 OSS 头像 | aliyun | ai-quick-web | uploads/avatar/ab/hash.png | https://ai-quick-web.oss-cn-hangzhou.aliyuncs.com/uploads/avatar/ab/hash.png |
+| 历史本地私有附件 | local | local-private | private/order/1/a.pdf | 空 |
+| 新 OSS 私有附件 | aliyun | ai-quick-web-private | private/order/1/a.pdf | 空 |
+
+读取文件时不能假设当前系统开启云存储就所有文件都在 OSS，也不能假设关闭云存储就所有文件都在本地。
+
 ## 5. 后端抽象设计
 
 建议将 OSS 操作抽象为统一服务，避免 Controller 或业务 Service 直接依赖 OSS SDK。
@@ -176,7 +191,7 @@ public interface FileStorageProvider {
 }
 ```
 
-Provider 选择规则：
+新上传文件的默认 Provider 选择规则：
 
 | 条件 | Provider |
 | --- | --- |
@@ -184,6 +199,25 @@ Provider 选择规则：
 | `object-storage.enabled=false` | LocalFileStorageProvider |
 
 业务 Service 只调用 `ObjectStorageService`，由其根据配置委托到具体 Provider。这样头像、附件、下载接口不用区分云存储和本地存储，前端体验保持一致。
+
+历史文件访问的 Provider 选择规则：
+
+| sys_file.storage_type | Provider |
+| --- | --- |
+| aliyun | AliyunOssStorageProvider |
+| local | LocalFileStorageProvider |
+
+因此 `ObjectStorageService` 应同时提供两类能力：
+
+- 写入能力：按当前配置选择默认 Provider。
+- 读取能力：按文件记录里的 `storage_type` 选择历史 Provider。
+
+示例：
+
+```java
+FileStorageProvider writeProvider = providerFactory.getDefaultWriteProvider();
+FileStorageProvider readProvider = providerFactory.getProvider(fileRecord.getStorageType());
+```
 
 阿里云 OSS SDK 私有下载签名能力：
 
@@ -276,6 +310,12 @@ GET /api/file/private/{fileId}/download
 
 本地存储下私有文件默认使用代理下载模式，因为本地文件没有 OSS 这类外部签名 URL 能力。后端必须校验权限后读取 `local.root-path + object_key` 对应文件流，并写回 HTTP Response。
 
+混合存储场景下接口语义不变：
+
+- 头像展示优先使用 `sys_user.avatar_url`，历史本地头像继续访问 `/api/file/public/**`，新 OSS 头像访问 OSS 公共 URL。
+- 私有文件下载统一传 `fileId`，后端按 `sys_file.storage_type` 判断使用 OSS 签名 URL 还是本地代理下载。
+- 删除文件统一传 `fileId`，后端按 `storage_type` 删除对应存储中的对象，数据库先软删除。
+
 ## 7. 权限与审计设计
 
 私有文件下载必须做两层校验：
@@ -292,6 +332,7 @@ GET /api/file/private/{fileId}/download
     -> 校验文件未删除、状态有效、bucket_type=private
     -> 根据 business_type + business_id 调用业务权限服务
     -> 记录下载审计日志
+    -> 按 sys_file.storage_type 选择 Provider
     -> 云存储生成临时签名 URL，或本地存储由后端代理下载
 ```
 
@@ -363,8 +404,90 @@ public interface FilePermissionService {
 - 本地存储必须限制路径穿越，`object_key` 只能由后端生成，禁止接收前端传入的相对路径。
 - 本地文件读取前必须校验规范化路径仍位于 `local.root-path` 下。
 - 本地公共文件访问接口也要限制只允许读取 `public` 目录，不能读取 `private` 或 `temp` 目录。
+- 存储 Provider 切换后不能批量重写 `file_url` 指向新存储，除非文件已经实际迁移并校验成功。
 
-## 10. 详细开发步骤
+## 10. 存量数据与存储切换
+
+系统必须支持以下交叉情况：
+
+| 切换路径 | 结果要求 |
+| --- | --- |
+| 先用本地存储，后改为云存储 | 历史本地文件继续可访问，新文件写入云存储 |
+| 先用云存储，后改为本地存储 | 历史云文件继续可访问，新文件写入本地存储 |
+| 云存储和本地存储反复切换 | 每条文件记录按自身 `storage_type` 访问，不受当前默认写入配置影响 |
+| 本地文件迁移到云存储 | 迁移成功后更新该文件记录的 `storage_type`、`bucket_name`、`object_key`、`file_url` |
+
+设计要求：
+
+- `enabled` 只能影响新上传文件的默认写入 Provider。
+- `sys_file.storage_type` 是历史文件读取和删除的权威依据。
+- `sys_file.bucket_name` 和 `sys_file.object_key` 是定位物理文件的权威依据。
+- `sys_user.avatar_url` 可以保存公共访问 URL，但头像记录仍应在 `sys_file` 中保留 `storage_type`，便于迁移、清理和审计。
+- 私有文件永远通过 `fileId` 访问，天然支持本地与云存储混合读取。
+
+公共文件兼容策略：
+
+- 历史本地公共文件保留 `/api/file/public/**` 地址，不因为开启云存储而失效。
+- 新云存储公共文件返回 OSS 或 CDN URL。
+- 如果前端要统一走后端域名，可以公共文件也返回 `/api/file/public/{fileId}`，后端再按 `storage_type` 重定向到 OSS 或读取本地文件。
+- 当前头像场景可以继续保存直接可访问的 `fileUrl`，但建议同时保留 `fileId`，后续迁移更稳。
+
+私有文件兼容策略：
+
+- 私有文件接口只接受 `fileId`。
+- 后端查询 `sys_file` 后按 `storage_type` 路由。
+- `storage_type=aliyun` 时，后端鉴权后生成 OSS 临时签名 URL。
+- `storage_type=local` 时，后端鉴权后代理读取本地文件流。
+- 前端不需要知道文件实际存储在哪里。
+
+本地迁移到云存储建议流程：
+
+1. 查询待迁移的 `storage_type=local` 文件记录。
+2. 根据 `local.root-path + object_key` 读取本地文件。
+3. 上传到目标 OSS Bucket，生成新的 `object_key` 和公共 `file_url`。
+4. 校验文件大小和 `content_hash` 一致。
+5. 在同一事务中更新 `sys_file.storage_type=aliyun`、`bucket_name`、`object_key`、`file_url`、`access_policy`。
+6. 如果该文件是用户头像，同步更新 `sys_user.avatar_url`。
+7. 原本地文件先标记待清理，确认一段时间无回滚需求后再物理删除。
+
+云存储迁移到本地建议流程：
+
+1. 查询待迁移的 `storage_type=aliyun` 文件记录。
+2. 通过 OSS SDK 下载对象流。
+3. 写入 `local.root-path` 下的 public/private/temp 目录。
+4. 校验文件大小和 `content_hash` 一致。
+5. 更新 `sys_file.storage_type=local`、`bucket_name=local-public/local-private`、`object_key`、`file_url`。
+6. 如果该文件是用户头像，同步更新 `sys_user.avatar_url`。
+7. OSS 对象先保留一段观察期，再按清理策略删除。
+
+迁移安全要求：
+
+- 迁移任务必须支持断点续跑。
+- 迁移前后必须校验 `content_hash`。
+- 迁移失败不得删除源文件。
+- 迁移期间读取逻辑必须以数据库当前记录为准，避免同一个文件同时从两个位置读取。
+- 批量迁移建议增加 `migration_status` 或独立迁移日志表，记录源位置、目标位置、状态、错误原因和操作人。
+
+推荐新增迁移状态表：
+
+```sql
+CREATE TABLE sys_file_migration_log (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    file_id BIGINT NOT NULL COMMENT '文件ID',
+    source_storage_type VARCHAR(32) NOT NULL COMMENT '源存储类型',
+    source_bucket_name VARCHAR(128) NOT NULL COMMENT '源Bucket或本地逻辑空间',
+    source_object_key VARCHAR(512) NOT NULL COMMENT '源对象Key',
+    target_storage_type VARCHAR(32) NOT NULL COMMENT '目标存储类型',
+    target_bucket_name VARCHAR(128) NOT NULL COMMENT '目标Bucket或本地逻辑空间',
+    target_object_key VARCHAR(512) NOT NULL COMMENT '目标对象Key',
+    status VARCHAR(32) NOT NULL COMMENT '状态：pending/running/success/failed',
+    error_message VARCHAR(1024) NULL COMMENT '失败原因',
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) COMMENT='文件迁移日志表';
+```
+
+## 11. 详细开发步骤
 
 ### 阶段一：配置与属性类
 
@@ -377,7 +500,9 @@ public interface FilePermissionService {
 
 1. 新增 SQL 迁移脚本，扩展 `sys_file` 多 Bucket 字段。
 2. 将历史头像文件迁移为 `bucket_type=public`、`access_policy=public_read`。
-3. 私有文件历史数据如果不存在，可暂不迁移，后续新增功能时按新字段写入。
+3. 为历史文件补齐 `storage_type`、`bucket_name`、`object_key`、`access_policy`，确保切换 Provider 后仍能按记录读取。
+4. 如需批量迁移物理文件，新增 `sys_file_migration_log` 或等价迁移日志表。
+5. 私有文件历史数据如果不存在，可暂不迁移，后续新增功能时按新字段写入。
 
 ### 阶段三：对象存储服务封装
 
@@ -389,6 +514,7 @@ public interface FilePermissionService {
 6. 私有上传只返回 `bucketName`、`objectKey`、文件元数据，不返回永久 URL。
 7. 云存储增加 `generatePrivateDownloadUrl`，内部调用 OSS SDK `generatePresignedUrl`。
 8. 本地存储私有下载优先使用后端代理流式输出；如需临时 URL，则生成应用内短期签名令牌。
+9. 所有读取、下载、删除能力必须按 `sys_file.storage_type` 选择 Provider，不能按当前默认配置选择。
 
 ### 阶段四：文件记录服务改造
 
@@ -397,6 +523,7 @@ public interface FilePermissionService {
 3. 私有文件上传写入 `bucket_type=private`、`access_policy=private_read`、`file_url=null`。
 4. 私有下载前查询 `sys_file` 并校验文件状态。
 5. 所有业务层只依赖文件服务返回值，不根据 `storage_type` 写分支逻辑。
+6. 文件服务内部根据 `sys_file.storage_type` 处理历史本地文件和历史云文件。
 
 ### 阶段五：权限服务
 
@@ -423,16 +550,20 @@ public interface FilePermissionService {
 5. 对未授权用户下载私有文件测试，确认返回无权限。
 6. 对授权用户下载私有文件测试，确认云存储签名 URL 可访问且过期后失效。
 7. 对授权用户下载本地私有文件测试，确认后端代理下载可用。
-8. 对限流场景测试，确认上传和下载超限返回明确错误。
+8. 对本地切云存储场景测试，确认历史本地头像和附件仍可访问，新上传文件写入云存储。
+9. 对云存储切本地场景测试，确认历史 OSS 文件仍可访问，新上传文件写入本地。
+10. 对迁移任务测试，确认迁移后 `content_hash` 一致，源文件不会在失败时被删除。
+11. 对限流场景测试，确认上传和下载超限返回明确错误。
 
-## 11. 推荐落地顺序
+## 12. 推荐落地顺序
 
 1. 先调整配置语义，将 `enabled=false` 明确为本地存储 Provider。
 2. 新增本地存储实现，保证头像上传在无云存储时仍然可上传、保存和展示。
 3. 完成数据库字段扩展，统一记录云存储和本地存储元数据。
 4. 再改造对象存储服务，支持公共 Bucket、私有 Bucket 和本地 public/private/temp 目录。
-5. 保持头像公共上传接口行为不变，降低现有功能回归风险。
-6. 新增私有文件接口，不改动现有公共接口语义。
-7. 最后补权限、审计、限流和前端私有附件下载入口。
+5. 增加按 `sys_file.storage_type` 路由的读取、下载、删除逻辑，先保证混合存储兼容。
+6. 保持头像公共上传接口行为不变，降低现有功能回归风险。
+7. 新增私有文件接口，不改动现有公共接口语义。
+8. 最后补权限、审计、限流、迁移任务和前端私有附件下载入口。
 
-该方案可以保证当前头像功能稳定，并确保未启用云存储时仍由本地存储提供同等上传、展示和下载能力，同时为后续私有文件、临时文件和高敏文件下载预留清晰扩展路径。
+该方案可以保证当前头像功能稳定，并确保未启用云存储时仍由本地存储提供同等上传、展示和下载能力；后续即使在本地存储和云存储之间切换，历史文件也能按 `sys_file.storage_type` 正确路由访问，同时为私有文件、临时文件和高敏文件下载预留清晰扩展路径。
