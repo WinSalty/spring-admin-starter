@@ -64,7 +64,8 @@ public enum ErrorCode {
     INVALID_ID(4061, "id 不合法"),
     OBJECT_STORAGE_CONFIG_INVALID(4062, "对象存储配置不完整"),
     OBJECT_STORAGE_UPLOAD_FAILED(4063, "对象存储上传失败"),
-    OBJECT_STORAGE_DISABLED(4064, "对象存储服务未开启");
+    OBJECT_STORAGE_DISABLED(4064, "对象存储服务未开启"),
+    FILE_SCHEMA_OUTDATED(4065, "文件表结构版本过旧");
 
     private final int code;
     private final String message;

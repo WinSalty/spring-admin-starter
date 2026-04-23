@@ -492,6 +492,8 @@ export LOG_ARCHIVE_BATCH_SIZE=1000
 | `sql/seed-data.sql` | 一次性导入种子数据 |
 | `resources/sql/` | 按版本拆分的 SQL 脚本集合 |
 
+如果你是从旧版本库升级，而不是重新执行 `sql/init.sql`，文件模块上线前至少需要补齐 `resources/sql/V18__extend_file_business_scope_schema.sql`。当前头像上传、业务文件上传和 OSS 文件复用都依赖 `sys_file.biz_module`、`biz_id`、`visibility`、`owner_type`、`owner_id` 字段；缺失这些字段时，接口会返回“文件表结构未升级”的明确提示。
+
 ### 本地初始化
 
 ```bash

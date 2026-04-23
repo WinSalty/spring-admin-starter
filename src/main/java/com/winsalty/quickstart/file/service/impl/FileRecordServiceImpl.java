@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -82,6 +83,8 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     private static final String BIZ_MODULE_AVATAR = "user_avatar";
     private static final String BIZ_MODULE_ADMIN_FILE = "admin_file";
     private static final String BIZ_MODULE_ADMIN_PRIVATE = "admin_private_file";
+    private static final String FILE_SCHEMA_MIGRATION_HINT =
+            "文件表结构未升级，请执行 resources/sql/V18__extend_file_business_scope_schema.sql 后重试";
 
     private static final Set<String> ALLOWED_EXTENSIONS = new HashSet<String>(Arrays.asList(
             "jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "csv", "xls", "xlsx", "doc", "docx", "zip"
@@ -474,20 +477,24 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
                                                 String contentHash,
                                                 String bizType,
                                                 String bucketType) {
-        String storageType = objectStorageProperties.isEnabled() ? STORAGE_TYPE_ALIYUN_OSS : STORAGE_TYPE_LOCAL;
-        String accessPolicy = STORAGE_TYPE_ALIYUN_OSS.equals(storageType)
-                ? ACCESS_POLICY_PRIVATE_READ
-                : (BUCKET_TYPE_PRIVATE.equals(bucketType) ? ACCESS_POLICY_PRIVATE_READ : ACCESS_POLICY_PUBLIC_READ);
-        FileRecordEntity reusable = fileRecordMapper.findReusableByContentHash(contentHash, storageType, bucketType, accessPolicy);
-        if (reusable != null) {
-            log.info("file content hash reused, storageType={}, bucketType={}, objectKey={}, contentHash={}",
-                    reusable.getStorageType(), reusable.getBucketType(), reusable.getObjectKey(), contentHash);
-            return toUploadResult(reusable);
+        try {
+            String storageType = objectStorageProperties.isEnabled() ? STORAGE_TYPE_ALIYUN_OSS : STORAGE_TYPE_LOCAL;
+            String accessPolicy = STORAGE_TYPE_ALIYUN_OSS.equals(storageType)
+                    ? ACCESS_POLICY_PRIVATE_READ
+                    : (BUCKET_TYPE_PRIVATE.equals(bucketType) ? ACCESS_POLICY_PRIVATE_READ : ACCESS_POLICY_PUBLIC_READ);
+            FileRecordEntity reusable = fileRecordMapper.findReusableByContentHash(contentHash, storageType, bucketType, accessPolicy);
+            if (reusable != null) {
+                log.info("file content hash reused, storageType={}, bucketType={}, objectKey={}, contentHash={}",
+                        reusable.getStorageType(), reusable.getBucketType(), reusable.getObjectKey(), contentHash);
+                return toUploadResult(reusable);
+            }
+            if (objectStorageProperties.isEnabled()) {
+                return uploadToAliyunOss(file, tempFile, contentHash, extension, bizType, bucketType);
+            }
+            return saveToLocal(tempFile, contentHash, extension, bizType, bucketType);
+        } catch (BadSqlGrammarException exception) {
+            throw translateSchemaException(exception);
         }
-        if (objectStorageProperties.isEnabled()) {
-            return uploadToAliyunOss(file, tempFile, contentHash, extension, bizType, bucketType);
-        }
-        return saveToLocal(tempFile, contentHash, extension, bizType, bucketType);
     }
 
     private ObjectStorageUploadResult uploadToAliyunOss(MultipartFile file,
@@ -548,6 +555,20 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         result.setFilePath(entity.getFilePath());
         result.setFileUrl(entity.getFileUrl());
         return result;
+    }
+
+    private RuntimeException translateSchemaException(BadSqlGrammarException exception) {
+        String message = exception.getMostSpecificCause() == null ? exception.getMessage() : exception.getMostSpecificCause().getMessage();
+        if (message != null && (message.contains("Unknown column 'f.biz_module'")
+                || message.contains("Unknown column 'biz_module'")
+                || message.contains("Unknown column 'f.biz_id'")
+                || message.contains("Unknown column 'f.visibility'")
+                || message.contains("Unknown column 'f.owner_type'")
+                || message.contains("Unknown column 'f.owner_id'"))) {
+            log.error("sys_file schema outdated, please apply V18 migration", exception);
+            return new BusinessException(ErrorCode.FILE_SCHEMA_OUTDATED, FILE_SCHEMA_MIGRATION_HINT);
+        }
+        return exception;
     }
 
     private String buildAliyunOssObjectKey(String contentHash, String extension, String bizType, String bucketType) {
