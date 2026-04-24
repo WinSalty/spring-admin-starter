@@ -82,6 +82,8 @@ public class SecurityConfig {
         matchers.add(new AntPathRequestMatcher("/api/auth/register"));
         // 邮件激活链接回调接口必须匿名可访问。
         matchers.add(new AntPathRequestMatcher("/api/auth/register/verify-link"));
+        // 待激活用户无法登录，重发验证邮件入口也必须匿名可访问。
+        matchers.add(new AntPathRequestMatcher("/api/auth/register/resend-verify-mail"));
         // 头像允许匿名读取，但控制器会进一步校验资源必须为公开、启用且被用户资料引用的头像文件。
         matchers.add(new AntPathRequestMatcher("/api/file/avatar/*"));
         // 本地公共文件需要被浏览器直接加载，私有文件仍走鉴权接口。
