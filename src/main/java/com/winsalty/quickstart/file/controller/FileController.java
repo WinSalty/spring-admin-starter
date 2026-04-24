@@ -15,6 +15,7 @@ import com.winsalty.quickstart.file.vo.ObjectStorageStatusVo;
 import com.winsalty.quickstart.file.vo.PrivateDownloadUrlVo;
 import com.winsalty.quickstart.infra.storage.ObjectStorageProperties;
 import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -35,6 +36,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 文件管理控制器。
@@ -46,6 +48,8 @@ import java.nio.charset.StandardCharsets;
 @RestController
 @RequestMapping("/api/file")
 public class FileController extends BaseController {
+
+    private static final long PUBLIC_AVATAR_CACHE_SECONDS = 300L;
 
     private final FileRecordService fileRecordService;
     private final ObjectStorageProperties objectStorageProperties;
@@ -203,20 +207,21 @@ public class FileController extends BaseController {
     }
 
     /**
-     * 头像图片访问入口。OSS 文件生成短期签名 URL 后跳转，避免暴露永久外链。
+     * 头像图片访问入口。OSS 文件由后端代理输出，避免浏览器直跳签名地址触发跨域拦截。
+     * 创建日期：2026-04-24
+     * author：sunshengxian
      */
     @GetMapping("/avatar/{id}")
-    public ResponseEntity<?> avatar(@PathVariable("id") String id) {
+    public ResponseEntity<Resource> avatar(@PathVariable("id") String id) {
         FileRecordVo detail = fileRecordService.getPublicAvatarDetail(id);
-        if ("aliyun-oss".equals(detail.getStorageType())) {
-            PrivateDownloadUrlVo downloadUrl = fileRecordService.createProtectedDownloadUrl(id);
-            return ResponseEntity.status(302).location(URI.create(downloadUrl.getDownloadUrl())).build();
-        }
-        Resource resource = fileRecordService.loadDownloadResource(id);
+        Resource resource = fileRecordService.loadPublicAvatarResource(id);
         MediaType mediaType = detail.getContentType() == null || detail.getContentType().isEmpty()
                 ? MediaType.APPLICATION_OCTET_STREAM
                 : MediaType.parseMediaType(detail.getContentType());
-        return ResponseEntity.ok().contentType(mediaType).body(resource);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(PUBLIC_AVATAR_CACHE_SECONDS, TimeUnit.SECONDS).cachePublic())
+                .contentType(mediaType)
+                .body(resource);
     }
 
     private String extractPublicObjectKey(HttpServletRequest request) {

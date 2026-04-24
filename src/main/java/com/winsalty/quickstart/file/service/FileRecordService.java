@@ -34,6 +34,13 @@ public interface FileRecordService {
 
     String buildAvatarAccessUrl(String id);
 
+    /**
+     * 加载可匿名访问的头像图片资源。
+     * 创建日期：2026-04-24
+     * author：sunshengxian
+     */
+    Resource loadPublicAvatarResource(String id);
+
     FileRecordVo getAuthorizedDetail(String id);
 
     Resource loadDownloadResource(String id);

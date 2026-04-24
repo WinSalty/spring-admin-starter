@@ -5,6 +5,7 @@ import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.ClientException;
 import com.aliyun.oss.OSSException;
 import com.aliyun.oss.model.ObjectMetadata;
+import com.aliyun.oss.model.OSSObject;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import org.springframework.beans.factory.DisposableBean;
@@ -102,6 +103,28 @@ public class AliyunOssObjectStorageUtil implements DisposableBean {
             return url.toString();
         } catch (OSSException | ClientException exception) {
             throw new BusinessException(ErrorCode.OBJECT_STORAGE_UPLOAD_FAILED, "阿里云 OSS 签名地址生成失败");
+        }
+    }
+
+    /**
+     * 打开私有 Bucket 中对象的读取流，供后端代理图片等需要同域展示的资源。
+     *
+     * @param bucketName 私有 Bucket 名称
+     * @param objectKey 对象 Key
+     * @return 对象内容输入流
+     * @author sunshengxian
+     * @date 2026-04-24
+     */
+    public InputStream openObjectStream(String bucketName, String objectKey) {
+        validateBaseConfig();
+        if (!StringUtils.hasText(bucketName) || !StringUtils.hasText(objectKey)) {
+            throw new BusinessException(ErrorCode.OBJECT_STORAGE_CONFIG_INVALID);
+        }
+        try {
+            OSSObject ossObject = getOssClient().getObject(bucketName, objectKey);
+            return ossObject.getObjectContent();
+        } catch (OSSException | ClientException exception) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "阿里云 OSS 文件读取失败");
         }
     }
 

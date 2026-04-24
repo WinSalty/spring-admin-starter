@@ -228,21 +228,21 @@ app:
 
 - `10MB`
 
-阿里云 OSS 不是系统运行的必需依赖，但生产环境推荐启用。`object-storage.enabled` 默认关闭，关闭时新文件写入本地存储，文件上传能力不关闭；开启时新文件统一写入阿里云 OSS 私有 Bucket。开启阿里云 OSS 时必须配置 `ALIYUN_OSS_ENDPOINT`、`ALIYUN_OSS_ACCESS_KEY_ID`、`ALIYUN_OSS_ACCESS_KEY_SECRET`、`ALIYUN_OSS_PRIVATE_BUCKET`。当前用户头像通过 `/api/file/avatar/upload` 上传，云存储模式下 `sys_user.avatar_url` 保存后端受控地址 `/api/file/avatar/{id}`，浏览器访问该地址时由后端生成短期 OSS 签名 URL。
+阿里云 OSS 不是系统运行的必需依赖，但生产环境推荐启用。`object-storage.enabled` 默认关闭，关闭时新文件写入本地存储，文件上传能力不关闭；开启时新文件统一写入阿里云 OSS 私有 Bucket。开启阿里云 OSS 时必须配置 `ALIYUN_OSS_ENDPOINT`、`ALIYUN_OSS_ACCESS_KEY_ID`、`ALIYUN_OSS_ACCESS_KEY_SECRET`、`ALIYUN_OSS_PRIVATE_BUCKET`。当前用户头像通过 `/api/file/avatar/upload` 上传，云存储模式下 `sys_user.avatar_url` 保存后端受控地址 `/api/file/avatar/{id}`，浏览器访问该地址时由后端代理读取 OSS 对象并输出图片流。
 
 当前文件存储方案：
 
 1. 本地存储是默认兜底方案，适合本地开发、单机测试和未配置 OSS 的环境。
 2. 阿里云 OSS 是推荐生产方案，所有云端文件统一写入私有 Bucket，不使用公共 Bucket。
-3. OSS 不返回永久外链，数据库 `sys_file.file_url` 为空；访问时后端按 `fileId` 生成有效期 URL。
-4. 头像这类业务公开文件也不直接暴露 OSS 地址，前端保存 `/api/file/avatar/{id}`。
+3. OSS 不返回永久外链，数据库 `sys_file.file_url` 为空；私有下载类接口访问时后端按 `fileId` 生成有效期 URL。
+4. 头像这类业务公开文件也不直接暴露 OSS 地址，前端保存 `/api/file/avatar/{id}`，展示时由后端同域代理输出图片。
 5. 本地文件和 OSS 文件可以长期混合存在，系统按 `sys_file.storage_type` 路由读取。
 
 头像展示规则：
 
 1. `APP_OBJECT_STORAGE_ENABLED=false`：头像上传到本地存储，`fileUrl` 返回 `/api/file/public/**`。
 2. `APP_OBJECT_STORAGE_ENABLED=true`：头像上传到阿里云 OSS 私有 Bucket，前端与数据库统一只保存 `/api/file/avatar/{id}` 这种稳定地址，不保存短期签名 URL。
-3. OSS 文件记录统一保存 `access_policy=private_read`，头像访问时由后端按需重新生成有效期 URL；`600` 秒有效期只存在于后端与 OSS 之间，不会直接暴露到前端状态。
+3. OSS 文件记录统一保存 `access_policy=private_read`，头像访问时由后端代理读取并设置短期浏览器缓存；OSS 签名地址不会直接暴露到前端状态。
 4. 历史文件读取、下载、删除按 `sys_file.storage_type` 路由，切换本地或 OSS 默认写入配置不会影响存量文件访问。
 5. 私有文件上传接口为 `/api/file/private/upload`，下载前通过 `/api/file/private/{id}/download-url` 获取临时签名 URL 或本地代理下载地址。
 6. 文件上传会计算 SHA-256 内容 Hash，相同内容会复用已有本地文件或 OSS 对象，减少重复上传和存储占用；业务层仍新增文件记录，保留上传人、原始文件名和审计时间。

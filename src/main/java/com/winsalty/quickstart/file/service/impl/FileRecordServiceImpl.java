@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.stereotype.Service;
@@ -320,6 +321,22 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Override
     public String buildAvatarAccessUrl(String id) {
         return AVATAR_ACCESS_PATH_PREFIX + parseId(id);
+    }
+
+    /**
+     * 加载公共头像资源。OSS 头像通过后端代理流输出，避免浏览器直跳签名地址后被跨域资源保护拦截。
+     * 创建日期：2026-04-24
+     * author：sunshengxian
+     */
+    @Override
+    public Resource loadPublicAvatarResource(String id) {
+        FileRecordEntity entity = loadPublicAvatar(parseId(id));
+        if (STORAGE_TYPE_ALIYUN_OSS.equals(entity.getStorageType())) {
+            InputStream inputStream = aliyunOssObjectStorageUtil.openObjectStream(
+                    resolveAliyunBucketName(entity), entity.getObjectKey());
+            return new InputStreamResource(inputStream);
+        }
+        return loadDownloadResource(String.valueOf(entity.getId()));
     }
 
     @Override
