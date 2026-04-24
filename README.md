@@ -113,7 +113,8 @@
 5. CDK 批次审批通过后生成明文码，只写入短期 Redis 导出窗口；导出接口一次性消费缓存并写入导出审计。
 6. CDK 兑换按用户、IP、连续失败次数做 Redis 限流，成功兑换在同一事务内完成码状态、兑换记录、充值单、账户余额和账本流水。
 7. 管理员人工调整先创建调整单，审批通过后再调用积分账务服务入账或扣减。
-8. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql` 初始化表结构和权限菜单。
+8. 积分对账已接入 Quartz 日终任务，按 `app.points.reconciliation-cron` 定时执行账户与流水汇总校验。
+9. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql` 初始化表结构和权限菜单。
 
 ## 配套环境说明
 
@@ -278,10 +279,19 @@ export CDK_REDEEM_IP_WINDOW_SECONDS=60
 export CDK_REDEEM_IP_LIMIT=30
 export CDK_REDEEM_LOCK_SECONDS=900
 export POINTS_RECONCILIATION_ENABLED=true
+export POINTS_RECONCILIATION_CRON='0 10 2 * * ?'
 export POINTS_FREEZE_DEFAULT_EXPIRE_SECONDS=1800
 ```
 
 生产环境必须显式配置 `CDK_PEPPER`，且长度不少于 32 字节。未配置时，CDK 批次审批生成和兑换会拒绝执行，避免使用弱密钥生成高价值凭证。
+
+开发环境可使用本地 MySQL 和 Redis 执行 CDK/积分集成测试：
+
+```bash
+RUN_DEV_INTEGRATION_TESTS=true mvn -q -Dtest=CdkPointsDevIntegrationTest test
+```
+
+该测试会创建临时 CDK 批次和积分账户，覆盖同一 CDK 并发兑换、同一幂等键重复兑换、余额不足扣减和对账差异稳定性，并在用例结束后清理测试数据。
 
 文件访问控制规则：
 

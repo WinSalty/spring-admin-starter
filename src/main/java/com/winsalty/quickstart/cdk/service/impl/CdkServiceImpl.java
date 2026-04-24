@@ -84,6 +84,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     private static final String GRANT_REASON_CDK = "cdk_reward";
     private static final String UA_HEADER = "User-Agent";
     private static final String UNKNOWN_TARGET = "unknown";
+    private static final String EMPTY_FAILURE_REASON = "";
     private static final int UUID_FRAGMENT_LENGTH = 12;
     private static final int PEPPER_MIN_LENGTH = 32;
     private static final int HEX_RADIX_SHIFT = 4;
@@ -363,6 +364,8 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         record.setBenefitType(batch.getBenefitType());
         record.setBenefitSnapshot(batch.getBenefitConfig());
         record.setStatus(CdkConstants.RECORD_STATUS_PROCESSING);
+        record.setFailureCode(EMPTY_FAILURE_REASON);
+        record.setFailureMessage(EMPTY_FAILURE_REASON);
         record.setClientIp(IpUtils.getClientIp(servletRequest));
         record.setUserAgentHash(sha256(servletRequest == null ? "" : servletRequest.getHeader(UA_HEADER)));
         record.setTraceId(currentTraceId());

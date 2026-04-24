@@ -93,6 +93,7 @@ app:
     export-window-seconds: ${CDK_EXPORT_WINDOW_SECONDS:1800}
   points:
     reconciliation-enabled: ${POINTS_RECONCILIATION_ENABLED:true}
+    reconciliation-cron: ${POINTS_RECONCILIATION_CRON:0 10 2 * * ?}
     freeze-default-expire-seconds: ${POINTS_FREEZE_DEFAULT_EXPIRE_SECONDS:1800}
   mail:
     enabled: ${MAIL_ENABLED:true}

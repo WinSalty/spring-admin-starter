@@ -15,8 +15,13 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "app.points")
 public class PointsProperties {
 
+    private static final String DEFAULT_RECONCILIATION_CRON = "0 10 2 * * ?";
+
     /** 是否开启对账能力。 */
     private boolean reconciliationEnabled = true;
+
+    /** 积分对账任务 Cron 表达式。 */
+    private String reconciliationCron = DEFAULT_RECONCILIATION_CRON;
 
     /** 默认冻结超时时间，单位秒。 */
     private long freezeDefaultExpireSeconds = 1800L;

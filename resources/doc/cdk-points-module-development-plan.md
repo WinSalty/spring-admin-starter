@@ -25,6 +25,8 @@ author：sunshengxian
 | 后端积分模块 | 已新增 `com.winsalty.quickstart.points`，支持账户初始化、充值、扣减、冻结、确认冻结、取消冻结、退款、账本哈希链、管理端账户/流水查询、人工调整申请与审批、对账汇总 |
 | 后端 CDK 模块 | 已新增 `com.winsalty.quickstart.cdk`，支持批次创建、提交审批、审批生成、暂停、作废、一次性导出、兑换记录查询和用户兑换 |
 | 后端权益抽象 | 已新增 `com.winsalty.quickstart.benefit`，首期实现积分权益发放，后续权限或服务包可扩展独立发放器 |
+| 后端对账任务 | 已新增 `PointReconciliationJob`，通过 Quartz 按 `app.points.reconciliation-cron` 定时执行积分账户和流水汇总对账 |
+| 后端集成测试 | 已新增 `CdkPointsDevIntegrationTest`，通过 `RUN_DEV_INTEGRATION_TESTS=true` 显式连接本地 MySQL/Redis 验证兑换链路 |
 | 安全与审计 | CDK 仅存 HMAC Hash；明文只进入短期 Redis 导出窗口；兑换接口接入用户/IP/连续失败限流；管理操作和兑换操作接入 `@AuditLog` |
 | 前端钱包 | 已新增 `/points/wallet`，展示余额、CDK 兑换、流水、充值、消费、冻结记录；工作台已按钱包余额卡片重构，仅保留系统公告、钱包余额和预留图表位 |
 | 前端管理页 | 已新增 `/system/cdk/batches`、`/system/cdk/redeem-records`、`/system/points/audit` |
@@ -37,6 +39,7 @@ author：sunshengxian
 | --- | --- |
 | 后端编译 | `mvn -q -DskipTests compile` 通过 |
 | 后端测试 | `mvn -q test` 通过 |
+| 后端开发环境集成测试 | `RUN_DEV_INTEGRATION_TESTS=true mvn -q -Dtest=CdkPointsDevIntegrationTest test` 通过，已覆盖同一 CDK 并发兑换、同一幂等键重复兑换、余额不足扣减和对账差异稳定性 |
 | 前端类型检查 | `npm run typecheck` 通过 |
 | 前端单元测试 | `npm run test:unit` 通过；当前无测试文件 |
 | 前端生产构建 | `npm run build` 通过 |
@@ -54,10 +57,9 @@ author：sunshengxian
 
 | 优先级 | 待办 | 说明 |
 | --- | --- | --- |
-| 高 | 增补 CDK/积分集成测试 | 需要覆盖同一 CDK 并发兑换、同一幂等键重复兑换、余额不足扣减、账本对账等验收项 |
-| 高 | 完成真实数据库联调 | 当前已完成编译和构建验证，仍需在目标 MySQL/Redis 环境跑迁移并走完整兑换链路 |
+| 高 | 完成目标环境联调 | 本地开发 MySQL/Redis 已完成集成测试；仍需在目标部署环境跑迁移并走完整兑换链路 |
 | 中 | 二阶段权益发放 | 按阶段二实现权限/服务包权益、冻结确认/取消的业务页面和补偿任务 |
-| 中 | 对账任务定时化 | 当前提供管理端对账查询，后续应接入 Quartz 日终任务和差异记录 |
+| 中 | 对账差异记录 | 当前已接入 Quartz 日终对账，后续应持久化差异记录并提供处理入口 |
 | 中 | 导出文件强化 | 当前返回一次性明文列表，后续可改为加密 ZIP 和受控临时文件下载 |
 | 中 | 高价值双人复核 | 当前已有审批流状态，高价值批次双人复核规则尚未落地 |
 | 低 | 在线充值扩展 | 按阶段三接入在线充值渠道、支付回调验签和补偿 |
