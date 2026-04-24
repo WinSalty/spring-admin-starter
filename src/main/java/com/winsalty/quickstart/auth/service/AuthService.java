@@ -23,9 +23,7 @@ public interface AuthService {
 
     void logout(Long userId, String sessionId);
 
-    void register(RegisterRequest request);
-
-    void sendRegisterVerifyLink(String username, String email, String verifyLinkBaseUrl);
+    void register(RegisterRequest request, String verifyLinkBaseUrl);
 
     void verifyRegisterEmail(String email, String token);
 

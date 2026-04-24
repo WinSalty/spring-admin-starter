@@ -40,6 +40,12 @@ public interface UserMapper extends BaseMapper<UserEntity> {
     @Update("UPDATE sys_user SET notify_account = #{notifyAccount}, notify_system = #{notifySystem}, notify_todo = #{notifyTodo} WHERE id = #{id} AND deleted = 0")
     int updateNotificationSettings(UserEntity user);
 
+    @Update("UPDATE sys_user SET password = #{password}, status = 'pending' WHERE id = #{id} AND status = 'pending' AND deleted = 0")
+    int updatePendingRegistration(@Param("id") Long id, @Param("password") String password);
+
+    @Update("UPDATE sys_user SET status = 'active' WHERE LOWER(email) = LOWER(#{email}) AND status = 'pending' AND deleted = 0")
+    int activatePendingByEmail(@Param("email") String email);
+
     @Select("SELECT COUNT(1) FROM sys_user u WHERE u.deleted = 0 AND u.avatar_url = #{avatarUrl}")
     long countByAvatarUrl(@Param("avatarUrl") String avatarUrl);
 }

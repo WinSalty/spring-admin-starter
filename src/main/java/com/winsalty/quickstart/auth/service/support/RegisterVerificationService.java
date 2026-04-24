@@ -10,6 +10,4 @@ public interface RegisterVerificationService {
     void sendVerificationLink(String email, String verifyLinkBaseUrl);
 
     void verifyLink(String email, String token);
-
-    void consumeVerifiedEmail(String email);
 }

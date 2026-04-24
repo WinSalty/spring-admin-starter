@@ -2,7 +2,7 @@ package com.winsalty.quickstart.auth.service.support;
 
 /**
  * 认证限流服务。
- * 对登录、注册邮箱验证邮件发送等匿名入口做服务端限流，降低撞库、爆破和邮件轰炸风险。
+ * 对登录、注册激活邮件发送等匿名入口做服务端限流，降低撞库、爆破和邮件轰炸风险。
  * 创建日期：2026-04-23
  * author：sunshengxian
  */
@@ -41,7 +41,7 @@ public interface AuthRateLimitService {
     void checkFileUpload(String username, String clientIp);
 
     /**
-     * 校验注册邮箱验证邮件发送限流。
+     * 校验注册激活邮件发送限流。
      *
      * @param email 邮箱
      * @param clientIp 客户端 IP

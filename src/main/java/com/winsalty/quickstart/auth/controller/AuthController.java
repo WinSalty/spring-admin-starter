@@ -7,7 +7,6 @@ import com.winsalty.quickstart.auth.dto.PasswordUpdateRequest;
 import com.winsalty.quickstart.auth.dto.ProfileUpdateRequest;
 import com.winsalty.quickstart.auth.dto.RefreshTokenRequest;
 import com.winsalty.quickstart.auth.dto.RegisterRequest;
-import com.winsalty.quickstart.auth.dto.RegisterVerifyCodeRequest;
 import com.winsalty.quickstart.auth.dto.RegisterVerifyLinkRequest;
 import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.auth.service.AuthService;
@@ -102,26 +101,14 @@ public class AuthController extends BaseController {
      */
     @AuditLog(logType = "operation", code = "auth_register", name = "用户注册")
     @PostMapping("/register")
-    public ApiResponse<Object> register(@Validated @RequestBody RegisterRequest request) {
-        if (!registerEnabled) {
-            throw new BusinessException(ErrorCode.REGISTER_DISABLED);
-        }
-        authService.register(request);
-        return ApiResponse.success("注册成功", null);
-    }
-
-    /**
-     * 注册邮箱验证邮件发送入口。未注册用户必须能匿名访问，但必须随注册开关一起关闭。
-     */
-    @PostMapping("/register/verify-code")
-    public ApiResponse<Object> registerVerifyCode(@Validated @RequestBody RegisterVerifyCodeRequest request,
-                                                  HttpServletRequest servletRequest) {
+    public ApiResponse<Object> register(@Validated @RequestBody RegisterRequest request,
+                                        HttpServletRequest servletRequest) {
         if (!registerEnabled) {
             throw new BusinessException(ErrorCode.REGISTER_DISABLED);
         }
         authRateLimitService.checkRegisterVerifyCode(request.getEmail(), IpUtils.getClientIp(servletRequest));
-        authService.sendRegisterVerifyLink(request.getUsername(), request.getEmail(), registerVerifyLinkBaseUrl);
-        return ApiResponse.success("验证邮件已提交发送", null);
+        authService.register(request, registerVerifyLinkBaseUrl);
+        return ApiResponse.success("注册申请已提交，激活邮件已发送", null);
     }
 
     /**
@@ -133,7 +120,7 @@ public class AuthController extends BaseController {
             throw new BusinessException(ErrorCode.REGISTER_DISABLED);
         }
         authService.verifyRegisterEmail(request.getEmail(), request.getToken());
-        return ApiResponse.success("邮箱验证成功", null);
+        return ApiResponse.success("账号已激活", null);
     }
 
     @GetMapping("/profile")

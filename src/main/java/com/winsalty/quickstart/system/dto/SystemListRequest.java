@@ -19,7 +19,7 @@ public class SystemListRequest {
 
     private String keyword;
 
-    @Pattern(regexp = "active|disabled", message = "状态值不合法")
+    @Pattern(regexp = "active|disabled|pending", message = "状态值不合法")
     private String status;
 
     @Pattern(regexp = "login|operation|api", message = "logType 不合法")

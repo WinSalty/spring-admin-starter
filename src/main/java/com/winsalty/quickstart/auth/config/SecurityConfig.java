@@ -80,8 +80,7 @@ public class SecurityConfig {
         // refresh-token 虽然和登录态有关，但凭 refresh token 自身校验，不依赖 access token。
         matchers.add(new AntPathRequestMatcher("/api/auth/refresh-token"));
         matchers.add(new AntPathRequestMatcher("/api/auth/register"));
-        // 未注册用户无法携带 token，邮箱验证邮件发送和链接回调接口必须匿名可访问。
-        matchers.add(new AntPathRequestMatcher("/api/auth/register/verify-code"));
+        // 邮件激活链接回调接口必须匿名可访问。
         matchers.add(new AntPathRequestMatcher("/api/auth/register/verify-link"));
         // 头像允许匿名读取，但控制器会进一步校验资源必须为公开、启用且被用户资料引用的头像文件。
         matchers.add(new AntPathRequestMatcher("/api/file/avatar/*"));

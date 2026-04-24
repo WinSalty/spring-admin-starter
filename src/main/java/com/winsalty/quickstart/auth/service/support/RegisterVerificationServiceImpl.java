@@ -23,7 +23,7 @@ import java.util.Base64;
 
 /**
  * 注册邮箱验证服务实现。
- * 使用 Redis 保存邮箱验证链接 token 摘要，链接点击成功后写入短期已验证状态，注册提交时一次性消费。
+ * 使用 Redis 保存邮箱激活链接 token 摘要，链接点击成功后立即消费 token。
  * 创建日期：2026-04-18
  * author：sunshengxian
  */
@@ -32,18 +32,15 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
 
     private static final Logger log = LoggerFactory.getLogger(RegisterVerificationServiceImpl.class);
     private static final long LINK_TTL_SECONDS = 900L;
-    private static final long VERIFIED_TTL_SECONDS = 1800L;
     private static final long VERIFY_FAIL_LIMIT = 5L;
     private static final int TOKEN_BYTE_LENGTH = 32;
     private static final String PENDING_KEY_PREFIX = "sa:register:verify-link:";
-    private static final String VERIFIED_KEY_PREFIX = "sa:register:verified:";
     private static final String FAIL_KEY_PREFIX = "sa:register:verify-fail:";
     private static final String HMAC_SHA256_ALGORITHM = "HmacSHA256";
     private static final String VERIFY_TOKEN_SEPARATOR = ":";
     private static final String REGISTER_PATH = "/register";
     private static final String EMAIL_QUERY_PARAM = "email";
     private static final String TOKEN_QUERY_PARAM = "token";
-    private static final String VERIFIED_CACHE_VALUE = "verified";
     private static final String HTTP_SCHEME = "http";
     private static final String HTTPS_SCHEME = "https";
     private static final char EMAIL_SEPARATOR = '@';
@@ -72,7 +69,7 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
     }
 
     /**
-     * 生成一次性邮箱验证链接，邮件提交发送后缓存 token 摘要。
+     * 生成一次性账号激活链接，邮件提交发送后缓存 token 摘要。
      */
     @Override
     public void sendVerificationLink(String email, String verifyLinkBaseUrl) {
@@ -87,7 +84,6 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
         String pendingKey = buildPendingKey(normalizedEmail);
         redisCacheService.set(pendingKey, hashVerifyToken(normalizedEmail, token), LINK_TTL_SECONDS);
         redisCacheService.delete(buildFailKey(normalizedEmail));
-        redisCacheService.delete(buildVerifiedKey(normalizedEmail));
         try {
             registerMailService.sendVerificationLink(normalizedEmail,
                     buildVerificationUrl(verifyLinkBaseUrl, normalizedEmail, token), LINK_TTL_SECONDS);
@@ -98,11 +94,11 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
             redisCacheService.delete(pendingKey);
             throw exception;
         }
-        log.info("register verification link queued, email={}", maskEmail(normalizedEmail));
+        log.info("register activation link queued, email={}", maskEmail(normalizedEmail));
     }
 
     /**
-     * 校验邮箱验证链接。验证成功后写入已验证状态，注册提交时再消费。
+     * 校验账号激活链接。验证成功后删除待验证 token，后续由认证服务激活账号。
      */
     @Override
     public void verifyLink(String email, String token) {
@@ -121,27 +117,9 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
             recordVerifyFailure(normalizedEmail, pendingKey);
             throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "邮箱验证链接无效");
         }
-        redisCacheService.set(buildVerifiedKey(normalizedEmail), VERIFIED_CACHE_VALUE, VERIFIED_TTL_SECONDS);
         redisCacheService.delete(pendingKey);
         redisCacheService.delete(buildFailKey(normalizedEmail));
-        log.info("register email verified, email={}", maskEmail(normalizedEmail));
-    }
-
-    /**
-     * 注册提交时消费已验证邮箱状态，避免同一验证结果被重复使用。
-     */
-    @Override
-    public void consumeVerifiedEmail(String email) {
-        if (!StringUtils.hasText(email)) {
-            throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "邮箱尚未完成验证");
-        }
-        String normalizedEmail = normalizeEmail(email);
-        String verifiedKey = buildVerifiedKey(normalizedEmail);
-        Object cached = redisCacheService.get(verifiedKey);
-        if (!VERIFIED_CACHE_VALUE.equals(cached)) {
-            throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "邮箱尚未完成验证或验证已过期");
-        }
-        redisCacheService.delete(verifiedKey);
+        log.info("register activation link verified, email={}", maskEmail(normalizedEmail));
     }
 
     private void recordVerifyFailure(String email, String pendingKey) {
@@ -153,7 +131,7 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
         if (current != null && current >= VERIFY_FAIL_LIMIT) {
             redisCacheService.delete(pendingKey);
             redisCacheService.delete(failKey);
-            log.info("register verification link invalidated after repeated failures, email={}, failCount={}",
+            log.info("register activation link invalidated after repeated failures, email={}, failCount={}",
                     maskEmail(email), current);
         }
     }
@@ -192,7 +170,7 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
 
     private String normalizeVerifyLinkBaseUrl(String value) {
         if (!StringUtils.hasText(value)) {
-            throw new BusinessException(ErrorCode.MAIL_SEND_FAILED, "注册验证链接基础地址未配置");
+            throw new BusinessException(ErrorCode.MAIL_SEND_FAILED, "注册激活链接基础地址未配置");
         }
         String trimmed = value.trim();
         validateHttpUrl(trimmed);
@@ -207,13 +185,13 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
             URI uri = new URI(value);
             String scheme = uri.getScheme();
             if (!HTTP_SCHEME.equalsIgnoreCase(scheme) && !HTTPS_SCHEME.equalsIgnoreCase(scheme)) {
-                throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "注册验证链接协议不支持");
+                throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "注册激活链接协议不支持");
             }
             if (!StringUtils.hasText(uri.getHost())) {
-                throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "注册验证链接格式不正确");
+                throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "注册激活链接格式不正确");
             }
         } catch (URISyntaxException exception) {
-            throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "注册验证链接格式不正确");
+            throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "注册激活链接格式不正确");
         }
     }
 
@@ -227,10 +205,6 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
 
     private String buildPendingKey(String email) {
         return PENDING_KEY_PREFIX + normalizeEmail(email);
-    }
-
-    private String buildVerifiedKey(String email) {
-        return VERIFIED_KEY_PREFIX + normalizeEmail(email);
     }
 
     private String buildFailKey(String email) {

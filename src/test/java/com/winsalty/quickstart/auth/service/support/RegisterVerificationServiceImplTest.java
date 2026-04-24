@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 注册邮箱验证服务测试。
- * 覆盖验证链接 token 摘要存储、链接验证成功、已验证状态消费和错误次数达到阈值后的失效逻辑。
+ * 覆盖验证链接 token 摘要存储、链接验证成功消费和错误次数达到阈值后的失效逻辑。
  * 创建日期：2026-04-24
  * author：sunshengxian
  */
@@ -30,12 +30,9 @@ class RegisterVerificationServiceImplTest {
     private static final String NORMALIZED_EMAIL = "test@example.com";
     private static final String VERIFY_BASE_URL = "http://localhost:5173";
     private static final String PENDING_KEY = "sa:register:verify-link:test@example.com";
-    private static final String VERIFIED_KEY = "sa:register:verified:test@example.com";
     private static final String FAIL_KEY = "sa:register:verify-fail:test@example.com";
     private static final String HASH_SECRET = "unit-test-register-verify-secret";
     private static final long LINK_TTL_SECONDS = 900L;
-    private static final long VERIFIED_TTL_SECONDS = 1800L;
-    private static final String VERIFIED_CACHE_VALUE = "verified";
     private static final String WRONG_TOKEN = "wrong-token";
 
     @Test
@@ -53,7 +50,6 @@ class RegisterVerificationServiceImplTest {
                 eq(LINK_TTL_SECONDS));
         verify(redisCacheService).set(eq(PENDING_KEY), cacheValueCaptor.capture(), eq(LINK_TTL_SECONDS));
         verify(redisCacheService).delete(FAIL_KEY);
-        verify(redisCacheService).delete(VERIFIED_KEY);
         String token = extractToken(urlCaptor.getValue());
         assertTrue(urlCaptor.getValue().startsWith(VERIFY_BASE_URL + "/register?"));
         assertTrue(urlCaptor.getValue().contains("email=test%40example.com"));
@@ -63,7 +59,7 @@ class RegisterVerificationServiceImplTest {
     }
 
     @Test
-    void verifyLinkWritesVerifiedStateWhenTokenMatches() {
+    void verifyLinkDeletesPendingStateWhenTokenMatches() {
         RedisCacheService redisCacheService = mock(RedisCacheService.class);
         RegisterMailService registerMailService = enabledRegisterMailService();
         RegisterVerificationServiceImpl service = new RegisterVerificationServiceImpl(
@@ -74,23 +70,9 @@ class RegisterVerificationServiceImplTest {
 
         service.verifyLink(NORMALIZED_EMAIL, sentLink.plainToken);
 
-        verify(redisCacheService).set(VERIFIED_KEY, VERIFIED_CACHE_VALUE, VERIFIED_TTL_SECONDS);
         verify(redisCacheService).delete(PENDING_KEY);
         verify(redisCacheService).delete(FAIL_KEY);
         verify(redisCacheService, never()).increment(FAIL_KEY);
-    }
-
-    @Test
-    void consumeVerifiedEmailDeletesVerifiedState() {
-        RedisCacheService redisCacheService = mock(RedisCacheService.class);
-        RegisterMailService registerMailService = enabledRegisterMailService();
-        RegisterVerificationServiceImpl service = new RegisterVerificationServiceImpl(
-                redisCacheService, registerMailService, HASH_SECRET);
-        when(redisCacheService.get(VERIFIED_KEY)).thenReturn(VERIFIED_CACHE_VALUE);
-
-        service.consumeVerifiedEmail(NORMALIZED_EMAIL);
-
-        verify(redisCacheService).delete(VERIFIED_KEY);
     }
 
     @Test

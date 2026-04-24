@@ -43,9 +43,16 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
     private static final long DEFAULT_DEPARTMENT_ID = 2L;
     private static final long DEFAULT_VIEWER_ROLE_ID = 2L;
-    private static final String REGISTER_SCENE_SEND_VERIFY_LINK = "send-verify-link";
     private static final String REGISTER_SCENE_SUBMIT = "submit-register";
-    private static final String REGISTER_SCENE_VERIFY_LINK = "verify-link";
+    private static final String REGISTER_SCENE_ACTIVATE = "activate-register";
+    private static final String REGISTER_AVAILABILITY_USERNAME_EXISTS = "username_exists";
+    private static final String REGISTER_AVAILABILITY_EMAIL_EXISTS = "email_exists";
+    private static final String REGISTER_RECORD_CODE_PREFIX = "U";
+    private static final String DEFAULT_COUNTRY = "中国";
+    private static final String DEFAULT_PHONE_PREFIX = "86";
+    private static final int ENABLED_FLAG = 1;
+    private static final int DISABLED_FLAG = 0;
+    private static final int NOT_DELETED = 0;
     private static final String MASKED_VALUE = "***";
     private static final String SINGLE_CHAR_MASK = "*";
     private static final char EMAIL_SEPARATOR = '@';
@@ -82,6 +89,9 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             // 用户不存在和密码错误使用同一提示，防止通过接口枚举有效用户名。
             throw new BusinessException(ErrorCode.LOGIN_BAD_CREDENTIALS);
+        }
+        if (CommonStatusConstants.PENDING.equals(user.getStatus())) {
+            throw new BusinessException(ErrorCode.ACCOUNT_UNAVAILABLE, "账号尚未激活，请先点击注册邮件中的激活链接");
         }
         if (!CommonStatusConstants.ACTIVE.equals(user.getStatus())) {
             throw new BusinessException(ErrorCode.ACCOUNT_UNAVAILABLE);
@@ -145,71 +155,47 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     }
 
     /**
-     * 注册用户默认分配 viewer 角色和运营中心部门，保证注册后可直接按只读权限登录。
+     * 注册用户默认分配 viewer 角色和运营中心部门，账号激活前使用 pending 状态阻止登录。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void register(RegisterRequest request) {
+    public void register(RegisterRequest request, String verifyLinkBaseUrl) {
         String username = normalizeAccount(request.getUsername());
         String email = normalizeEmail(request.getEmail());
         log.info("user register request received, username={}, email={}", username, maskEmail(email));
-        validateRegisterAvailability(username, email, REGISTER_SCENE_SUBMIT);
         try {
-            // 唯一性先校验，邮箱已验证状态后消费，避免重复账号导致有效验证状态被白白消耗。
-            registerVerificationService.consumeVerifiedEmail(email);
+            UserEntity user = savePendingRegisterUser(username, email, request.getPassword());
+            registerVerificationService.sendVerificationLink(email, verifyLinkBaseUrl);
+            log.info("user register activation mail sent, username={}, userId={}, status={}",
+                    user.getUsername(), user.getId(), user.getStatus());
         } catch (BusinessException exception) {
-            logRegisterFailure(REGISTER_SCENE_VERIFY_LINK, username, email, exception);
-            throw exception;
-        }
-        UserEntity user = new UserEntity();
-        user.setRecordCode("U" + System.currentTimeMillis());
-        user.setUsername(username);
-        user.setEmail(email);
-        user.setNickname(username);
-        user.setCountry("中国");
-        user.setPhonePrefix("86");
-        user.setNotifyAccount(1);
-        user.setNotifySystem(1);
-        user.setNotifyTodo(0);
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setStatus(CommonStatusConstants.ACTIVE);
-        user.setOwner(SystemConstants.REGISTER_OWNER);
-        user.setDescription(SystemConstants.REGISTER_DESCRIPTION);
-        // 当前 starter 使用初始化 SQL 中的运营中心部门和 viewer 角色作为注册用户默认归属。
-        user.setDepartmentId(DEFAULT_DEPARTMENT_ID);
-        user.setDeleted(0);
-        userMapper.insert(user);
-        userMapper.insertUserRole(user.getId(), DEFAULT_VIEWER_ROLE_ID);
-        log.info("user register success, username={}, roleCode={}", user.getUsername(), SystemConstants.VIEWER_ROLE_CODE);
-    }
-
-    /**
-     * 发送注册邮箱验证链接。邮件发送前先校验用户名和邮箱唯一性，避免用户完成验证后才发现账号不可用。
-     */
-    @Override
-    public void sendRegisterVerifyLink(String username, String email, String verifyLinkBaseUrl) {
-        String normalizedUsername = normalizeAccount(username);
-        String normalizedEmail = normalizeEmail(email);
-        log.info("register verify link request received, username={}, email={}",
-                normalizedUsername, maskEmail(normalizedEmail));
-        validateRegisterAvailability(normalizedUsername, normalizedEmail, REGISTER_SCENE_SEND_VERIFY_LINK);
-        try {
-            registerVerificationService.sendVerificationLink(normalizedEmail, verifyLinkBaseUrl);
-            log.info("register verify link request accepted, username={}, email={}",
-                    normalizedUsername, maskEmail(normalizedEmail));
-        } catch (BusinessException exception) {
-            logRegisterFailure(REGISTER_SCENE_SEND_VERIFY_LINK, normalizedUsername, normalizedEmail, exception);
+            logRegisterFailure(REGISTER_SCENE_SUBMIT, username, email, exception);
             throw exception;
         }
     }
 
     /**
-     * 校验注册邮箱验证链接。链接验证成功后写入短期已验证状态，后续注册提交会一次性消费。
+     * 校验注册账号激活链接。链接验证成功后把待激活账号切换为 active。
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void verifyRegisterEmail(String email, String token) {
         String normalizedEmail = normalizeEmail(email);
-        registerVerificationService.verifyLink(normalizedEmail, token);
+        try {
+            UserEntity pendingUser = userMapper.findByEmail(normalizedEmail);
+            if (pendingUser == null || !CommonStatusConstants.PENDING.equals(pendingUser.getStatus())) {
+                throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "待激活账号不存在或已激活");
+            }
+            registerVerificationService.verifyLink(normalizedEmail, token);
+            int updated = userMapper.activatePendingByEmail(normalizedEmail);
+            if (updated <= 0) {
+                throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "待激活账号不存在或已激活");
+            }
+            log.info("register account activated, email={}", maskEmail(normalizedEmail));
+        } catch (BusinessException exception) {
+            logRegisterFailure(REGISTER_SCENE_ACTIVATE, "", normalizedEmail, exception);
+            throw exception;
+        }
     }
 
     /**
@@ -316,19 +302,67 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         return email.trim().toLowerCase();
     }
 
-    private void validateRegisterAvailability(String username, String email, String scene) {
+    private UserEntity savePendingRegisterUser(String username, String email, String password) {
         UserEntity existedUser = userMapper.findByUsername(username);
-        if (existedUser != null) {
-            log.error("register availability check failed, scene={}, username={}, email={}, reason=username_exists",
-                    scene, username, maskEmail(email));
-            throw new BusinessException(ErrorCode.USERNAME_ALREADY_EXISTS);
-        }
         UserEntity existedEmailUser = userMapper.findByEmail(email);
-        if (existedEmailUser != null) {
-            log.error("register availability check failed, scene={}, username={}, email={}, reason=email_exists",
-                    scene, username, maskEmail(email));
-            throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        UserEntity pendingUser = resolveReusablePendingRegisterUser(username, email, existedUser, existedEmailUser);
+        String encodedPassword = passwordEncoder.encode(password);
+        if (pendingUser != null) {
+            userMapper.updatePendingRegistration(pendingUser.getId(), encodedPassword);
+            pendingUser.setPassword(encodedPassword);
+            log.info("pending register account refreshed, username={}, userId={}", username, pendingUser.getId());
+            return pendingUser;
         }
+        UserEntity user = new UserEntity();
+        user.setRecordCode(REGISTER_RECORD_CODE_PREFIX + System.currentTimeMillis());
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setNickname(username);
+        user.setCountry(DEFAULT_COUNTRY);
+        user.setPhonePrefix(DEFAULT_PHONE_PREFIX);
+        user.setNotifyAccount(ENABLED_FLAG);
+        user.setNotifySystem(ENABLED_FLAG);
+        user.setNotifyTodo(DISABLED_FLAG);
+        user.setPassword(encodedPassword);
+        user.setStatus(CommonStatusConstants.PENDING);
+        user.setOwner(SystemConstants.REGISTER_OWNER);
+        user.setDescription(SystemConstants.REGISTER_DESCRIPTION);
+        // 当前 starter 使用初始化 SQL 中的运营中心部门和 viewer 角色作为注册用户默认归属。
+        user.setDepartmentId(DEFAULT_DEPARTMENT_ID);
+        user.setDeleted(NOT_DELETED);
+        userMapper.insert(user);
+        userMapper.insertUserRole(user.getId(), DEFAULT_VIEWER_ROLE_ID);
+        log.info("pending register account created, username={}, userId={}, roleCode={}",
+                user.getUsername(), user.getId(), SystemConstants.VIEWER_ROLE_CODE);
+        return user;
+    }
+
+    private UserEntity resolveReusablePendingRegisterUser(String username, String email,
+                                                          UserEntity existedUser, UserEntity existedEmailUser) {
+        if (existedUser == null && existedEmailUser == null) {
+            return null;
+        }
+        if (existedUser != null && !email.equals(normalizeEmail(existedUser.getEmail()))) {
+            rejectRegisterAvailability(username, email, REGISTER_AVAILABILITY_USERNAME_EXISTS,
+                    ErrorCode.USERNAME_ALREADY_EXISTS);
+        }
+        if (existedEmailUser != null && !username.equals(normalizeAccount(existedEmailUser.getUsername()))) {
+            rejectRegisterAvailability(username, email, REGISTER_AVAILABILITY_EMAIL_EXISTS,
+                    ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
+        UserEntity existed = existedUser != null ? existedUser : existedEmailUser;
+        if (!CommonStatusConstants.PENDING.equals(existed.getStatus())) {
+            ErrorCode errorCode = existedUser != null ? ErrorCode.USERNAME_ALREADY_EXISTS : ErrorCode.EMAIL_ALREADY_EXISTS;
+            String reason = existedUser != null ? REGISTER_AVAILABILITY_USERNAME_EXISTS : REGISTER_AVAILABILITY_EMAIL_EXISTS;
+            rejectRegisterAvailability(username, email, reason, errorCode);
+        }
+        return existed;
+    }
+
+    private void rejectRegisterAvailability(String username, String email, String reason, ErrorCode errorCode) {
+        log.error("register availability check failed, scene={}, username={}, email={}, reason={}",
+                REGISTER_SCENE_SUBMIT, username, maskEmail(email), reason);
+        throw new BusinessException(errorCode);
     }
 
     private void logRegisterFailure(String scene, String username, String email, BusinessException exception) {

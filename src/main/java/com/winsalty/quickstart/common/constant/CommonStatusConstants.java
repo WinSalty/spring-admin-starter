@@ -9,6 +9,7 @@ public final class CommonStatusConstants {
 
     public static final String ACTIVE = "active";
     public static final String DISABLED = "disabled";
+    public static final String PENDING = "pending";
     public static final String DRAFT = "draft";
     public static final String EXPIRED = "expired";
 
