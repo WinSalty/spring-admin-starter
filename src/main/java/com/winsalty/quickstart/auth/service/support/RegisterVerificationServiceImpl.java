@@ -11,6 +11,10 @@ import org.springframework.util.StringUtils;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
@@ -18,8 +22,8 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * 注册验证码服务实现。
- * 使用 Redis 保存邮箱验证码摘要，验证码验证成功后立即删除，避免重复使用。
+ * 注册邮箱验证服务实现。
+ * 使用 Redis 保存邮箱验证链接 token 摘要，链接点击成功后写入短期已验证状态，注册提交时一次性消费。
  * 创建日期：2026-04-18
  * author：sunshengxian
  */
@@ -27,15 +31,26 @@ import java.util.Base64;
 public class RegisterVerificationServiceImpl implements RegisterVerificationService {
 
     private static final Logger log = LoggerFactory.getLogger(RegisterVerificationServiceImpl.class);
-    private static final long CODE_TTL_SECONDS = 300L;
+    private static final long LINK_TTL_SECONDS = 900L;
+    private static final long VERIFIED_TTL_SECONDS = 1800L;
     private static final long VERIFY_FAIL_LIMIT = 5L;
-    private static final int CODE_RANDOM_BOUND = 1000000;
-    private static final String CODE_FORMAT = "%06d";
-    private static final String CACHE_KEY_PREFIX = "sa:register:verify:";
+    private static final int TOKEN_BYTE_LENGTH = 32;
+    private static final String PENDING_KEY_PREFIX = "sa:register:verify-link:";
+    private static final String VERIFIED_KEY_PREFIX = "sa:register:verified:";
     private static final String FAIL_KEY_PREFIX = "sa:register:verify-fail:";
     private static final String HMAC_SHA256_ALGORITHM = "HmacSHA256";
-    private static final String VERIFY_CODE_SEPARATOR = ":";
+    private static final String VERIFY_TOKEN_SEPARATOR = ":";
+    private static final String REGISTER_PATH = "/register";
+    private static final String EMAIL_QUERY_PARAM = "email";
+    private static final String TOKEN_QUERY_PARAM = "token";
+    private static final String VERIFIED_CACHE_VALUE = "verified";
+    private static final String HTTP_SCHEME = "http";
+    private static final String HTTPS_SCHEME = "https";
     private static final char EMAIL_SEPARATOR = '@';
+    private static final char URL_PATH_SEPARATOR = '/';
+    private static final char URL_QUERY_PREFIX = '?';
+    private static final char URL_QUERY_SEPARATOR = '&';
+    private static final char URL_VALUE_SEPARATOR = '=';
     private static final String MASKED_VALUE = "***";
     private static final String SINGLE_CHAR_MASK = "*";
     private static final int SINGLE_CHARACTER_LENGTH = 1;
@@ -43,73 +58,103 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
     private final RedisCacheService redisCacheService;
     private final RegisterMailService registerMailService;
     private final SecureRandom random = new SecureRandom();
-    private final String verifyCodeHashSecret;
+    private final String verifyTokenHashSecret;
 
     public RegisterVerificationServiceImpl(RedisCacheService redisCacheService,
                                            RegisterMailService registerMailService,
-                                           @Value("${app.security.jwt-secret}") String verifyCodeHashSecret) {
+                                           @Value("${app.security.jwt-secret}") String verifyTokenHashSecret) {
         this.redisCacheService = redisCacheService;
         this.registerMailService = registerMailService;
-        if (!StringUtils.hasText(verifyCodeHashSecret)) {
-            throw new IllegalArgumentException("register verify code hash secret must not be blank");
+        if (!StringUtils.hasText(verifyTokenHashSecret)) {
+            throw new IllegalArgumentException("register verify token hash secret must not be blank");
         }
-        this.verifyCodeHashSecret = verifyCodeHashSecret;
+        this.verifyTokenHashSecret = verifyTokenHashSecret;
     }
 
     /**
-     * 生成 6 位数字验证码，邮件提交发送后再缓存 5 分钟。
+     * 生成一次性邮箱验证链接，邮件提交发送后缓存 token 摘要。
      */
     @Override
-    public void sendCode(String email) {
+    public void sendVerificationLink(String email, String verifyLinkBaseUrl) {
         if (!StringUtils.hasText(email)) {
             throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "邮箱不能为空");
         }
         if (!registerMailService.isEnabled()) {
-            throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_SEND_FAILED, "邮箱验证码服务未启用");
+            throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_SEND_FAILED, "邮箱验证服务未启用");
         }
         String normalizedEmail = normalizeEmail(email);
-        // SecureRandom 用于验证码，避免普通 Random 在高并发注册场景下可预测。
-        String code = String.format(CODE_FORMAT, random.nextInt(CODE_RANDOM_BOUND));
-        registerMailService.sendVerifyCode(normalizedEmail, code, CODE_TTL_SECONDS);
-        redisCacheService.set(buildKey(normalizedEmail), hashVerifyCode(normalizedEmail, code), CODE_TTL_SECONDS);
+        String token = generateToken();
+        String pendingKey = buildPendingKey(normalizedEmail);
+        redisCacheService.set(pendingKey, hashVerifyToken(normalizedEmail, token), LINK_TTL_SECONDS);
         redisCacheService.delete(buildFailKey(normalizedEmail));
-        log.info("register verify code queued, email={}", maskEmail(normalizedEmail));
+        redisCacheService.delete(buildVerifiedKey(normalizedEmail));
+        try {
+            registerMailService.sendVerificationLink(normalizedEmail,
+                    buildVerificationUrl(verifyLinkBaseUrl, normalizedEmail, token), LINK_TTL_SECONDS);
+        } catch (BusinessException exception) {
+            redisCacheService.delete(pendingKey);
+            throw exception;
+        } catch (RuntimeException exception) {
+            redisCacheService.delete(pendingKey);
+            throw exception;
+        }
+        log.info("register verification link queued, email={}", maskEmail(normalizedEmail));
     }
 
     /**
-     * 校验验证码并删除缓存。验证码不存在、过期、错误或错误次数过多都按同一业务码返回。
+     * 校验邮箱验证链接。验证成功后写入已验证状态，注册提交时再消费。
      */
     @Override
-    public void verifyCode(String email, String code) {
-        if (!StringUtils.hasText(email) || !StringUtils.hasText(code)) {
-            throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "邮箱验证码无效");
+    public void verifyLink(String email, String token) {
+        if (!StringUtils.hasText(email) || !StringUtils.hasText(token)) {
+            throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "邮箱验证链接无效");
         }
         String normalizedEmail = normalizeEmail(email);
-        String verifyKey = buildKey(normalizedEmail);
-        Object cached = redisCacheService.get(verifyKey);
+        String pendingKey = buildPendingKey(normalizedEmail);
+        Object cached = redisCacheService.get(pendingKey);
         if (!(cached instanceof String) || !StringUtils.hasText((String) cached)) {
-            throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "邮箱验证码不存在或已过期");
+            throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "邮箱验证链接不存在或已过期");
         }
         String expectedHash = String.valueOf(cached);
-        String actualHash = hashVerifyCode(normalizedEmail, code.trim());
+        String actualHash = hashVerifyToken(normalizedEmail, token.trim());
         if (!constantTimeEquals(expectedHash, actualHash)) {
-            recordVerifyFailure(normalizedEmail, verifyKey);
-            throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "邮箱验证码错误");
+            recordVerifyFailure(normalizedEmail, pendingKey);
+            throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "邮箱验证链接无效");
         }
-        redisCacheService.delete(verifyKey);
+        redisCacheService.set(buildVerifiedKey(normalizedEmail), VERIFIED_CACHE_VALUE, VERIFIED_TTL_SECONDS);
+        redisCacheService.delete(pendingKey);
         redisCacheService.delete(buildFailKey(normalizedEmail));
+        log.info("register email verified, email={}", maskEmail(normalizedEmail));
     }
 
-    private void recordVerifyFailure(String email, String verifyKey) {
+    /**
+     * 注册提交时消费已验证邮箱状态，避免同一验证结果被重复使用。
+     */
+    @Override
+    public void consumeVerifiedEmail(String email) {
+        if (!StringUtils.hasText(email)) {
+            throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "邮箱尚未完成验证");
+        }
+        String normalizedEmail = normalizeEmail(email);
+        String verifiedKey = buildVerifiedKey(normalizedEmail);
+        Object cached = redisCacheService.get(verifiedKey);
+        if (!VERIFIED_CACHE_VALUE.equals(cached)) {
+            throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "邮箱尚未完成验证或验证已过期");
+        }
+        redisCacheService.delete(verifiedKey);
+    }
+
+    private void recordVerifyFailure(String email, String pendingKey) {
         String failKey = buildFailKey(email);
         Long current = redisCacheService.increment(failKey);
         if (current != null && current == 1L) {
-            redisCacheService.expire(failKey, CODE_TTL_SECONDS);
+            redisCacheService.expire(failKey, LINK_TTL_SECONDS);
         }
         if (current != null && current >= VERIFY_FAIL_LIMIT) {
-            redisCacheService.delete(verifyKey);
+            redisCacheService.delete(pendingKey);
             redisCacheService.delete(failKey);
-            log.info("register verify code invalidated after repeated failures, email={}, failCount={}", maskEmail(email), current);
+            log.info("register verification link invalidated after repeated failures, email={}, failCount={}",
+                    maskEmail(email), current);
         }
     }
 
@@ -119,20 +164,73 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
         return MessageDigest.isEqual(expectedBytes, actualBytes);
     }
 
-    private String hashVerifyCode(String email, String code) {
+    private String hashVerifyToken(String email, String token) {
         try {
             Mac mac = Mac.getInstance(HMAC_SHA256_ALGORITHM);
-            SecretKeySpec keySpec = new SecretKeySpec(verifyCodeHashSecret.getBytes(StandardCharsets.UTF_8), HMAC_SHA256_ALGORITHM);
+            SecretKeySpec keySpec = new SecretKeySpec(verifyTokenHashSecret.getBytes(StandardCharsets.UTF_8),
+                    HMAC_SHA256_ALGORITHM);
             mac.init(keySpec);
-            byte[] digest = mac.doFinal((email + VERIFY_CODE_SEPARATOR + code).getBytes(StandardCharsets.UTF_8));
+            byte[] digest = mac.doFinal((email + VERIFY_TOKEN_SEPARATOR + token).getBytes(StandardCharsets.UTF_8));
             return Base64.getEncoder().encodeToString(digest);
         } catch (GeneralSecurityException exception) {
-            throw new IllegalStateException("register verify code hash failed", exception);
+            throw new IllegalStateException("register verify token hash failed", exception);
         }
     }
 
-    private String buildKey(String email) {
-        return CACHE_KEY_PREFIX + normalizeEmail(email);
+    private String generateToken() {
+        byte[] bytes = new byte[TOKEN_BYTE_LENGTH];
+        random.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private String buildVerificationUrl(String verifyLinkBaseUrl, String email, String token) {
+        String baseUrl = normalizeVerifyLinkBaseUrl(verifyLinkBaseUrl);
+        return baseUrl + REGISTER_PATH
+                + URL_QUERY_PREFIX + EMAIL_QUERY_PARAM + URL_VALUE_SEPARATOR + encodeQueryValue(email)
+                + URL_QUERY_SEPARATOR + TOKEN_QUERY_PARAM + URL_VALUE_SEPARATOR + encodeQueryValue(token);
+    }
+
+    private String normalizeVerifyLinkBaseUrl(String value) {
+        if (!StringUtils.hasText(value)) {
+            throw new BusinessException(ErrorCode.MAIL_SEND_FAILED, "注册验证链接基础地址未配置");
+        }
+        String trimmed = value.trim();
+        validateHttpUrl(trimmed);
+        while (trimmed.charAt(trimmed.length() - SINGLE_CHARACTER_LENGTH) == URL_PATH_SEPARATOR) {
+            trimmed = trimmed.substring(0, trimmed.length() - SINGLE_CHARACTER_LENGTH);
+        }
+        return trimmed;
+    }
+
+    private void validateHttpUrl(String value) {
+        try {
+            URI uri = new URI(value);
+            String scheme = uri.getScheme();
+            if (!HTTP_SCHEME.equalsIgnoreCase(scheme) && !HTTPS_SCHEME.equalsIgnoreCase(scheme)) {
+                throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "注册验证链接协议不支持");
+            }
+            if (!StringUtils.hasText(uri.getHost())) {
+                throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "注册验证链接格式不正确");
+            }
+        } catch (URISyntaxException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "注册验证链接格式不正确");
+        }
+    }
+
+    private String encodeQueryValue(String value) {
+        try {
+            return URLEncoder.encode(value, StandardCharsets.UTF_8.name());
+        } catch (UnsupportedEncodingException exception) {
+            throw new IllegalStateException("url encode failed", exception);
+        }
+    }
+
+    private String buildPendingKey(String email) {
+        return PENDING_KEY_PREFIX + normalizeEmail(email);
+    }
+
+    private String buildVerifiedKey(String email) {
+        return VERIFIED_KEY_PREFIX + normalizeEmail(email);
     }
 
     private String buildFailKey(String email) {

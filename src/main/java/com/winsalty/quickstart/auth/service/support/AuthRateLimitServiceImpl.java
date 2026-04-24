@@ -129,7 +129,7 @@ public class AuthRateLimitServiceImpl implements AuthRateLimitService {
     }
 
     /**
-     * 验证码入口同时按 IP 和邮箱维度限流，避免单邮箱轰炸和单 IP 批量攻击。
+     * 注册邮箱验证邮件入口同时按 IP 和邮箱维度限流，避免单邮箱轰炸和单 IP 批量攻击。
      */
     @Override
     public void checkRegisterVerifyCode(String email, String clientIp) {

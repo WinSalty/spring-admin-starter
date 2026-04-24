@@ -26,6 +26,7 @@ public class StandardMailTemplateService implements MailTemplateService {
     private static final String DEFAULT_CARD_BACKGROUND_COLOR = "#ffffff";
     private static final String PRIMARY_SOFT_COLOR = "#e6f4ff";
     private static final String PRIMARY_BORDER_COLOR = "#d6e4ff";
+    private static final String CARD_BORDER_COLOR = "#e6edf7";
     private static final String PANEL_BACKGROUND_COLOR = "#f7fbff";
     private static final String TEXT_PRIMARY_COLOR = "#262626";
     private static final String TEXT_SECONDARY_COLOR = "#595959";
@@ -97,21 +98,21 @@ public class StandardMailTemplateService implements MailTemplateService {
                 .append("<tr><td align=\"center\">")
                 .append("<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"max-width:640px;background:")
                 .append(cardBackgroundColor)
-                .append(";border:1px solid ").append(PRIMARY_BORDER_COLOR)
-                .append(";border-radius:18px;overflow:hidden;box-shadow:0 20px 48px rgba(22,119,255,0.12);\">")
+                .append(";border:1px solid ").append(CARD_BORDER_COLOR)
+                .append(";border-radius:18px;overflow:hidden;box-shadow:0 22px 52px rgba(24,39,75,0.12);\">")
                 .append("<tr><td style=\"padding:0;background:")
                 .append(cardBackgroundColor).append(";\">")
                 .append("<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"background:")
                 .append(PANEL_BACKGROUND_COLOR)
-                .append(";background-image:linear-gradient(145deg,#eef5ff 0%,#f5f7fb 54%,#ffffff 100%);\">")
+                .append(";background-image:linear-gradient(145deg,#eef5ff 0%,#f7fbff 48%,#ffffff 100%);\">")
                 .append("<tr><td style=\"padding:24px 28px 20px;\">")
                 .append("<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\">")
                 .append("<tr>")
                 .append("<td style=\"vertical-align:middle;\">")
                 .append("<div style=\"display:inline-block;width:44px;height:44px;line-height:44px;text-align:center;")
                 .append("border-radius:14px;background:linear-gradient(135deg,")
-                .append(primaryColor).append(",#4096ff);color:#ffffff;font-size:16px;font-weight:700;")
-                .append("box-shadow:0 16px 30px rgba(22,119,255,0.20);\">")
+                .append(primaryColor).append(",#36cfc9);color:#ffffff;font-size:16px;font-weight:700;")
+                .append("box-shadow:0 16px 30px rgba(22,119,255,0.18);\">")
                 .append(resolveBrandMark(brandName)).append("</div>")
                 .append("</td>")
                 .append("<td align=\"right\" style=\"vertical-align:middle;\">")
@@ -168,11 +169,13 @@ public class StandardMailTemplateService implements MailTemplateService {
                     .append("<a href=\"").append(escapeHtmlAttribute(actionUrl))
                     .append("\" style=\"display:inline-block;padding:13px 24px;border-radius:10px;")
                     .append("background:").append(primaryColor)
-                    .append(";color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;\">")
+                    .append(";color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;")
+                    .append("min-width:180px;text-align:center;box-shadow:0 12px 24px rgba(22,119,255,0.22);\">")
                     .append(escapeHtml(template.getActionText().trim()))
                     .append("</a></div>")
                     .append("<div style=\"font-size:12px;color:").append(TEXT_MUTED_COLOR)
-                    .append(";line-height:1.75;word-break:break-all;\">")
+                    .append(";line-height:1.75;word-break:break-all;background:#f7f9fc;border:1px solid #edf1f7;")
+                    .append("border-radius:10px;padding:10px 12px;\">")
                     .append(escapeHtml(actionUrl))
                     .append("</div>");
         }

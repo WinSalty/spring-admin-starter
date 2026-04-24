@@ -8,6 +8,7 @@ import com.winsalty.quickstart.auth.dto.ProfileUpdateRequest;
 import com.winsalty.quickstart.auth.dto.RefreshTokenRequest;
 import com.winsalty.quickstart.auth.dto.RegisterRequest;
 import com.winsalty.quickstart.auth.dto.RegisterVerifyCodeRequest;
+import com.winsalty.quickstart.auth.dto.RegisterVerifyLinkRequest;
 import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.auth.service.AuthService;
 import com.winsalty.quickstart.auth.service.support.AuthRateLimitService;
@@ -47,6 +48,9 @@ public class AuthController extends BaseController {
 
     @Value("${app.security.register-enabled:false}")
     private boolean registerEnabled;
+
+    @Value("${app.mail.register.verify-link-base-url:http://localhost:5173}")
+    private String registerVerifyLinkBaseUrl;
 
     public AuthController(AuthService authService, AuthRateLimitService authRateLimitService) {
         this.authService = authService;
@@ -107,7 +111,7 @@ public class AuthController extends BaseController {
     }
 
     /**
-     * 注册验证码发送入口。未注册用户必须能匿名访问，但必须随注册开关一起关闭。
+     * 注册邮箱验证邮件发送入口。未注册用户必须能匿名访问，但必须随注册开关一起关闭。
      */
     @PostMapping("/register/verify-code")
     public ApiResponse<Object> registerVerifyCode(@Validated @RequestBody RegisterVerifyCodeRequest request,
@@ -116,8 +120,20 @@ public class AuthController extends BaseController {
             throw new BusinessException(ErrorCode.REGISTER_DISABLED);
         }
         authRateLimitService.checkRegisterVerifyCode(request.getEmail(), IpUtils.getClientIp(servletRequest));
-        authService.sendRegisterVerifyCode(request.getUsername(), request.getEmail());
-        return ApiResponse.success("验证码已提交发送", null);
+        authService.sendRegisterVerifyLink(request.getUsername(), request.getEmail(), registerVerifyLinkBaseUrl);
+        return ApiResponse.success("验证邮件已提交发送", null);
+    }
+
+    /**
+     * 注册邮箱验证链接回调入口。点击邮件链接后的前端页面调用本接口完成邮箱验证。
+     */
+    @PostMapping("/register/verify-link")
+    public ApiResponse<Object> registerVerifyLink(@Validated @RequestBody RegisterVerifyLinkRequest request) {
+        if (!registerEnabled) {
+            throw new BusinessException(ErrorCode.REGISTER_DISABLED);
+        }
+        authService.verifyRegisterEmail(request.getEmail(), request.getToken());
+        return ApiResponse.success("邮箱验证成功", null);
     }
 
     @GetMapping("/profile")

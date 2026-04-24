@@ -43,9 +43,9 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
     private static final long DEFAULT_DEPARTMENT_ID = 2L;
     private static final long DEFAULT_VIEWER_ROLE_ID = 2L;
-    private static final String REGISTER_SCENE_SEND_VERIFY_CODE = "send-verify-code";
+    private static final String REGISTER_SCENE_SEND_VERIFY_LINK = "send-verify-link";
     private static final String REGISTER_SCENE_SUBMIT = "submit-register";
-    private static final String REGISTER_SCENE_VERIFY_CODE = "verify-code";
+    private static final String REGISTER_SCENE_VERIFY_LINK = "verify-link";
     private static final String MASKED_VALUE = "***";
     private static final String SINGLE_CHAR_MASK = "*";
     private static final char EMAIL_SEPARATOR = '@';
@@ -155,10 +155,10 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         log.info("user register request received, username={}, email={}", username, maskEmail(email));
         validateRegisterAvailability(username, email, REGISTER_SCENE_SUBMIT);
         try {
-            // 唯一性先校验，验证码后消费，避免重复账号导致有效验证码被白白消耗。
-            registerVerificationService.verifyCode(email, request.getVerifyCode());
+            // 唯一性先校验，邮箱已验证状态后消费，避免重复账号导致有效验证状态被白白消耗。
+            registerVerificationService.consumeVerifiedEmail(email);
         } catch (BusinessException exception) {
-            logRegisterFailure(REGISTER_SCENE_VERIFY_CODE, username, email, exception);
+            logRegisterFailure(REGISTER_SCENE_VERIFY_LINK, username, email, exception);
             throw exception;
         }
         UserEntity user = new UserEntity();
@@ -184,23 +184,32 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     }
 
     /**
-     * 发送注册验证码并写入 Redis。验证码发送前先校验用户名和邮箱唯一性，避免用户填完验证码后才发现账号不可用。
+     * 发送注册邮箱验证链接。邮件发送前先校验用户名和邮箱唯一性，避免用户完成验证后才发现账号不可用。
      */
     @Override
-    public void sendRegisterVerifyCode(String username, String email) {
+    public void sendRegisterVerifyLink(String username, String email, String verifyLinkBaseUrl) {
         String normalizedUsername = normalizeAccount(username);
         String normalizedEmail = normalizeEmail(email);
-        log.info("register verify code request received, username={}, email={}",
+        log.info("register verify link request received, username={}, email={}",
                 normalizedUsername, maskEmail(normalizedEmail));
-        validateRegisterAvailability(normalizedUsername, normalizedEmail, REGISTER_SCENE_SEND_VERIFY_CODE);
+        validateRegisterAvailability(normalizedUsername, normalizedEmail, REGISTER_SCENE_SEND_VERIFY_LINK);
         try {
-            registerVerificationService.sendCode(normalizedEmail);
-            log.info("register verify code request accepted, username={}, email={}",
+            registerVerificationService.sendVerificationLink(normalizedEmail, verifyLinkBaseUrl);
+            log.info("register verify link request accepted, username={}, email={}",
                     normalizedUsername, maskEmail(normalizedEmail));
         } catch (BusinessException exception) {
-            logRegisterFailure(REGISTER_SCENE_SEND_VERIFY_CODE, normalizedUsername, normalizedEmail, exception);
+            logRegisterFailure(REGISTER_SCENE_SEND_VERIFY_LINK, normalizedUsername, normalizedEmail, exception);
             throw exception;
         }
+    }
+
+    /**
+     * 校验注册邮箱验证链接。链接验证成功后写入短期已验证状态，后续注册提交会一次性消费。
+     */
+    @Override
+    public void verifyRegisterEmail(String email, String token) {
+        String normalizedEmail = normalizeEmail(email);
+        registerVerificationService.verifyLink(normalizedEmail, token);
     }
 
     /**

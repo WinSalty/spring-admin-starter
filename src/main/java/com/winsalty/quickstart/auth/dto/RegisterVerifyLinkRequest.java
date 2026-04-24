@@ -6,18 +6,18 @@ import javax.validation.constraints.Email;
 import javax.validation.constraints.NotBlank;
 
 /**
- * 注册邮箱验证邮件发送请求对象。
- * 使用请求体承载用户名和邮箱，避免 GET query 泄露邮箱并明确接口具备发送副作用。
+ * 注册邮箱验证链接请求对象。
+ * 承载邮件链接中的邮箱和一次性 token，由前端回调后端完成验证。
  * 创建日期：2026-04-24
  * author：sunshengxian
  */
 @Data
-public class RegisterVerifyCodeRequest {
-
-    @NotBlank(message = "用户名不能为空")
-    private String username;
+public class RegisterVerifyLinkRequest {
 
     @Email(message = "邮箱格式不正确")
     @NotBlank(message = "邮箱不能为空")
     private String email;
+
+    @NotBlank(message = "邮箱验证 token 不能为空")
+    private String token;
 }

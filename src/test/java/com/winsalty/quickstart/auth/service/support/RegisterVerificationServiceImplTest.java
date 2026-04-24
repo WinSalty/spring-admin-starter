@@ -5,6 +5,8 @@ import com.winsalty.quickstart.infra.cache.RedisCacheService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.net.URI;
+
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -17,8 +19,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 注册验证码服务测试。
- * 覆盖验证码摘要存储、成功消费删除和错误次数达到阈值后的失效逻辑。
+ * 注册邮箱验证服务测试。
+ * 覆盖验证链接 token 摘要存储、链接验证成功、已验证状态消费和错误次数达到阈值后的失效逻辑。
  * 创建日期：2026-04-24
  * author：sunshengxian
  */
@@ -26,76 +28,100 @@ class RegisterVerificationServiceImplTest {
 
     private static final String RAW_EMAIL = " Test@Example.com ";
     private static final String NORMALIZED_EMAIL = "test@example.com";
-    private static final String VERIFY_KEY = "sa:register:verify:test@example.com";
+    private static final String VERIFY_BASE_URL = "http://localhost:5173";
+    private static final String PENDING_KEY = "sa:register:verify-link:test@example.com";
+    private static final String VERIFIED_KEY = "sa:register:verified:test@example.com";
     private static final String FAIL_KEY = "sa:register:verify-fail:test@example.com";
     private static final String HASH_SECRET = "unit-test-register-verify-secret";
-    private static final long CODE_TTL_SECONDS = 300L;
-    private static final String WRONG_CODE = "000000";
+    private static final long LINK_TTL_SECONDS = 900L;
+    private static final long VERIFIED_TTL_SECONDS = 1800L;
+    private static final String VERIFIED_CACHE_VALUE = "verified";
+    private static final String WRONG_TOKEN = "wrong-token";
 
     @Test
-    void sendCodeStoresHashInsteadOfPlainTextCode() {
+    void sendVerificationLinkStoresHashInsteadOfPlainTextToken() throws Exception {
         RedisCacheService redisCacheService = mock(RedisCacheService.class);
         RegisterMailService registerMailService = enabledRegisterMailService();
         RegisterVerificationServiceImpl service = new RegisterVerificationServiceImpl(
                 redisCacheService, registerMailService, HASH_SECRET);
 
-        service.sendCode(RAW_EMAIL);
+        service.sendVerificationLink(RAW_EMAIL, VERIFY_BASE_URL);
 
-        ArgumentCaptor<String> codeCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Object> cacheValueCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(registerMailService).sendVerifyCode(eq(NORMALIZED_EMAIL), codeCaptor.capture(), eq(CODE_TTL_SECONDS));
-        verify(redisCacheService).set(eq(VERIFY_KEY), cacheValueCaptor.capture(), eq(CODE_TTL_SECONDS));
+        verify(registerMailService).sendVerificationLink(eq(NORMALIZED_EMAIL), urlCaptor.capture(),
+                eq(LINK_TTL_SECONDS));
+        verify(redisCacheService).set(eq(PENDING_KEY), cacheValueCaptor.capture(), eq(LINK_TTL_SECONDS));
         verify(redisCacheService).delete(FAIL_KEY);
-        assertTrue(codeCaptor.getValue().matches("\\d{6}"));
-        assertNotEquals(codeCaptor.getValue(), cacheValueCaptor.getValue());
-        assertTrue(String.valueOf(cacheValueCaptor.getValue()).length() > codeCaptor.getValue().length());
+        verify(redisCacheService).delete(VERIFIED_KEY);
+        String token = extractToken(urlCaptor.getValue());
+        assertTrue(urlCaptor.getValue().startsWith(VERIFY_BASE_URL + "/register?"));
+        assertTrue(urlCaptor.getValue().contains("email=test%40example.com"));
+        assertTrue(token.length() > 32);
+        assertNotEquals(token, cacheValueCaptor.getValue());
+        assertTrue(String.valueOf(cacheValueCaptor.getValue()).length() > token.length());
     }
 
     @Test
-    void verifyCodeDeletesVerifyAndFailKeysWhenCodeMatches() {
+    void verifyLinkWritesVerifiedStateWhenTokenMatches() {
         RedisCacheService redisCacheService = mock(RedisCacheService.class);
         RegisterMailService registerMailService = enabledRegisterMailService();
         RegisterVerificationServiceImpl service = new RegisterVerificationServiceImpl(
                 redisCacheService, registerMailService, HASH_SECRET);
-        SentCode sentCode = sendAndCapture(service, redisCacheService, registerMailService);
+        SentLink sentLink = sendAndCapture(service, redisCacheService, registerMailService);
         clearInvocations(redisCacheService, registerMailService);
-        when(redisCacheService.get(VERIFY_KEY)).thenReturn(sentCode.cachedHash);
+        when(redisCacheService.get(PENDING_KEY)).thenReturn(sentLink.cachedHash);
 
-        service.verifyCode(NORMALIZED_EMAIL, sentCode.plainCode);
+        service.verifyLink(NORMALIZED_EMAIL, sentLink.plainToken);
 
-        verify(redisCacheService).delete(VERIFY_KEY);
+        verify(redisCacheService).set(VERIFIED_KEY, VERIFIED_CACHE_VALUE, VERIFIED_TTL_SECONDS);
+        verify(redisCacheService).delete(PENDING_KEY);
         verify(redisCacheService).delete(FAIL_KEY);
         verify(redisCacheService, never()).increment(FAIL_KEY);
     }
 
     @Test
-    void verifyCodeDeletesKeysWhenFailureLimitReached() {
+    void consumeVerifiedEmailDeletesVerifiedState() {
         RedisCacheService redisCacheService = mock(RedisCacheService.class);
         RegisterMailService registerMailService = enabledRegisterMailService();
         RegisterVerificationServiceImpl service = new RegisterVerificationServiceImpl(
                 redisCacheService, registerMailService, HASH_SECRET);
-        SentCode sentCode = sendAndCapture(service, redisCacheService, registerMailService);
+        when(redisCacheService.get(VERIFIED_KEY)).thenReturn(VERIFIED_CACHE_VALUE);
+
+        service.consumeVerifiedEmail(NORMALIZED_EMAIL);
+
+        verify(redisCacheService).delete(VERIFIED_KEY);
+    }
+
+    @Test
+    void verifyLinkDeletesKeysWhenFailureLimitReached() {
+        RedisCacheService redisCacheService = mock(RedisCacheService.class);
+        RegisterMailService registerMailService = enabledRegisterMailService();
+        RegisterVerificationServiceImpl service = new RegisterVerificationServiceImpl(
+                redisCacheService, registerMailService, HASH_SECRET);
+        SentLink sentLink = sendAndCapture(service, redisCacheService, registerMailService);
         clearInvocations(redisCacheService, registerMailService);
-        when(redisCacheService.get(VERIFY_KEY)).thenReturn(sentCode.cachedHash);
+        when(redisCacheService.get(PENDING_KEY)).thenReturn(sentLink.cachedHash);
         when(redisCacheService.increment(FAIL_KEY)).thenReturn(5L);
 
-        assertThrows(BusinessException.class, () -> service.verifyCode(NORMALIZED_EMAIL, WRONG_CODE));
+        assertThrows(BusinessException.class, () -> service.verifyLink(NORMALIZED_EMAIL, WRONG_TOKEN));
 
-        verify(redisCacheService).delete(VERIFY_KEY);
+        verify(redisCacheService).delete(PENDING_KEY);
         verify(redisCacheService).delete(FAIL_KEY);
     }
 
     @Test
-    void sendCodeRejectsWhenRegisterMailDisabled() {
+    void sendVerificationLinkRejectsWhenRegisterMailDisabled() {
         RedisCacheService redisCacheService = mock(RedisCacheService.class);
         RegisterMailService registerMailService = mock(RegisterMailService.class);
         when(registerMailService.isEnabled()).thenReturn(false);
         RegisterVerificationServiceImpl service = new RegisterVerificationServiceImpl(
                 redisCacheService, registerMailService, HASH_SECRET);
 
-        assertThrows(BusinessException.class, () -> service.sendCode(NORMALIZED_EMAIL));
+        assertThrows(BusinessException.class, () -> service.sendVerificationLink(NORMALIZED_EMAIL, VERIFY_BASE_URL));
 
-        verify(registerMailService, never()).sendVerifyCode(eq(NORMALIZED_EMAIL), anyString(), eq(CODE_TTL_SECONDS));
+        verify(registerMailService, never()).sendVerificationLink(eq(NORMALIZED_EMAIL), anyString(),
+                eq(LINK_TTL_SECONDS));
     }
 
     private RegisterMailService enabledRegisterMailService() {
@@ -104,24 +130,36 @@ class RegisterVerificationServiceImplTest {
         return registerMailService;
     }
 
-    private SentCode sendAndCapture(RegisterVerificationServiceImpl service,
+    private SentLink sendAndCapture(RegisterVerificationServiceImpl service,
                                     RedisCacheService redisCacheService,
                                     RegisterMailService registerMailService) {
-        service.sendCode(NORMALIZED_EMAIL);
-        ArgumentCaptor<String> codeCaptor = ArgumentCaptor.forClass(String.class);
+        service.sendVerificationLink(NORMALIZED_EMAIL, VERIFY_BASE_URL);
+        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Object> cacheValueCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(registerMailService).sendVerifyCode(eq(NORMALIZED_EMAIL), codeCaptor.capture(), eq(CODE_TTL_SECONDS));
-        verify(redisCacheService).set(eq(VERIFY_KEY), cacheValueCaptor.capture(), eq(CODE_TTL_SECONDS));
-        return new SentCode(codeCaptor.getValue(), String.valueOf(cacheValueCaptor.getValue()));
+        verify(registerMailService).sendVerificationLink(eq(NORMALIZED_EMAIL), urlCaptor.capture(),
+                eq(LINK_TTL_SECONDS));
+        verify(redisCacheService).set(eq(PENDING_KEY), cacheValueCaptor.capture(), eq(LINK_TTL_SECONDS));
+        return new SentLink(extractToken(urlCaptor.getValue()), String.valueOf(cacheValueCaptor.getValue()));
     }
 
-    private static class SentCode {
+    private String extractToken(String verificationUrl) {
+        String query = URI.create(verificationUrl).getQuery();
+        String[] pairs = query.split("&");
+        for (String pair : pairs) {
+            if (pair.startsWith("token=")) {
+                return pair.substring("token=".length());
+            }
+        }
+        throw new IllegalStateException("token missing");
+    }
 
-        private final String plainCode;
+    private static class SentLink {
+
+        private final String plainToken;
         private final String cachedHash;
 
-        private SentCode(String plainCode, String cachedHash) {
-            this.plainCode = plainCode;
+        private SentLink(String plainToken, String cachedHash) {
+            this.plainToken = plainToken;
             this.cachedHash = cachedHash;
         }
     }

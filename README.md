@@ -67,7 +67,7 @@
 | 刷新令牌 | `/api/auth/refresh-token`，支持 refresh token 轮换 |
 | 退出登录 | `/api/auth/logout`，基于 Redis 失效当前会话 |
 | 注册 | `/api/auth/register`，仅 `dev` 环境默认开放，且一个邮箱仅允许注册一个账号 |
-| 注册验证码 | `POST /api/auth/register/verify-code`，基于邮件发送，随注册开关联动关闭 |
+| 注册邮箱验证 | `POST /api/auth/register/verify-code` 发送验证邮件，`POST /api/auth/register/verify-link` 校验邮件链接，随注册开关联动关闭 |
 | 个人中心 | `/api/auth/profile`、资料修改、密码修改、通知设置 |
 | 登录限流 | 基于账号/IP 的匿名接口限流 |
 | JWT 安全校验 | 生产环境要求外部注入强密钥 |
@@ -359,12 +359,13 @@ app:
       card-background-color: ${APP_MAIL_TEMPLATE_CARD_BACKGROUND_COLOR:#ffffff}
     register:
       enabled: ${MAIL_REGISTER_ENABLED:true}
-      subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 注册验证码}
+      subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 注册验证}
+      verify-link-base-url: ${MAIL_REGISTER_VERIFY_LINK_BASE_URL:http://localhost:5173}
 ```
 
-邮件能力已升级为通用服务，当前内置的注册验证码邮件只是其中一个业务实现。项目内其他业务模块可以直接注入 `com.winsalty.quickstart.infra.mail.MailService` 发送文本或 HTML 邮件，不需要关心底层使用 SMTP 还是阿里云 DirectMail。系统同时内置了统一的卡片式 HTML 邮件模板，默认对齐 `react-admin-starter` 的浅色品牌风格与文案语气，默认品牌名为 `React Admin Starter`，并自动附带纯文本 fallback，兼容只支持纯文本的客户端。
+邮件能力已升级为通用服务，当前内置的注册邮箱验证邮件只是其中一个业务实现。项目内其他业务模块可以直接注入 `com.winsalty.quickstart.infra.mail.MailService` 发送文本或 HTML 邮件，不需要关心底层使用 SMTP 还是阿里云 DirectMail。系统同时内置了统一的卡片式 HTML 邮件模板，默认对齐 `react-admin-starter` 的浅色品牌风格与文案语气，默认品牌名为 `React Admin Starter`，并自动附带纯文本 fallback，兼容只支持纯文本的客户端。
 
-注册验证码发送接口使用 `POST /api/auth/register/verify-code`，请求体为 `{"username":"new-user","email":"user@example.com"}`。接口不再使用 GET query 传递邮箱，避免代理日志、浏览器历史或链路追踪系统记录明文邮箱。发送验证码前会先校验用户名和邮箱是否已存在，避免用户填完验证码后才发现账号不可用。
+注册邮箱验证邮件发送接口使用 `POST /api/auth/register/verify-code`，请求体为 `{"username":"new-user","email":"user@example.com"}`。接口不再使用 GET query 传递邮箱，避免代理日志、浏览器历史或链路追踪系统记录明文邮箱。发送验证邮件前会先校验用户名和邮箱是否已存在，避免用户点击邮件链接后才发现账号不可用。用户点击邮件中的链接后，前端调用 `POST /api/auth/register/verify-link` 完成邮箱验证，后续 `/api/auth/register` 注册提交会一次性消费该邮箱的已验证状态。
 
 通用邮件服务使用示例：
 
@@ -415,10 +416,10 @@ public class WorkflowMailService {
 当前邮件开关分为三层：
 
 1. `app.mail.enabled`：控制整个项目的通用邮件服务是否启用。
-2. `app.mail.register.enabled`：只控制注册验证码邮件是否启用。
+2. `app.mail.register.enabled`：只控制注册邮箱验证邮件是否启用。
 3. `app.mail.aliyun.enabled`：控制是否使用阿里云 DirectMail API；默认 `false` 时使用 SMTP。
 
-`prod` profile 中 `app.mail.register.enabled` 默认值为 `false`，即使通用邮件服务可用，也不会自动开放注册验证码邮件。若生产环境确需开放自助注册，需要同时显式开启 `APP_SECURITY_REGISTER_ENABLED=true` 和 `MAIL_REGISTER_ENABLED=true`。
+`prod` profile 中 `app.mail.register.enabled` 默认值为 `false`，即使通用邮件服务可用，也不会自动开放注册邮箱验证邮件。若生产环境确需开放自助注册，需要同时显式开启 `APP_SECURITY_REGISTER_ENABLED=true`、`MAIL_REGISTER_ENABLED=true`，并把 `MAIL_REGISTER_VERIFY_LINK_BASE_URL` 配置为前端站点地址。
 
 通用邮件发送使用有界线程池异步提交远端发送任务，并配置 SMTP 或阿里云 SDK 超时，避免邮件服务慢调用长期占用 Web 请求线程。邮件发送日志只记录脱敏收件人和主题指纹，不记录明文邮箱主题。
 
@@ -432,8 +433,9 @@ public class WorkflowMailService {
 | `MAIL_PASSWORD` | SMTP 密码或授权码 | 是 |
 | `MAIL_FROM` | 发件人地址，不配置时默认取 `MAIL_USERNAME` | 否 |
 | `MAIL_ENABLED` | 通用邮件服务总开关 | 否 |
-| `MAIL_REGISTER_ENABLED` | 注册验证码邮件开关 | 否 |
-| `MAIL_REGISTER_SUBJECT` | 注册验证码邮件主题 | 否 |
+| `MAIL_REGISTER_ENABLED` | 注册邮箱验证邮件开关 | 否 |
+| `MAIL_REGISTER_SUBJECT` | 注册邮箱验证邮件主题 | 否 |
+| `MAIL_REGISTER_VERIFY_LINK_BASE_URL` | 邮件验证链接使用的前端站点地址，例如 `https://admin.example.com` | 生产环境必填 |
 | `MAIL_SMTP_AUTH` | 是否开启 SMTP 鉴权 | 否 |
 | `MAIL_SMTP_STARTTLS_ENABLE` | 是否开启 STARTTLS，默认 `false` | 否 |
 | `MAIL_SMTP_STARTTLS_REQUIRED` | 是否强制要求 STARTTLS | 否 |
@@ -476,7 +478,8 @@ export MAIL_USERNAME='winsalty@163.com'
 export MAIL_PASSWORD='replace-with-163-auth-code'
 export MAIL_FROM='winsalty@163.com'
 export MAIL_REGISTER_ENABLED=true
-export MAIL_REGISTER_SUBJECT='Spring Admin 注册验证码'
+export MAIL_REGISTER_SUBJECT='Spring Admin 注册验证'
+export MAIL_REGISTER_VERIFY_LINK_BASE_URL='http://localhost:5173'
 export MAIL_SMTP_AUTH=true
 export MAIL_SMTP_STARTTLS_ENABLE=false
 export MAIL_SMTP_STARTTLS_REQUIRED=false
@@ -506,6 +509,7 @@ export ALIYUN_MAIL_TAG_NAME=register
 export ALIYUN_MAIL_CLICK_TRACE=0
 export MAIL_FROM=notice@example.com
 export MAIL_REGISTER_ENABLED=true
+export MAIL_REGISTER_VERIFY_LINK_BASE_URL=https://admin.example.com
 ```
 
 启用阿里云邮件后，`MailService` 会使用阿里云 `SingleSendMail` API 发送文本和 HTML 邮件；未启用时继续使用默认 SMTP。阿里云发信地址必须先在邮件推送控制台配置并验证通过，AccessKey 建议使用只授予 `dm:SingleSendMail` 权限的 RAM 用户。
@@ -513,16 +517,16 @@ export MAIL_REGISTER_ENABLED=true
 IDEA Run Configuration 可以直接使用如下环境变量串：
 
 ```text
-MAIL_HOST=smtp.163.com;MAIL_PORT=465;MAIL_USERNAME=winsalty@163.com;MAIL_PASSWORD=replace-with-163-auth-code;MAIL_FROM=winsalty@163.com;MAIL_REGISTER_ENABLED=true;MAIL_REGISTER_SUBJECT=Spring Admin 注册验证码;MAIL_SMTP_AUTH=true;MAIL_SMTP_STARTTLS_ENABLE=false;MAIL_SMTP_STARTTLS_REQUIRED=false;MAIL_SMTP_SSL_ENABLE=true;MAIL_SMTP_CONNECTION_TIMEOUT=5000;MAIL_SMTP_READ_TIMEOUT=5000;MAIL_SMTP_WRITE_TIMEOUT=5000
+MAIL_HOST=smtp.163.com;MAIL_PORT=465;MAIL_USERNAME=winsalty@163.com;MAIL_PASSWORD=replace-with-163-auth-code;MAIL_FROM=winsalty@163.com;MAIL_REGISTER_ENABLED=true;MAIL_REGISTER_SUBJECT=Spring Admin 注册验证;MAIL_REGISTER_VERIFY_LINK_BASE_URL=http://localhost:5173;MAIL_SMTP_AUTH=true;MAIL_SMTP_STARTTLS_ENABLE=false;MAIL_SMTP_STARTTLS_REQUIRED=false;MAIL_SMTP_SSL_ENABLE=true;MAIL_SMTP_CONNECTION_TIMEOUT=5000;MAIL_SMTP_READ_TIMEOUT=5000;MAIL_SMTP_WRITE_TIMEOUT=5000
 ```
 
 如果在 `prod` 环境需要开放用户自助注册，还要额外追加：
 
 ```text
-;APP_SECURITY_REGISTER_ENABLED=true;MAIL_REGISTER_ENABLED=true
+;APP_SECURITY_REGISTER_ENABLED=true;MAIL_REGISTER_ENABLED=true;MAIL_REGISTER_VERIFY_LINK_BASE_URL=https://admin.example.com
 ```
 
-原因是生产环境 [application-prod.yml](src/main/resources/application-prod.yml) 默认 `app.security.register-enabled=false` 且 `app.mail.register.enabled=false`，即便通用邮件服务已经可用，也不会自动开放 `/api/auth/register` 注册入口和注册验证码发送入口。
+原因是生产环境 [application-prod.yml](src/main/resources/application-prod.yml) 默认 `app.security.register-enabled=false` 且 `app.mail.register.enabled=false`，即便通用邮件服务已经可用，也不会自动开放 `/api/auth/register` 注册入口和注册邮箱验证入口。
 
 ### 推荐环境变量
 

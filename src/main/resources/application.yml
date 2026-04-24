@@ -114,7 +114,8 @@ app:
       card-background-color: ${APP_MAIL_TEMPLATE_CARD_BACKGROUND_COLOR:#ffffff}
     register:
       enabled: ${MAIL_REGISTER_ENABLED:true}
-      subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 注册验证码}
+      subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 注册验证}
+      verify-link-base-url: ${MAIL_REGISTER_VERIFY_LINK_BASE_URL:http://localhost:5173}
   batch:
     log-archive:
       enabled: ${LOG_ARCHIVE_ENABLED:true}

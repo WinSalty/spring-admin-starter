@@ -19,7 +19,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 认证服务注册流程测试。
- * 覆盖发送注册验证码前的用户名、邮箱唯一性前置校验，避免用户填完验证码后才发现账号不可用。
+ * 覆盖发送注册验证邮件前的用户名、邮箱唯一性前置校验，避免用户完成邮箱验证后才发现账号不可用。
  * 创建日期：2026-04-24
  * author：sunshengxian
  */
@@ -27,48 +27,48 @@ class AuthServiceImplTest {
 
     private static final String USERNAME = "new-user";
     private static final String EMAIL = "test@example.com";
-    private static final String VERIFY_CODE = "123456";
+    private static final String VERIFY_BASE_URL = "http://localhost:5173";
     private static final String PASSWORD = "123456";
 
     @Test
-    void sendRegisterVerifyCodeRejectsWhenUsernameExists() {
+    void sendRegisterVerifyLinkRejectsWhenUsernameExists() {
         UserMapper userMapper = mock(UserMapper.class);
         RegisterVerificationService registerVerificationService = mock(RegisterVerificationService.class);
         AuthServiceImpl service = newService(userMapper, registerVerificationService);
         when(userMapper.findByUsername(USERNAME)).thenReturn(new UserEntity());
 
-        assertThrows(BusinessException.class, () -> service.sendRegisterVerifyCode(USERNAME, EMAIL));
+        assertThrows(BusinessException.class, () -> service.sendRegisterVerifyLink(USERNAME, EMAIL, VERIFY_BASE_URL));
 
-        verify(registerVerificationService, never()).sendCode(EMAIL);
+        verify(registerVerificationService, never()).sendVerificationLink(EMAIL, VERIFY_BASE_URL);
     }
 
     @Test
-    void sendRegisterVerifyCodeRejectsWhenEmailExists() {
+    void sendRegisterVerifyLinkRejectsWhenEmailExists() {
         UserMapper userMapper = mock(UserMapper.class);
         RegisterVerificationService registerVerificationService = mock(RegisterVerificationService.class);
         AuthServiceImpl service = newService(userMapper, registerVerificationService);
         when(userMapper.findByEmail(EMAIL)).thenReturn(new UserEntity());
 
-        assertThrows(BusinessException.class, () -> service.sendRegisterVerifyCode(USERNAME, EMAIL));
+        assertThrows(BusinessException.class, () -> service.sendRegisterVerifyLink(USERNAME, EMAIL, VERIFY_BASE_URL));
 
-        verify(registerVerificationService, never()).sendCode(EMAIL);
+        verify(registerVerificationService, never()).sendVerificationLink(EMAIL, VERIFY_BASE_URL);
     }
 
     @Test
-    void sendRegisterVerifyCodeSendsCodeWhenAccountAvailable() {
+    void sendRegisterVerifyLinkSendsMailWhenAccountAvailable() {
         UserMapper userMapper = mock(UserMapper.class);
         RegisterVerificationService registerVerificationService = mock(RegisterVerificationService.class);
         AuthServiceImpl service = newService(userMapper, registerVerificationService);
 
-        service.sendRegisterVerifyCode(" " + USERNAME + " ", " Test@Example.com ");
+        service.sendRegisterVerifyLink(" " + USERNAME + " ", " Test@Example.com ", VERIFY_BASE_URL);
 
         verify(userMapper).findByUsername(USERNAME);
         verify(userMapper).findByEmail(EMAIL);
-        verify(registerVerificationService).sendCode(EMAIL);
+        verify(registerVerificationService).sendVerificationLink(EMAIL, VERIFY_BASE_URL);
     }
 
     @Test
-    void registerDoesNotConsumeVerifyCodeWhenUsernameExists() {
+    void registerDoesNotConsumeVerifiedEmailWhenUsernameExists() {
         UserMapper userMapper = mock(UserMapper.class);
         RegisterVerificationService registerVerificationService = mock(RegisterVerificationService.class);
         AuthServiceImpl service = newService(userMapper, registerVerificationService);
@@ -76,7 +76,7 @@ class AuthServiceImplTest {
 
         assertThrows(BusinessException.class, () -> service.register(registerRequest()));
 
-        verify(registerVerificationService, never()).verifyCode(EMAIL, VERIFY_CODE);
+        verify(registerVerificationService, never()).consumeVerifiedEmail(EMAIL);
     }
 
     private AuthServiceImpl newService(UserMapper userMapper, RegisterVerificationService registerVerificationService) {
@@ -94,7 +94,6 @@ class AuthServiceImplTest {
         RegisterRequest request = new RegisterRequest();
         request.setUsername(USERNAME);
         request.setEmail(EMAIL);
-        request.setVerifyCode(VERIFY_CODE);
         request.setPassword(PASSWORD);
         return request;
     }
