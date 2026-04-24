@@ -13,7 +13,7 @@ author：sunshengxian
 
 author：sunshengxian
 
-当前已完成阶段一基础能力开发，后续开发应基于以下状态继续推进。
+当前已完成阶段一和阶段二后端核心能力开发，后续开发应基于以下状态继续推进。
 
 ### 已完成内容
 
@@ -27,13 +27,16 @@ author：sunshengxian
 | 后端权益抽象 | 已新增 `com.winsalty.quickstart.benefit`，首期实现积分权益发放，后续权限或服务包可扩展独立发放器 |
 | 后端权益兑换 | 已新增权益商品、兑换订单、用户权益表和接口，支持积分冻结、权益发放、确认扣减和失败取消冻结；权限类权益已并入权限 bootstrap |
 | 后端对账任务 | 已新增 `PointReconciliationJob`，通过 Quartz 按 `app.points.reconciliation-cron` 定时执行积分账户和流水汇总对账 |
+| 后端补偿任务 | 已新增 `PointFreezeCompensationJob`，通过 Quartz 按 `app.points.freeze-compensation-cron` 自动取消过期冻结单 |
+| 后端事务事件 | 已新增 `transaction_outbox` 和 `TransactionOutboxJob`，CDK 兑换成功、权益兑换成功会写入事务事件，作为后续 MQ 投递和补偿扩展点 |
+| 后端对账记录 | 已新增 `point_reconciliation_record`，每次积分对账会持久化检查账户数、差异账户数和汇总差异 |
 | 后端集成测试 | 已新增 `CdkPointsDevIntegrationTest`，通过 `RUN_DEV_INTEGRATION_TESTS=true` 显式连接本地 MySQL/Redis 验证兑换链路 |
 | 安全与审计 | CDK 仅存 HMAC Hash；明文只进入短期 Redis 导出窗口；兑换接口接入用户/IP/连续失败限流；管理操作和兑换操作接入 `@AuditLog` |
 | 前端钱包 | 已新增 `/points/wallet`，展示余额、CDK 兑换、流水、充值、消费、冻结记录；工作台已按钱包余额卡片重构，仅保留系统公告、钱包余额和预留图表位 |
 | 前端管理页 | 已新增 `/system/cdk/batches`、`/system/cdk/redeem-records`、`/system/points/audit` |
 | 权限菜单 | 已新增 `points_wallet`、`points_admin_account`、`points_admin_ledger`、`cdk_batch`、`cdk_redeem_record` 路由码和对应按钮权限；`points_wallet` 已调整到个人中心子菜单 |
 | 权限协议 | 权限 bootstrap 菜单已透传 `routeCode`，前端按 `routeCode` 或路径映射过滤菜单，避免路径末段与路由码不一致时隐藏入口 |
-| 数据库脚本 | 已新增 `V24__init_benefit_exchange_schema.sql` 初始化权益商品、兑换订单、用户权益和菜单权限 |
+| 数据库脚本 | 已新增 `V24__init_benefit_exchange_schema.sql` 初始化权益商品、兑换订单、用户权益和菜单权限；`V25__init_points_compensation_outbox_schema.sql` 初始化 outbox 和对账记录 |
 
 ### 已验证内容
 
@@ -60,8 +63,8 @@ author：sunshengxian
 | 优先级 | 待办 | 说明 |
 | --- | --- | --- |
 | 高 | 完成目标环境联调 | 本地开发 MySQL/Redis 已完成集成测试；仍需在目标部署环境跑迁移并走完整兑换链路 |
-| 中 | 二阶段权益前端与补偿任务 | 后端权益兑换链路已完成；仍需前端页面和冻结超时补偿任务 |
-| 中 | 对账差异记录 | 当前已接入 Quartz 日终对账，后续应持久化差异记录并提供处理入口 |
+| 中 | 二阶段权益前端 | 后端权益兑换、冻结超时补偿和权限类权益合并已完成；仍需前端权益兑换页和管理页 |
+| 中 | 对账差异处理入口 | 当前已接入 Quartz 日终对账并持久化结果，后续应提供差异处理入口 |
 | 中 | 导出文件强化 | 当前返回一次性明文列表，后续可改为加密 ZIP 和受控临时文件下载 |
 | 中 | 高价值双人复核 | 当前已有审批流状态，高价值批次双人复核规则尚未落地 |
 | 低 | 在线充值扩展 | 按阶段三接入在线充值渠道、支付回调验签和补偿 |
@@ -138,6 +141,8 @@ SQL 脚本统一放入项目根目录 `resources/sql`，建议按迁移顺序拆
 - `V21__init_points_schema.sql`
 - `V22__init_cdk_schema.sql`
 - `V23__seed_points_cdk_permissions.sql`
+- `V24__init_benefit_exchange_schema.sql`
+- `V25__init_points_compensation_outbox_schema.sql`
 
 ### 4.1 积分账户表 `point_account`
 
@@ -577,7 +582,14 @@ app:
     redeem-lock-seconds: ${CDK_REDEEM_LOCK_SECONDS:900}
   points:
     reconciliation-enabled: ${POINTS_RECONCILIATION_ENABLED:true}
+    reconciliation-cron: ${POINTS_RECONCILIATION_CRON:0 10 2 * * ?}
     freeze-default-expire-seconds: ${POINTS_FREEZE_DEFAULT_EXPIRE_SECONDS:1800}
+    freeze-compensation-enabled: ${POINTS_FREEZE_COMPENSATION_ENABLED:true}
+    freeze-compensation-cron: ${POINTS_FREEZE_COMPENSATION_CRON:0 */10 * * * ?}
+    freeze-compensation-batch-size: ${POINTS_FREEZE_COMPENSATION_BATCH_SIZE:100}
+  outbox:
+    enabled: ${OUTBOX_ENABLED:true}
+    cron: ${OUTBOX_CRON:0 */5 * * * ?}
 ```
 
 生产环境要求：
@@ -585,6 +597,7 @@ app:
 - `CDK_PEPPER` 必须显式注入，长度不少于 32 字节。
 - 批量导出目录必须为受控临时目录，定期清理。
 - 高价值权益阈值通过配置或系统参数维护。
+- `transaction_outbox` 当前使用数据库事件表和定时任务承接最终一致扩展，接入 MQ 后消费端必须继续保持幂等。
 
 ## 11. 实施阶段
 
@@ -620,6 +633,7 @@ app:
 - 支持积分兑换权限或服务。
 - 实现冻结、确认扣减、取消冻结。
 - 新增 outbox 事件和补偿任务。
+- 持久化积分对账记录，记录检查账户、差异账户和汇总差异。
 
 前端：
 
@@ -631,6 +645,7 @@ app:
 - 权益发放失败可自动解冻。
 - 重复确认、重复取消具备幂等。
 - 超时冻结单能被补偿任务处理。
+- CDK 和权益兑换成功后可在 `transaction_outbox` 追踪事务事件。
 
 ### 阶段三：在线充值扩展
 

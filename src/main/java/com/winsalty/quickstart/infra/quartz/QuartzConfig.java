@@ -1,7 +1,10 @@
 package com.winsalty.quickstart.infra.quartz;
 
 import com.winsalty.quickstart.log.job.LogArchiveJob;
+import com.winsalty.quickstart.infra.outbox.TransactionOutboxJob;
+import com.winsalty.quickstart.infra.outbox.TransactionOutboxProperties;
 import com.winsalty.quickstart.points.config.PointsProperties;
+import com.winsalty.quickstart.points.job.PointFreezeCompensationJob;
 import com.winsalty.quickstart.points.job.PointReconciliationJob;
 import org.quartz.CronScheduleBuilder;
 import org.quartz.CronTrigger;
@@ -72,6 +75,60 @@ public class QuartzConfig {
                 .forJob(pointReconciliationJobDetail)
                 .withIdentity("pointReconciliationJobTrigger", "systemBatch")
                 .withSchedule(CronScheduleBuilder.cronSchedule(properties.getReconciliationCron())
+                        .withMisfireHandlingInstructionDoNothing())
+                .build();
+    }
+
+    /**
+     * 冻结单过期补偿任务定义。
+     */
+    @Bean
+    public JobDetail pointFreezeCompensationJobDetail() {
+        return JobBuilder.newJob(PointFreezeCompensationJob.class)
+                .withIdentity("pointFreezeCompensationJob", "systemBatch")
+                .withDescription("Cancel expired point freeze orders")
+                .storeDurably()
+                .build();
+    }
+
+    /**
+     * 冻结单过期补偿 Cron 触发器。
+     */
+    @Bean
+    public CronTrigger pointFreezeCompensationJobTrigger(
+            @Qualifier("pointFreezeCompensationJobDetail") JobDetail pointFreezeCompensationJobDetail,
+            PointsProperties properties) {
+        return TriggerBuilder.newTrigger()
+                .forJob(pointFreezeCompensationJobDetail)
+                .withIdentity("pointFreezeCompensationJobTrigger", "systemBatch")
+                .withSchedule(CronScheduleBuilder.cronSchedule(properties.getFreezeCompensationCron())
+                        .withMisfireHandlingInstructionDoNothing())
+                .build();
+    }
+
+    /**
+     * 本地事务事件任务定义。
+     */
+    @Bean
+    public JobDetail transactionOutboxJobDetail() {
+        return JobBuilder.newJob(TransactionOutboxJob.class)
+                .withIdentity("transactionOutboxJob", "systemBatch")
+                .withDescription("Process pending transaction outbox events")
+                .storeDurably()
+                .build();
+    }
+
+    /**
+     * 本地事务事件 Cron 触发器。
+     */
+    @Bean
+    public CronTrigger transactionOutboxJobTrigger(
+            @Qualifier("transactionOutboxJobDetail") JobDetail transactionOutboxJobDetail,
+            TransactionOutboxProperties properties) {
+        return TriggerBuilder.newTrigger()
+                .forJob(transactionOutboxJobDetail)
+                .withIdentity("transactionOutboxJobTrigger", "systemBatch")
+                .withSchedule(CronScheduleBuilder.cronSchedule(properties.getCron())
                         .withMisfireHandlingInstructionDoNothing())
                 .build();
     }

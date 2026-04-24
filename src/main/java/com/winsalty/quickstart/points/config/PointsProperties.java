@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 public class PointsProperties {
 
     private static final String DEFAULT_RECONCILIATION_CRON = "0 10 2 * * ?";
+    private static final String DEFAULT_FREEZE_COMPENSATION_CRON = "0 */10 * * * ?";
 
     /** 是否开启对账能力。 */
     private boolean reconciliationEnabled = true;
@@ -25,4 +26,13 @@ public class PointsProperties {
 
     /** 默认冻结超时时间，单位秒。 */
     private long freezeDefaultExpireSeconds = 1800L;
+
+    /** 是否开启冻结单过期补偿。 */
+    private boolean freezeCompensationEnabled = true;
+
+    /** 冻结单过期补偿 Cron 表达式。 */
+    private String freezeCompensationCron = DEFAULT_FREEZE_COMPENSATION_CRON;
+
+    /** 冻结单补偿单批处理量。 */
+    private int freezeCompensationBatchSize = 100;
 }

@@ -45,6 +45,7 @@
 | `com.winsalty.quickstart.log` | 登录日志、操作日志、接口日志与归档 |
 | `com.winsalty.quickstart.common` | 统一响应、异常、常量、基础父类、工具类 |
 | `com.winsalty.quickstart.infra` | CORS、Redis、Quartz、OpenAPI、ES、JSON、对象存储等基础设施配置 |
+| `com.winsalty.quickstart.infra.outbox` | 数据库事务事件、定时扫描和后续 MQ 投递扩展点 |
 
 ### 关键架构说明
 
@@ -115,10 +116,12 @@
 5. CDK 批次审批通过后生成明文码，只写入短期 Redis 导出窗口；导出接口一次性消费缓存并写入导出审计。
 6. CDK 兑换按用户、IP、连续失败次数做 Redis 限流，成功兑换在同一事务内完成码状态、兑换记录、充值单、账户余额和账本流水。
 7. 管理员人工调整先创建调整单，审批通过后再调用积分账务服务入账或扣减。
-8. 积分对账已接入 Quartz 日终任务，按 `app.points.reconciliation-cron` 定时执行账户与流水汇总校验。
+8. 积分对账已接入 Quartz 日终任务，按 `app.points.reconciliation-cron` 定时执行账户与流水汇总校验，并持久化 `point_reconciliation_record`。
 9. 权益兑换通过 `benefit_product`、`benefit_exchange_order`、`user_benefit` 承载，兑换流程使用积分冻结、权益发放、确认扣减，失败时取消冻结。
 10. 权限类用户权益会在权限 bootstrap 时合并到当前用户路由或按钮权限中。
-11. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql` 初始化表结构和权限菜单。
+11. 过期冻结单通过 `PointFreezeCompensationJob` 自动取消，避免权益发放超时后长期占用冻结积分。
+12. CDK 兑换成功、权益兑换成功会写入 `transaction_outbox`，当前由定时任务标记处理，后续可平滑替换为 MQ 投递。
+13. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql` 初始化表结构和权限菜单。
 
 ## 配套环境说明
 
@@ -285,6 +288,11 @@ export CDK_REDEEM_LOCK_SECONDS=900
 export POINTS_RECONCILIATION_ENABLED=true
 export POINTS_RECONCILIATION_CRON='0 10 2 * * ?'
 export POINTS_FREEZE_DEFAULT_EXPIRE_SECONDS=1800
+export POINTS_FREEZE_COMPENSATION_ENABLED=true
+export POINTS_FREEZE_COMPENSATION_CRON='0 */10 * * * ?'
+export POINTS_FREEZE_COMPENSATION_BATCH_SIZE=100
+export OUTBOX_ENABLED=true
+export OUTBOX_CRON='0 */5 * * * ?'
 ```
 
 生产环境必须显式配置 `CDK_PEPPER`，且长度不少于 32 字节。未配置时，CDK 批次审批生成和兑换会拒绝执行，避免使用弱密钥生成高价值凭证。

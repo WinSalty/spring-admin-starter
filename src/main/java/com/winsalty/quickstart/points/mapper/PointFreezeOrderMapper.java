@@ -43,4 +43,7 @@ public interface PointFreezeOrderMapper {
 
     @Select("SELECT COUNT(1) FROM point_freeze_order WHERE user_id = #{userId}")
     long countUserPage(@Param("userId") Long userId);
+
+    @Select(FREEZE_SELECT + "WHERE status = 'frozen' AND expire_at <= NOW() ORDER BY expire_at ASC, id ASC LIMIT #{limit}")
+    List<PointFreezeOrderEntity> findExpiredFrozen(@Param("limit") int limit);
 }

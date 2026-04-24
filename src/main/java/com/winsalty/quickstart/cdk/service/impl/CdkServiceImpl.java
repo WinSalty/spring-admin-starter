@@ -32,6 +32,7 @@ import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.common.util.IpUtils;
 import com.winsalty.quickstart.infra.cache.RedisCacheService;
 import com.winsalty.quickstart.infra.json.FastJsonUtils;
+import com.winsalty.quickstart.infra.outbox.TransactionOutboxService;
 import com.winsalty.quickstart.infra.web.TraceIdFilter;
 import com.winsalty.quickstart.points.constant.PointsConstants;
 import com.winsalty.quickstart.points.entity.PointRechargeOrderEntity;
@@ -56,7 +57,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -85,6 +88,8 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     private static final String UA_HEADER = "User-Agent";
     private static final String UNKNOWN_TARGET = "unknown";
     private static final String EMPTY_FAILURE_REASON = "";
+    private static final String OUTBOX_AGGREGATE_TYPE = "cdk_redeem";
+    private static final String OUTBOX_EVENT_SUCCESS = "cdk.redeem.success";
     private static final int UUID_FRAGMENT_LENGTH = 12;
     private static final int PEPPER_MIN_LENGTH = 32;
     private static final int HEX_RADIX_SHIFT = 4;
@@ -100,6 +105,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     private final PointRechargeOrderMapper pointRechargeOrderMapper;
     private final BenefitGrantService benefitGrantService;
     private final RedisCacheService redisCacheService;
+    private final TransactionOutboxService transactionOutboxService;
     private final CdkProperties cdkProperties;
 
     public CdkServiceImpl(CdkBatchMapper cdkBatchMapper,
@@ -109,6 +115,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
                           PointRechargeOrderMapper pointRechargeOrderMapper,
                           BenefitGrantService benefitGrantService,
                           RedisCacheService redisCacheService,
+                          TransactionOutboxService transactionOutboxService,
                           CdkProperties cdkProperties) {
         this.cdkBatchMapper = cdkBatchMapper;
         this.cdkCodeMapper = cdkCodeMapper;
@@ -117,6 +124,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         this.pointRechargeOrderMapper = pointRechargeOrderMapper;
         this.benefitGrantService = benefitGrantService;
         this.redisCacheService = redisCacheService;
+        this.transactionOutboxService = transactionOutboxService;
         this.cdkProperties = cdkProperties;
     }
 
@@ -286,6 +294,8 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         cdkRedeemRecordMapper.updateResult(redeemNo, CdkConstants.RECORD_STATUS_SUCCESS,
                 grantResult.getSnapshot(), "", "");
         cdkBatchMapper.incrementRedeemed(batch.getId());
+        transactionOutboxService.createEvent(OUTBOX_AGGREGATE_TYPE, redeemNo, OUTBOX_EVENT_SUCCESS,
+                buildRedeemOutboxPayload(authUser.getUserId(), batch, redeemNo, grantResult));
         recordRedeemSuccess(authUser.getUserId());
         log.info("cdk redeemed, userId={}, redeemNo={}, batchNo={}, benefitType={}",
                 authUser.getUserId(), redeemNo, batch.getBatchNo(), batch.getBenefitType());
@@ -297,6 +307,19 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         result.setFrozenPoints(grantResult.getFrozenPoints());
         result.setStatus(CdkConstants.RECORD_STATUS_SUCCESS);
         return result;
+    }
+
+    private String buildRedeemOutboxPayload(Long userId,
+                                            CdkBatchEntity batch,
+                                            String redeemNo,
+                                            BenefitGrantResult grantResult) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("userId", userId);
+        payload.put("redeemNo", redeemNo);
+        payload.put("batchNo", batch.getBatchNo());
+        payload.put("benefitType", batch.getBenefitType());
+        payload.put("grantedPoints", grantResult.getGrantedPoints());
+        return FastJsonUtils.toJsonString(payload);
     }
 
     @Override

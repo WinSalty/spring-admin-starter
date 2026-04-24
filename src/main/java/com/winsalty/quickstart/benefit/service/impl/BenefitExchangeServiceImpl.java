@@ -20,6 +20,8 @@ import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.common.base.BaseService;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
+import com.winsalty.quickstart.infra.json.FastJsonUtils;
+import com.winsalty.quickstart.infra.outbox.TransactionOutboxService;
 import com.winsalty.quickstart.points.constant.PointsConstants;
 import com.winsalty.quickstart.points.dto.PointChangeCommand;
 import com.winsalty.quickstart.points.entity.PointFreezeOrderEntity;
@@ -34,7 +36,9 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -55,6 +59,8 @@ public class BenefitExchangeServiceImpl extends BaseService implements BenefitEx
     private static final String FREEZE_IDEMPOTENCY_PREFIX = "benefit:freeze:";
     private static final String CONFIRM_IDEMPOTENCY_PREFIX = "benefit:confirm:";
     private static final String CANCEL_IDEMPOTENCY_PREFIX = "benefit:cancel:";
+    private static final String OUTBOX_AGGREGATE_TYPE = "benefit_exchange";
+    private static final String OUTBOX_EVENT_SUCCESS = "benefit.exchange.success";
     private static final int UUID_FRAGMENT_LENGTH = 12;
 
     private final BenefitProductMapper benefitProductMapper;
@@ -62,17 +68,20 @@ public class BenefitExchangeServiceImpl extends BaseService implements BenefitEx
     private final UserBenefitMapper userBenefitMapper;
     private final PointFreezeOrderMapper pointFreezeOrderMapper;
     private final PointAccountService pointAccountService;
+    private final TransactionOutboxService transactionOutboxService;
 
     public BenefitExchangeServiceImpl(BenefitProductMapper benefitProductMapper,
                                       BenefitExchangeOrderMapper benefitExchangeOrderMapper,
                                       UserBenefitMapper userBenefitMapper,
                                       PointFreezeOrderMapper pointFreezeOrderMapper,
-                                      PointAccountService pointAccountService) {
+                                      PointAccountService pointAccountService,
+                                      TransactionOutboxService transactionOutboxService) {
         this.benefitProductMapper = benefitProductMapper;
         this.benefitExchangeOrderMapper = benefitExchangeOrderMapper;
         this.userBenefitMapper = userBenefitMapper;
         this.pointFreezeOrderMapper = pointFreezeOrderMapper;
         this.pointAccountService = pointAccountService;
+        this.transactionOutboxService = transactionOutboxService;
     }
 
     @Override
@@ -110,6 +119,7 @@ public class BenefitExchangeServiceImpl extends BaseService implements BenefitEx
             PointChangeCommand confirmCommand = pointCommand(userId, product.getCostPoints(), orderNo, CONFIRM_IDEMPOTENCY_PREFIX + orderNo);
             pointAccountService.confirmFreeze(freezeOrder.getFreezeNo(), confirmCommand);
             benefitExchangeOrderMapper.updateStatus(orderNo, BenefitConstants.ORDER_STATUS_SUCCESS, EMPTY_FAILURE_MESSAGE);
+            transactionOutboxService.createEvent(OUTBOX_AGGREGATE_TYPE, orderNo, OUTBOX_EVENT_SUCCESS, buildOutboxPayload(userId, product, orderNo));
             log.info("benefit exchanged, userId={}, productNo={}, orderNo={}, costPoints={}",
                     userId, product.getProductNo(), orderNo, product.getCostPoints());
         } catch (RuntimeException exception) {
@@ -254,6 +264,15 @@ public class BenefitExchangeServiceImpl extends BaseService implements BenefitEx
         entity.setExpireAt(product.getValidTo());
         entity.setConfigSnapshot(product.getBenefitConfig());
         userBenefitMapper.insert(entity);
+    }
+
+    private String buildOutboxPayload(Long userId, BenefitProductEntity product, String orderNo) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("userId", userId);
+        payload.put("orderNo", orderNo);
+        payload.put("benefitType", product.getBenefitType());
+        payload.put("benefitCode", product.getBenefitCode());
+        return FastJsonUtils.toJsonString(payload);
     }
 
     private PointChangeCommand pointCommand(Long userId, Long amount, String orderNo, String idempotencyKey) {

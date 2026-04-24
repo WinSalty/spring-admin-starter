@@ -95,6 +95,12 @@ app:
     reconciliation-enabled: ${POINTS_RECONCILIATION_ENABLED:true}
     reconciliation-cron: ${POINTS_RECONCILIATION_CRON:0 10 2 * * ?}
     freeze-default-expire-seconds: ${POINTS_FREEZE_DEFAULT_EXPIRE_SECONDS:1800}
+    freeze-compensation-enabled: ${POINTS_FREEZE_COMPENSATION_ENABLED:true}
+    freeze-compensation-cron: ${POINTS_FREEZE_COMPENSATION_CRON:0 */10 * * * ?}
+    freeze-compensation-batch-size: ${POINTS_FREEZE_COMPENSATION_BATCH_SIZE:100}
+  outbox:
+    enabled: ${OUTBOX_ENABLED:true}
+    cron: ${OUTBOX_CRON:0 */5 * * * ?}
   mail:
     enabled: ${MAIL_ENABLED:true}
     from: ${MAIL_FROM:${MAIL_USERNAME:}}

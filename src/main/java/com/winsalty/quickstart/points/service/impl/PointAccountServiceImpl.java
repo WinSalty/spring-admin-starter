@@ -17,11 +17,13 @@ import com.winsalty.quickstart.points.entity.PointAccountEntity;
 import com.winsalty.quickstart.points.entity.PointAdjustmentOrderEntity;
 import com.winsalty.quickstart.points.entity.PointFreezeOrderEntity;
 import com.winsalty.quickstart.points.entity.PointLedgerEntity;
+import com.winsalty.quickstart.points.entity.PointReconciliationRecordEntity;
 import com.winsalty.quickstart.points.entity.PointRechargeOrderEntity;
 import com.winsalty.quickstart.points.mapper.PointAccountMapper;
 import com.winsalty.quickstart.points.mapper.PointAdjustmentOrderMapper;
 import com.winsalty.quickstart.points.mapper.PointFreezeOrderMapper;
 import com.winsalty.quickstart.points.mapper.PointLedgerMapper;
+import com.winsalty.quickstart.points.mapper.PointReconciliationRecordMapper;
 import com.winsalty.quickstart.points.mapper.PointRechargeOrderMapper;
 import com.winsalty.quickstart.points.service.PointAccountService;
 import com.winsalty.quickstart.points.vo.PointAccountVo;
@@ -60,9 +62,12 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
     private static final String LEDGER_NO_PREFIX = "PL";
     private static final String FREEZE_NO_PREFIX = "PF";
     private static final String ADJUST_NO_PREFIX = "PA";
+    private static final String RECONCILE_NO_PREFIX = "PC";
     private static final String SHA_256_ALGORITHM = "SHA-256";
     private static final String HASH_SEPARATOR = "|";
     private static final String ADMIN_ADJUST_REMARK_PREFIX = "人工调整：";
+    private static final String RECONCILE_STATUS_MATCHED = "matched";
+    private static final String RECONCILE_STATUS_DIFFERENT = "different";
     private static final int UUID_FRAGMENT_LENGTH = 12;
     private static final int HEX_RADIX_SHIFT = 4;
     private static final int LOW_NIBBLE_MASK = 0x0F;
@@ -74,6 +79,7 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
     private final PointRechargeOrderMapper pointRechargeOrderMapper;
     private final PointFreezeOrderMapper pointFreezeOrderMapper;
     private final PointAdjustmentOrderMapper pointAdjustmentOrderMapper;
+    private final PointReconciliationRecordMapper pointReconciliationRecordMapper;
     private final PointsProperties pointsProperties;
 
     public PointAccountServiceImpl(PointAccountMapper pointAccountMapper,
@@ -81,12 +87,14 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
                                    PointRechargeOrderMapper pointRechargeOrderMapper,
                                    PointFreezeOrderMapper pointFreezeOrderMapper,
                                    PointAdjustmentOrderMapper pointAdjustmentOrderMapper,
+                                   PointReconciliationRecordMapper pointReconciliationRecordMapper,
                                    PointsProperties pointsProperties) {
         this.pointAccountMapper = pointAccountMapper;
         this.pointLedgerMapper = pointLedgerMapper;
         this.pointRechargeOrderMapper = pointRechargeOrderMapper;
         this.pointFreezeOrderMapper = pointFreezeOrderMapper;
         this.pointAdjustmentOrderMapper = pointAdjustmentOrderMapper;
+        this.pointReconciliationRecordMapper = pointReconciliationRecordMapper;
         this.pointsProperties = pointsProperties;
     }
 
@@ -318,9 +326,22 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
         vo.setTotalAvailableDiff(availableDiff);
         vo.setTotalFrozenDiff(frozenDiff);
         vo.setCheckedAt(LocalDateTime.now().format(DATE_TIME_FORMATTER));
+        persistReconciliationRecord(vo);
         log.info("points reconciliation completed, checkedAccounts={}, availableDiff={}, frozenDiff={}",
                 vo.getCheckedAccounts(), availableDiff, frozenDiff);
         return vo;
+    }
+
+    private void persistReconciliationRecord(PointReconciliationVo vo) {
+        PointReconciliationRecordEntity entity = new PointReconciliationRecordEntity();
+        entity.setReconcileNo(createNo(RECONCILE_NO_PREFIX));
+        entity.setCheckedAccounts(vo.getCheckedAccounts());
+        entity.setDifferentAccounts(vo.getDifferentAccounts());
+        entity.setTotalAvailableDiff(vo.getTotalAvailableDiff());
+        entity.setTotalFrozenDiff(vo.getTotalFrozenDiff());
+        entity.setStatus(vo.getDifferentAccounts() == 0L ? RECONCILE_STATUS_MATCHED : RECONCILE_STATUS_DIFFERENT);
+        entity.setCheckedAt(vo.getCheckedAt());
+        pointReconciliationRecordMapper.insert(entity);
     }
 
     private PointLedgerEntity applyChange(PointChangeCommand command,
