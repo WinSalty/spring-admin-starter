@@ -107,6 +107,27 @@ public class AliyunOssObjectStorageUtil implements DisposableBean {
     }
 
     /**
+     * 检查私有 Bucket 中对象是否存在，供内容 Hash 复用前校验远端对象有效性。
+     *
+     * @param bucketName 私有 Bucket 名称
+     * @param objectKey 对象 Key
+     * @return 对象是否存在
+     * @author sunshengxian
+     * @date 2026-04-24
+     */
+    public boolean objectExists(String bucketName, String objectKey) {
+        validateBaseConfig();
+        if (!StringUtils.hasText(bucketName) || !StringUtils.hasText(objectKey)) {
+            throw new BusinessException(ErrorCode.OBJECT_STORAGE_CONFIG_INVALID);
+        }
+        try {
+            return getOssClient().doesObjectExist(bucketName, objectKey);
+        } catch (OSSException | ClientException exception) {
+            return false;
+        }
+    }
+
+    /**
      * 打开私有 Bucket 中对象的读取流，供后端代理图片等需要同域展示的资源。
      *
      * @param bucketName 私有 Bucket 名称

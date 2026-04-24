@@ -486,7 +486,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     }
 
     /**
-     * 根据对象存储开关选择本地或阿里云 OSS 存储；相同内容 Hash 直接复用已有对象，减少重复上传。
+     * 根据对象存储开关选择本地或阿里云 OSS 存储；相同内容 Hash 在确认对象可读后复用已有对象。
      */
     private ObjectStorageUploadResult storeFile(MultipartFile file,
                                                 Path tempFile,
@@ -499,7 +499,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             String accessPolicy = STORAGE_TYPE_ALIYUN_OSS.equals(storageType)
                     ? ACCESS_POLICY_PRIVATE_READ
                     : (BUCKET_TYPE_PRIVATE.equals(bucketType) ? ACCESS_POLICY_PRIVATE_READ : ACCESS_POLICY_PUBLIC_READ);
-            FileRecordEntity reusable = fileRecordMapper.findReusableByContentHash(contentHash, storageType, bucketType, accessPolicy);
+            FileRecordEntity reusable = findReusableFile(contentHash, storageType, bucketType, accessPolicy);
             if (reusable != null) {
                 log.info("file content hash reused, storageType={}, bucketType={}, objectKey={}, contentHash={}",
                         reusable.getStorageType(), reusable.getBucketType(), reusable.getObjectKey(), contentHash);
@@ -512,6 +512,32 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         } catch (BadSqlGrammarException exception) {
             throw translateSchemaException(exception);
         }
+    }
+
+    /**
+     * 查找可复用文件。OSS 文件必须属于当前配置 Bucket 且远端对象仍存在，避免切换 Bucket 后复用失效记录。
+     * 创建日期：2026-04-24
+     * author：sunshengxian
+     */
+    private FileRecordEntity findReusableFile(String contentHash,
+                                              String storageType,
+                                              String bucketType,
+                                              String accessPolicy) {
+        if (!STORAGE_TYPE_ALIYUN_OSS.equals(storageType)) {
+            return fileRecordMapper.findReusableByContentHash(contentHash, storageType, bucketType, accessPolicy);
+        }
+        String currentBucketName = aliyunOssStorageProperties.getPrivateBucket();
+        FileRecordEntity reusable = fileRecordMapper.findReusableAliyunByContentHash(
+                contentHash, bucketType, currentBucketName, accessPolicy);
+        if (reusable == null) {
+            return null;
+        }
+        if (aliyunOssObjectStorageUtil.objectExists(currentBucketName, reusable.getObjectKey())) {
+            return reusable;
+        }
+        log.info("stale aliyun oss reusable file skipped, bucketName={}, objectKey={}, contentHash={}",
+                currentBucketName, reusable.getObjectKey(), contentHash);
+        return null;
     }
 
     private ObjectStorageUploadResult uploadToAliyunOss(MultipartFile file,
