@@ -27,6 +27,7 @@
         <druid.version>1.2.27</druid.version>
         <fastjson2.version>2.0.61</fastjson2.version>
         <aliyun-oss-sdk.version>3.18.5</aliyun-oss-sdk.version>
+        <aliyun-dm-sdk.version>1.9.3</aliyun-dm-sdk.version>
     </properties>
 
     <dependencies>
@@ -90,6 +91,11 @@
             <groupId>com.aliyun.oss</groupId>
             <artifactId>aliyun-sdk-oss</artifactId>
             <version>${aliyun-oss-sdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>dm20151123</artifactId>
+            <version>${aliyun-dm-sdk.version}</version>
         </dependency>
         <dependency>
             <groupId>com.mysql</groupId>

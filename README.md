@@ -335,6 +335,22 @@ app:
       max-pool-size: ${MAIL_ASYNC_MAX_POOL_SIZE:8}
       queue-capacity: ${MAIL_ASYNC_QUEUE_CAPACITY:200}
       await-termination-seconds: ${MAIL_ASYNC_AWAIT_TERMINATION_SECONDS:30}
+    aliyun:
+      enabled: ${ALIYUN_MAIL_ENABLED:false}
+      endpoint: ${ALIYUN_MAIL_ENDPOINT:dm.aliyuncs.com}
+      region-id: ${ALIYUN_MAIL_REGION_ID:cn-hangzhou}
+      access-key-id: ${ALIYUN_MAIL_ACCESS_KEY_ID:}
+      access-key-secret: ${ALIYUN_MAIL_ACCESS_KEY_SECRET:}
+      account-name: ${ALIYUN_MAIL_ACCOUNT_NAME:${MAIL_FROM:}}
+      from-alias: ${ALIYUN_MAIL_FROM_ALIAS:}
+      address-type: ${ALIYUN_MAIL_ADDRESS_TYPE:1}
+      reply-to-address: ${ALIYUN_MAIL_REPLY_TO_ADDRESS:true}
+      reply-address: ${ALIYUN_MAIL_REPLY_ADDRESS:}
+      reply-address-alias: ${ALIYUN_MAIL_REPLY_ADDRESS_ALIAS:}
+      tag-name: ${ALIYUN_MAIL_TAG_NAME:}
+      click-trace: ${ALIYUN_MAIL_CLICK_TRACE:0}
+      connect-timeout: ${ALIYUN_MAIL_CONNECT_TIMEOUT:5000}
+      read-timeout: ${ALIYUN_MAIL_READ_TIMEOUT:10000}
     template:
       brand-name: ${APP_MAIL_TEMPLATE_BRAND_NAME:React Admin Starter}
       signature: ${APP_MAIL_TEMPLATE_SIGNATURE:React Admin Starter}
@@ -346,7 +362,7 @@ app:
       subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 注册验证码}
 ```
 
-邮件能力已升级为通用服务，当前内置的注册验证码邮件只是其中一个业务实现。项目内其他业务模块可以直接注入 `com.winsalty.quickstart.infra.mail.MailService` 发送文本或 HTML 邮件，不需要再重复封装 SMTP 逻辑。系统同时内置了统一的卡片式 HTML 邮件模板，默认对齐 `react-admin-starter` 的浅色品牌风格与文案语气，默认品牌名为 `React Admin Starter`，并自动附带纯文本 fallback，兼容只支持纯文本的客户端。
+邮件能力已升级为通用服务，当前内置的注册验证码邮件只是其中一个业务实现。项目内其他业务模块可以直接注入 `com.winsalty.quickstart.infra.mail.MailService` 发送文本或 HTML 邮件，不需要关心底层使用 SMTP 还是阿里云 DirectMail。系统同时内置了统一的卡片式 HTML 邮件模板，默认对齐 `react-admin-starter` 的浅色品牌风格与文案语气，默认品牌名为 `React Admin Starter`，并自动附带纯文本 fallback，兼容只支持纯文本的客户端。
 
 注册验证码发送接口使用 `POST /api/auth/register/verify-code`，请求体为 `{"email":"user@example.com"}`。接口不再使用 GET query 传递邮箱，避免代理日志、浏览器历史或链路追踪系统记录明文邮箱。
 
@@ -396,14 +412,15 @@ public class WorkflowMailService {
 }
 ```
 
-当前邮件开关分为两层：
+当前邮件开关分为三层：
 
 1. `app.mail.enabled`：控制整个项目的通用邮件服务是否启用。
 2. `app.mail.register.enabled`：只控制注册验证码邮件是否启用。
+3. `app.mail.aliyun.enabled`：控制是否使用阿里云 DirectMail API；默认 `false` 时使用 SMTP。
 
 `prod` profile 中 `app.mail.register.enabled` 默认值为 `false`，即使通用邮件服务可用，也不会自动开放注册验证码邮件。若生产环境确需开放自助注册，需要同时显式开启 `APP_SECURITY_REGISTER_ENABLED=true` 和 `MAIL_REGISTER_ENABLED=true`。
 
-通用邮件发送使用有界线程池异步提交 SMTP 发送任务，并配置 SMTP 连接、读取和写入超时，避免邮件服务慢调用长期占用 Web 请求线程。邮件发送日志只记录脱敏收件人和主题指纹，不记录明文邮箱主题。
+通用邮件发送使用有界线程池异步提交远端发送任务，并配置 SMTP 或阿里云 SDK 超时，避免邮件服务慢调用长期占用 Web 请求线程。邮件发送日志只记录脱敏收件人和主题指纹，不记录明文邮箱主题。
 
 邮件相关配置项说明：
 
@@ -428,6 +445,21 @@ public class WorkflowMailService {
 | `MAIL_ASYNC_MAX_POOL_SIZE` | 邮件发送最大线程数，默认 `8` | 否 |
 | `MAIL_ASYNC_QUEUE_CAPACITY` | 邮件发送队列容量，默认 `200` | 否 |
 | `MAIL_ASYNC_AWAIT_TERMINATION_SECONDS` | 停机等待已提交邮件任务完成的秒数，默认 `30` | 否 |
+| `ALIYUN_MAIL_ENABLED` | 是否启用阿里云 DirectMail API，默认 `false` | 否 |
+| `ALIYUN_MAIL_ENDPOINT` | 阿里云邮件推送 Endpoint，默认 `dm.aliyuncs.com` | 否 |
+| `ALIYUN_MAIL_REGION_ID` | 阿里云区域，默认 `cn-hangzhou` | 否 |
+| `ALIYUN_MAIL_ACCESS_KEY_ID` | 阿里云 AccessKeyId，启用阿里云邮件时必填 | 条件必填 |
+| `ALIYUN_MAIL_ACCESS_KEY_SECRET` | 阿里云 AccessKeySecret，启用阿里云邮件时必填 | 条件必填 |
+| `ALIYUN_MAIL_ACCOUNT_NAME` | 邮件推送控制台配置并验证通过的发信地址，启用阿里云邮件时必填 | 条件必填 |
+| `ALIYUN_MAIL_FROM_ALIAS` | 阿里云邮件发信人昵称 | 否 |
+| `ALIYUN_MAIL_ADDRESS_TYPE` | 阿里云地址类型，默认 `1` 表示发信地址 | 否 |
+| `ALIYUN_MAIL_REPLY_TO_ADDRESS` | 是否启用控制台配置的回信地址，默认 `true` | 否 |
+| `ALIYUN_MAIL_REPLY_ADDRESS` | 回信地址 | 否 |
+| `ALIYUN_MAIL_REPLY_ADDRESS_ALIAS` | 回信地址昵称 | 否 |
+| `ALIYUN_MAIL_TAG_NAME` | 邮件标签，用于阿里云发送统计和跟踪 | 否 |
+| `ALIYUN_MAIL_CLICK_TRACE` | 点击跟踪开关，默认 `0` 关闭 | 否 |
+| `ALIYUN_MAIL_CONNECT_TIMEOUT` | 阿里云 SDK 建连超时时间，单位毫秒，默认 `5000` | 否 |
+| `ALIYUN_MAIL_READ_TIMEOUT` | 阿里云 SDK 读取超时时间，单位毫秒，默认 `10000` | 否 |
 | `APP_MAIL_DEFAULT_ENCODING` | 邮件默认编码 | 否 |
 | `APP_MAIL_TEMPLATE_BRAND_NAME` | HTML 模板品牌名称 | 否 |
 | `APP_MAIL_TEMPLATE_SIGNATURE` | HTML 模板页脚签名 | 否 |
@@ -456,9 +488,27 @@ export MAIL_SMTP_WRITE_TIMEOUT=5000
 
 说明：
 
-1. 当前项目只依赖 SMTP 发信，不需要配置 POP3 或 IMAP。
+1. 默认通道使用 SMTP 发信，不需要配置 POP3 或 IMAP。
 2. `MAIL_PASSWORD` 应填写邮箱服务商提供的 SMTP 授权码，不建议直接使用邮箱登录密码。
 3. 163 邮箱优先推荐 `465 + SSL` 组合；如改用 `587`，通常应切换到 `STARTTLS`。
+
+阿里云 DirectMail 推荐配置示例：
+
+```bash
+export ALIYUN_MAIL_ENABLED=true
+export ALIYUN_MAIL_ENDPOINT=dm.aliyuncs.com
+export ALIYUN_MAIL_REGION_ID=cn-hangzhou
+export ALIYUN_MAIL_ACCESS_KEY_ID=
+export ALIYUN_MAIL_ACCESS_KEY_SECRET=
+export ALIYUN_MAIL_ACCOUNT_NAME=notice@example.com
+export ALIYUN_MAIL_FROM_ALIAS='Spring Admin'
+export ALIYUN_MAIL_TAG_NAME=register
+export ALIYUN_MAIL_CLICK_TRACE=0
+export MAIL_FROM=notice@example.com
+export MAIL_REGISTER_ENABLED=true
+```
+
+启用阿里云邮件后，`MailService` 会使用阿里云 `SingleSendMail` API 发送文本和 HTML 邮件；未启用时继续使用默认 SMTP。阿里云发信地址必须先在邮件推送控制台配置并验证通过，AccessKey 建议使用只授予 `dm:SingleSendMail` 权限的 RAM 用户。
 
 IDEA Run Configuration 可以直接使用如下环境变量串：
 

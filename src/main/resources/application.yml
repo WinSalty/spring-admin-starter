@@ -90,6 +90,22 @@ app:
       max-pool-size: ${MAIL_ASYNC_MAX_POOL_SIZE:8}
       queue-capacity: ${MAIL_ASYNC_QUEUE_CAPACITY:200}
       await-termination-seconds: ${MAIL_ASYNC_AWAIT_TERMINATION_SECONDS:30}
+    aliyun:
+      enabled: ${ALIYUN_MAIL_ENABLED:false}
+      endpoint: ${ALIYUN_MAIL_ENDPOINT:dm.aliyuncs.com}
+      region-id: ${ALIYUN_MAIL_REGION_ID:cn-hangzhou}
+      access-key-id: ${ALIYUN_MAIL_ACCESS_KEY_ID:}
+      access-key-secret: ${ALIYUN_MAIL_ACCESS_KEY_SECRET:}
+      account-name: ${ALIYUN_MAIL_ACCOUNT_NAME:${MAIL_FROM:}}
+      from-alias: ${ALIYUN_MAIL_FROM_ALIAS:}
+      address-type: ${ALIYUN_MAIL_ADDRESS_TYPE:1}
+      reply-to-address: ${ALIYUN_MAIL_REPLY_TO_ADDRESS:true}
+      reply-address: ${ALIYUN_MAIL_REPLY_ADDRESS:}
+      reply-address-alias: ${ALIYUN_MAIL_REPLY_ADDRESS_ALIAS:}
+      tag-name: ${ALIYUN_MAIL_TAG_NAME:}
+      click-trace: ${ALIYUN_MAIL_CLICK_TRACE:0}
+      connect-timeout: ${ALIYUN_MAIL_CONNECT_TIMEOUT:5000}
+      read-timeout: ${ALIYUN_MAIL_READ_TIMEOUT:10000}
     template:
       brand-name: ${APP_MAIL_TEMPLATE_BRAND_NAME:React Admin Starter}
       signature: ${APP_MAIL_TEMPLATE_SIGNATURE:React Admin Starter}
