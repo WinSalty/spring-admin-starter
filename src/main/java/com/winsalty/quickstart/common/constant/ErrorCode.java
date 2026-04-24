@@ -68,7 +68,23 @@ public enum ErrorCode {
     FILE_SCHEMA_OUTDATED(4065, "文件表结构版本过旧"),
     EMAIL_ALREADY_EXISTS(4066, "邮箱已存在"),
     EMAIL_VERIFY_CODE_INVALID(4067, "邮箱验证码无效或已过期"),
-    EMAIL_VERIFY_CODE_SEND_FAILED(4068, "邮箱验证码发送失败");
+    EMAIL_VERIFY_CODE_SEND_FAILED(4068, "邮箱验证码发送失败"),
+    POINT_AMOUNT_INVALID(4069, "积分数量不合法"),
+    POINT_ACCOUNT_DISABLED(4070, "积分账户不可用"),
+    POINT_BALANCE_NOT_ENOUGH(4071, "积分余额不足"),
+    POINT_IDEMPOTENCY_REQUIRED(4072, "积分幂等键不能为空"),
+    POINT_FREEZE_ORDER_NOT_FOUND(4073, "积分冻结单不存在"),
+    POINT_ADJUSTMENT_NOT_FOUND(4074, "积分调整单不存在"),
+    POINT_ADJUSTMENT_STATUS_INVALID(4075, "积分调整单状态不允许当前操作"),
+    CDK_BATCH_NOT_FOUND(4076, "CDK 批次不存在"),
+    CDK_BATCH_STATUS_INVALID(4077, "CDK 批次状态不允许当前操作"),
+    CDK_CODE_INVALID(4078, "CDK 无效"),
+    CDK_CODE_UNAVAILABLE(4079, "CDK 不可兑换"),
+    CDK_PEPPER_MISSING(4080, "CDK 安全密钥未配置"),
+    CDK_BATCH_SIZE_EXCEEDED(4081, "CDK 批次数量超过上限"),
+    CDK_EXPORT_EXPIRED(4082, "CDK 明文导出窗口已失效"),
+    CDK_REDEEM_LOCKED(4083, "CDK 兑换失败次数过多，请稍后再试"),
+    CDK_BENEFIT_UNSUPPORTED(4084, "CDK 权益类型不支持");
 
     private final int code;
     private final String message;

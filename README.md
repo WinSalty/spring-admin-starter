@@ -97,6 +97,23 @@
 | 部门管理 | `/api/system/departments/tree`、`/save`、`/status` |
 | 参数配置 | `/api/system/params/list`、`/detail`、`/save`、`/status`、`/cache/refresh` |
 | 文件管理 | `/api/file/upload`、`/avatar/upload`、`/biz/upload`、`/biz/{id}/download-url`、`/biz/{id}/download`、`/public/**`、`/private/upload`、`/private/{id}/download-url`、`/private/{id}/download`、`/avatar/{id}`、`/object-storage/status`、`/list`、`/{id}/download`、`/{id}/delete`、`/{id}/status` |
+| 积分账户 | `/api/points/account`、`/api/points/ledger`、`/api/points/recharge/orders`、`/api/points/consume/orders`、`/api/points/freeze/orders` |
+| CDK 兑换 | `/api/points/cdk/redeem`，支持 HMAC 存储、幂等兑换、限流和积分入账 |
+| 管理端 CDK | `/api/admin/cdk/batches`、`/submit`、`/approve`、`/pause`、`/void`、`/export`、`/api/admin/cdk/redeem-records` |
+| 积分审计 | `/api/admin/points/accounts`、`/ledger`、`/adjustments`、`/adjustments/{id}/approve`、`/reconciliation` |
+
+### CDK 与积分模块
+
+本项目已按 `resources/doc/cdk-points-module-development-plan.md` 落地阶段一能力：
+
+1. 积分账户通过 `PointAccountService` 统一变更，业务模块不直接更新余额表。
+2. 每次积分变更会写入 `point_ledger`，记录变更前后余额、幂等键、业务单号、操作人、traceId 和哈希链。
+3. 支持充值、扣减、冻结、确认冻结、取消冻结、退款等账务入口。
+4. CDK 明文不落库，`cdk_code.code_hash` 使用 `HMAC-SHA256(cdkPlainText, CDK_PEPPER)`。
+5. CDK 批次审批通过后生成明文码，只写入短期 Redis 导出窗口；导出接口一次性消费缓存并写入导出审计。
+6. CDK 兑换按用户、IP、连续失败次数做 Redis 限流，成功兑换在同一事务内完成码状态、兑换记录、充值单、账户余额和账本流水。
+7. 管理员人工调整先创建调整单，审批通过后再调用积分账务服务入账或扣减。
+8. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql` 初始化表结构和权限菜单。
 
 ## 配套环境说明
 
@@ -170,6 +187,7 @@ Redis 当前承担以下职责：
 4. 系统配置缓存
 5. 匿名接口限流
 6. 通用对象缓存
+7. CDK 兑换风控计数与短期导出窗口
 
 #### 3. JWT
 
@@ -248,6 +266,22 @@ app:
 6. 文件上传会计算 SHA-256 内容 Hash，相同内容会复用已有本地文件或当前 OSS Bucket 中仍存在的对象，减少重复上传和存储占用；业务层仍新增文件记录，保留上传人、原始文件名和审计时间。
 7. 文件上传和头像上传统一按 IP 与用户双维度限流：同一 IP 每 10 分钟最多 60 次，同一用户每 10 分钟最多 20 次。
 8. `sys_file` 额外记录 `biz_module`、`biz_id`、`visibility`、`owner_type`、`owner_id`，支持多个业务模块共享同一文件中心并按归属做授权。
+
+#### 6. CDK 与积分
+
+```bash
+export CDK_PEPPER='replace-with-at-least-32-bytes-random-secret'
+export CDK_MAX_BATCH_SIZE=10000
+export CDK_REDEEM_USER_WINDOW_SECONDS=60
+export CDK_REDEEM_USER_LIMIT=10
+export CDK_REDEEM_IP_WINDOW_SECONDS=60
+export CDK_REDEEM_IP_LIMIT=30
+export CDK_REDEEM_LOCK_SECONDS=900
+export POINTS_RECONCILIATION_ENABLED=true
+export POINTS_FREEZE_DEFAULT_EXPIRE_SECONDS=1800
+```
+
+生产环境必须显式配置 `CDK_PEPPER`，且长度不少于 32 字节。未配置时，CDK 批次审批生成和兑换会拒绝执行，避免使用弱密钥生成高价值凭证。
 
 文件访问控制规则：
 
