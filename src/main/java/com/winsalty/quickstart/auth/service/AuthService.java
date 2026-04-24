@@ -25,7 +25,7 @@ public interface AuthService {
 
     void register(RegisterRequest request);
 
-    void sendRegisterVerifyCode(String email);
+    void sendRegisterVerifyCode(String username, String email);
 
     ProfileResponse getProfile(Long userId);
 

@@ -364,7 +364,7 @@ app:
 
 邮件能力已升级为通用服务，当前内置的注册验证码邮件只是其中一个业务实现。项目内其他业务模块可以直接注入 `com.winsalty.quickstart.infra.mail.MailService` 发送文本或 HTML 邮件，不需要关心底层使用 SMTP 还是阿里云 DirectMail。系统同时内置了统一的卡片式 HTML 邮件模板，默认对齐 `react-admin-starter` 的浅色品牌风格与文案语气，默认品牌名为 `React Admin Starter`，并自动附带纯文本 fallback，兼容只支持纯文本的客户端。
 
-注册验证码发送接口使用 `POST /api/auth/register/verify-code`，请求体为 `{"email":"user@example.com"}`。接口不再使用 GET query 传递邮箱，避免代理日志、浏览器历史或链路追踪系统记录明文邮箱。
+注册验证码发送接口使用 `POST /api/auth/register/verify-code`，请求体为 `{"username":"new-user","email":"user@example.com"}`。接口不再使用 GET query 传递邮箱，避免代理日志、浏览器历史或链路追踪系统记录明文邮箱。发送验证码前会先校验用户名和邮箱是否已存在，避免用户填完验证码后才发现账号不可用。
 
 通用邮件服务使用示例：
 

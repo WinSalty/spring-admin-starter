@@ -116,7 +116,7 @@ public class AuthController extends BaseController {
             throw new BusinessException(ErrorCode.REGISTER_DISABLED);
         }
         authRateLimitService.checkRegisterVerifyCode(request.getEmail(), IpUtils.getClientIp(servletRequest));
-        authService.sendRegisterVerifyCode(request.getEmail());
+        authService.sendRegisterVerifyCode(request.getUsername(), request.getEmail());
         return ApiResponse.success("验证码已提交发送", null);
     }
 

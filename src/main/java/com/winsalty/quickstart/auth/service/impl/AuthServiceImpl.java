@@ -43,6 +43,13 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
     private static final long DEFAULT_DEPARTMENT_ID = 2L;
     private static final long DEFAULT_VIEWER_ROLE_ID = 2L;
+    private static final String REGISTER_SCENE_SEND_VERIFY_CODE = "send-verify-code";
+    private static final String REGISTER_SCENE_SUBMIT = "submit-register";
+    private static final String REGISTER_SCENE_VERIFY_CODE = "verify-code";
+    private static final String MASKED_VALUE = "***";
+    private static final String SINGLE_CHAR_MASK = "*";
+    private static final char EMAIL_SEPARATOR = '@';
+    private static final int SINGLE_CHARACTER_LENGTH = 1;
 
     private final UserMapper userMapper;
     private final PermissionMapper permissionMapper;
@@ -143,17 +150,16 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void register(RegisterRequest request) {
-        // 验证码先校验并消费，避免同一验证码被重复注册多个账号。
-        registerVerificationService.verifyCode(request.getEmail(), request.getVerifyCode());
         String username = normalizeAccount(request.getUsername());
         String email = normalizeEmail(request.getEmail());
-        UserEntity existedUser = userMapper.findByUsername(username);
-        if (existedUser != null) {
-            throw new BusinessException(ErrorCode.USERNAME_ALREADY_EXISTS);
-        }
-        UserEntity existedEmailUser = userMapper.findByEmail(email);
-        if (existedEmailUser != null) {
-            throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        log.info("user register request received, username={}, email={}", username, maskEmail(email));
+        validateRegisterAvailability(username, email, REGISTER_SCENE_SUBMIT);
+        try {
+            // 唯一性先校验，验证码后消费，避免重复账号导致有效验证码被白白消耗。
+            registerVerificationService.verifyCode(email, request.getVerifyCode());
+        } catch (BusinessException exception) {
+            logRegisterFailure(REGISTER_SCENE_VERIFY_CODE, username, email, exception);
+            throw exception;
         }
         UserEntity user = new UserEntity();
         user.setRecordCode("U" + System.currentTimeMillis());
@@ -178,11 +184,23 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     }
 
     /**
-     * 发送注册验证码并写入 Redis。验证码只通过邮件送达，不再返回给前端。
+     * 发送注册验证码并写入 Redis。验证码发送前先校验用户名和邮箱唯一性，避免用户填完验证码后才发现账号不可用。
      */
     @Override
-    public void sendRegisterVerifyCode(String email) {
-        registerVerificationService.sendCode(email);
+    public void sendRegisterVerifyCode(String username, String email) {
+        String normalizedUsername = normalizeAccount(username);
+        String normalizedEmail = normalizeEmail(email);
+        log.info("register verify code request received, username={}, email={}",
+                normalizedUsername, maskEmail(normalizedEmail));
+        validateRegisterAvailability(normalizedUsername, normalizedEmail, REGISTER_SCENE_SEND_VERIFY_CODE);
+        try {
+            registerVerificationService.sendCode(normalizedEmail);
+            log.info("register verify code request accepted, username={}, email={}",
+                    normalizedUsername, maskEmail(normalizedEmail));
+        } catch (BusinessException exception) {
+            logRegisterFailure(REGISTER_SCENE_SEND_VERIFY_CODE, normalizedUsername, normalizedEmail, exception);
+            throw exception;
+        }
     }
 
     /**
@@ -287,6 +305,43 @@ public class AuthServiceImpl extends BaseService implements AuthService {
             return "";
         }
         return email.trim().toLowerCase();
+    }
+
+    private void validateRegisterAvailability(String username, String email, String scene) {
+        UserEntity existedUser = userMapper.findByUsername(username);
+        if (existedUser != null) {
+            log.error("register availability check failed, scene={}, username={}, email={}, reason=username_exists",
+                    scene, username, maskEmail(email));
+            throw new BusinessException(ErrorCode.USERNAME_ALREADY_EXISTS);
+        }
+        UserEntity existedEmailUser = userMapper.findByEmail(email);
+        if (existedEmailUser != null) {
+            log.error("register availability check failed, scene={}, username={}, email={}, reason=email_exists",
+                    scene, username, maskEmail(email));
+            throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
+    }
+
+    private void logRegisterFailure(String scene, String username, String email, BusinessException exception) {
+        log.error("register flow failed, scene={}, username={}, email={}, code={}, message={}",
+                scene, username, maskEmail(email), exception.getCode(), exception.getMessage());
+    }
+
+    private String maskEmail(String email) {
+        if (!StringUtils.hasText(email)) {
+            return MASKED_VALUE;
+        }
+        int atIndex = email.indexOf(EMAIL_SEPARATOR);
+        if (atIndex <= 0) {
+            return MASKED_VALUE;
+        }
+        String localPart = email.substring(0, atIndex);
+        String domainPart = email.substring(atIndex);
+        if (localPart.length() == SINGLE_CHARACTER_LENGTH) {
+            return SINGLE_CHAR_MASK + domainPart;
+        }
+        return localPart.charAt(0) + MASKED_VALUE
+                + localPart.charAt(localPart.length() - SINGLE_CHARACTER_LENGTH) + domainPart;
     }
 
     private String trimToNull(String value) {

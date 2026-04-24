@@ -22,6 +22,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
  */
 class AuthControllerTest {
 
+    private static final String USERNAME = "new-user";
     private static final String EMAIL = "test@example.com";
     private static final String CLIENT_IP = "127.0.0.1";
 
@@ -47,11 +48,12 @@ class AuthControllerTest {
         controller.registerVerifyCode(request(), servletRequest());
 
         verify(authRateLimitService).checkRegisterVerifyCode(eq(EMAIL), eq(CLIENT_IP));
-        verify(authService).sendRegisterVerifyCode(EMAIL);
+        verify(authService).sendRegisterVerifyCode(USERNAME, EMAIL);
     }
 
     private RegisterVerifyCodeRequest request() {
         RegisterVerifyCodeRequest request = new RegisterVerifyCodeRequest();
+        request.setUsername(USERNAME);
         request.setEmail(EMAIL);
         return request;
     }

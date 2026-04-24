@@ -30,6 +30,10 @@ import javax.validation.ConstraintViolationException;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final String LOG_TYPE_BUSINESS = "business";
+    private static final String LOG_TYPE_SYSTEM = "system";
+    private static final String TARGET_SEPARATOR = " ";
+    private static final int SYSTEM_ERROR_CODE = 5000;
 
     private final LogService logService;
 
@@ -42,9 +46,12 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BusinessException.class)
     public ApiResponse<Object> handleBusinessException(BusinessException exception, HttpServletRequest request) {
-        log.error("business exception, uri={}, message={}", request.getRequestURI(), exception.getMessage());
+        String clientIp = IpUtils.getClientIp(request);
+        log.error("business exception, method={}, uri={}, clientIp={}, code={}, message={}",
+                request.getMethod(), request.getRequestURI(), clientIp, exception.getCode(), exception.getMessage());
         // 业务异常代表可预期失败，响应保留原业务码；同时写异常日志，方便后台追踪高频失败原因。
-        recordExceptionLog(request.getRequestURI(), exception.getMessage(), "business", IpUtils.getClientIp(request));
+        recordExceptionLog(buildLogTarget(request), buildLogDescription(exception.getCode(), exception.getMessage()),
+                LOG_TYPE_BUSINESS, clientIp);
         return ApiResponse.failure(exception.getCode(), exception.getMessage());
     }
 
@@ -98,10 +105,13 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ApiResponse<Object> handleException(Exception exception, HttpServletRequest request) {
-        log.error("system exception, uri={}, message={}", request.getRequestURI(), exception.getMessage(), exception);
+        String clientIp = IpUtils.getClientIp(request);
+        log.error("system exception, method={}, uri={}, clientIp={}, message={}",
+                request.getMethod(), request.getRequestURI(), clientIp, exception.getMessage(), exception);
         // 未预期异常不把堆栈或数据库错误暴露给前端，只在服务端日志和异常日志保留细节。
-        recordExceptionLog(request.getRequestURI(), exception.getMessage(), "system", IpUtils.getClientIp(request));
-        return ApiResponse.failure(5000, "系统繁忙，请稍后重试");
+        recordExceptionLog(buildLogTarget(request), buildLogDescription(SYSTEM_ERROR_CODE, exception.getMessage()),
+                LOG_TYPE_SYSTEM, clientIp);
+        return ApiResponse.failure(SYSTEM_ERROR_CODE, "系统繁忙，请稍后重试");
     }
 
     /**
@@ -120,5 +130,13 @@ public class GlobalExceptionHandler {
         request.setResult(SystemConstants.RESULT_FAILURE);
         request.setDurationMs(0L);
         logService.record(request);
+    }
+
+    private String buildLogTarget(HttpServletRequest request) {
+        return request.getMethod() + TARGET_SEPARATOR + request.getRequestURI();
+    }
+
+    private String buildLogDescription(int code, String message) {
+        return "code=" + code + ", message=" + message;
     }
 }
