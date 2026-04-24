@@ -21,6 +21,7 @@ public class StandardMailTemplateService implements MailTemplateService {
     private static final String DEFAULT_BRAND_NAME = "React Admin Starter";
     private static final String DEFAULT_GREETING = "您好，";
     private static final String DEFAULT_HIGHLIGHT_LABEL = "关键信息";
+    private static final String DEFAULT_ACTION_FALLBACK_TIP = "如果按钮无法打开，可复制下方链接到浏览器地址栏打开。";
     private static final String DEFAULT_PRIMARY_COLOR = "#1677ff";
     private static final String DEFAULT_BACKGROUND_COLOR = "#f4f7fb";
     private static final String DEFAULT_CARD_BACKGROUND_COLOR = "#ffffff";
@@ -69,6 +70,7 @@ public class StandardMailTemplateService implements MailTemplateService {
         String actionUrl = StringUtils.hasText(template.getActionText()) ? resolveSafeActionUrl(template.getActionUrl()) : null;
         if (StringUtils.hasText(template.getActionText()) && StringUtils.hasText(actionUrl)) {
             appendLine(builder, template.getActionText().trim() + "：");
+            appendLine(builder, resolveText(template.getActionFallbackTip(), DEFAULT_ACTION_FALLBACK_TIP));
             appendLine(builder, actionUrl);
             appendBlankLine(builder);
         }
@@ -165,7 +167,7 @@ public class StandardMailTemplateService implements MailTemplateService {
         }
         String actionUrl = StringUtils.hasText(template.getActionText()) ? resolveSafeActionUrl(template.getActionUrl()) : null;
         if (StringUtils.hasText(template.getActionText()) && StringUtils.hasText(actionUrl)) {
-            builder.append("<div style=\"margin:26px 0 12px;\">")
+            builder.append("<div style=\"margin:26px 0 12px;text-align:center;\">")
                     .append("<a href=\"").append(escapeHtmlAttribute(actionUrl))
                     .append("\" style=\"display:inline-block;padding:13px 24px;border-radius:10px;")
                     .append("background:").append(primaryColor)
@@ -174,9 +176,16 @@ public class StandardMailTemplateService implements MailTemplateService {
                     .append(escapeHtml(template.getActionText().trim()))
                     .append("</a></div>")
                     .append("<div style=\"font-size:12px;color:").append(TEXT_MUTED_COLOR)
-                    .append(";line-height:1.75;word-break:break-all;background:#f7f9fc;border:1px solid #edf1f7;")
+                    .append(";line-height:1.75;background:#f7f9fc;border:1px solid #edf1f7;")
                     .append("border-radius:10px;padding:10px 12px;\">")
+                    .append("<div style=\"margin-bottom:6px;\">")
+                    .append(escapeHtml(resolveText(template.getActionFallbackTip(), DEFAULT_ACTION_FALLBACK_TIP)))
+                    .append("</div>")
+                    .append("<a href=\"").append(escapeHtmlAttribute(actionUrl))
+                    .append("\" style=\"display:block;color:").append(primaryColor)
+                    .append(";text-decoration:underline;word-break:break-all;\">")
                     .append(escapeHtml(actionUrl))
+                    .append("</a>")
                     .append("</div>");
         }
         if (StringUtils.hasText(template.getFooterNote())) {

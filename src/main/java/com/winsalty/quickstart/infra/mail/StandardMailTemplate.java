@@ -16,6 +16,7 @@ public class StandardMailTemplate {
     private String description;
     private String actionText;
     private String actionUrl;
+    private String actionFallbackTip;
     private String footerNote;
 
     public String getTitle() {
@@ -80,6 +81,14 @@ public class StandardMailTemplate {
 
     public void setActionUrl(String actionUrl) {
         this.actionUrl = actionUrl;
+    }
+
+    public String getActionFallbackTip() {
+        return actionFallbackTip;
+    }
+
+    public void setActionFallbackTip(String actionFallbackTip) {
+        this.actionFallbackTip = actionFallbackTip;
     }
 
     public String getFooterNote() {

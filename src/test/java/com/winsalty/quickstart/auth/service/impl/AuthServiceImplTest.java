@@ -107,6 +107,30 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void resendRegisterVerifyMailSendsActivationMailForPendingAccount() {
+        UserMapper userMapper = mock(UserMapper.class);
+        RegisterVerificationService registerVerificationService = mock(RegisterVerificationService.class);
+        AuthServiceImpl service = newService(userMapper, registerVerificationService, passwordEncoder());
+        when(userMapper.findByEmail(EMAIL)).thenReturn(pendingUser());
+
+        service.resendRegisterVerifyMail(EMAIL, VERIFY_BASE_URL);
+
+        verify(registerVerificationService).sendVerificationLink(EMAIL, VERIFY_BASE_URL);
+    }
+
+    @Test
+    void resendRegisterVerifyMailRejectsActivatedAccount() {
+        UserMapper userMapper = mock(UserMapper.class);
+        RegisterVerificationService registerVerificationService = mock(RegisterVerificationService.class);
+        AuthServiceImpl service = newService(userMapper, registerVerificationService, passwordEncoder());
+        when(userMapper.findByEmail(EMAIL)).thenReturn(activeUser(USERNAME, EMAIL));
+
+        assertThrows(BusinessException.class, () -> service.resendRegisterVerifyMail(EMAIL, VERIFY_BASE_URL));
+
+        verify(registerVerificationService, never()).sendVerificationLink(EMAIL, VERIFY_BASE_URL);
+    }
+
+    @Test
     void verifyRegisterEmailActivatesPendingAccount() {
         UserMapper userMapper = mock(UserMapper.class);
         RegisterVerificationService registerVerificationService = mock(RegisterVerificationService.class);

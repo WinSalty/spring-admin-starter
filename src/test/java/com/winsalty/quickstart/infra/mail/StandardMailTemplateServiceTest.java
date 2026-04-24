@@ -59,6 +59,22 @@ class StandardMailTemplateServiceTest {
         assertFalse(content.getHtmlContent().contains("<script>alert"));
     }
 
+    @Test
+    void renderStandardCentersActionButtonAndShowsClickableFallbackLink() {
+        StandardMailTemplateService service = new StandardMailTemplateService(new MailProperties());
+        StandardMailTemplate template = baseTemplate();
+        template.setActionText("验证邮箱");
+        template.setActionUrl("https://example.com/register/verify-email?email=test@example.com&token=abc");
+        template.setActionFallbackTip("如果按钮无法打开，请复制下方链接到浏览器地址栏完成邮箱验证。");
+
+        MailTemplateContent content = service.renderStandard(template);
+
+        assertTrue(content.getHtmlContent().contains("margin:26px 0 12px;text-align:center;"));
+        assertTrue(content.getHtmlContent().contains("如果按钮无法打开，请复制下方链接到浏览器地址栏完成邮箱验证。"));
+        assertTrue(content.getHtmlContent().contains("<a href=\"https://example.com/register/verify-email?email=test@example.com&amp;token=abc\""));
+        assertTrue(content.getTextContent().contains("如果按钮无法打开，请复制下方链接到浏览器地址栏完成邮箱验证。"));
+    }
+
     private StandardMailTemplate baseTemplate() {
         StandardMailTemplate template = new StandardMailTemplate();
         template.setTitle("完成注册校验");

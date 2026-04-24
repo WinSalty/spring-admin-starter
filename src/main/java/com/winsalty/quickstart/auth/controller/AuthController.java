@@ -6,6 +6,7 @@ import com.winsalty.quickstart.auth.dto.NotificationSettingsRequest;
 import com.winsalty.quickstart.auth.dto.PasswordUpdateRequest;
 import com.winsalty.quickstart.auth.dto.ProfileUpdateRequest;
 import com.winsalty.quickstart.auth.dto.RefreshTokenRequest;
+import com.winsalty.quickstart.auth.dto.RegisterResendVerifyMailRequest;
 import com.winsalty.quickstart.auth.dto.RegisterRequest;
 import com.winsalty.quickstart.auth.dto.RegisterVerifyLinkRequest;
 import com.winsalty.quickstart.auth.security.AuthUser;
@@ -121,6 +122,21 @@ public class AuthController extends BaseController {
         }
         authService.verifyRegisterEmail(request.getEmail(), request.getToken());
         return ApiResponse.success("账号已激活", null);
+    }
+
+    /**
+     * 重发注册验证邮件。仅允许仍处于 pending 状态的注册邮箱重新获取激活链接。
+     */
+    @AuditLog(logType = "operation", code = "auth_register_resend_verify_mail", name = "重发注册验证邮件")
+    @PostMapping("/register/resend-verify-mail")
+    public ApiResponse<Object> resendRegisterVerifyMail(@Validated @RequestBody RegisterResendVerifyMailRequest request,
+                                                        HttpServletRequest servletRequest) {
+        if (!registerEnabled) {
+            throw new BusinessException(ErrorCode.REGISTER_DISABLED);
+        }
+        authRateLimitService.checkRegisterVerifyCode(request.getEmail(), IpUtils.getClientIp(servletRequest));
+        authService.resendRegisterVerifyMail(request.getEmail(), registerVerifyLinkBaseUrl);
+        return ApiResponse.success("验证邮件已重新发送", null);
     }
 
     @GetMapping("/profile")

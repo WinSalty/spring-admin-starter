@@ -49,12 +49,13 @@ public class RegisterMailServiceImpl implements RegisterMailService {
     private StandardMailTemplate buildTemplate(String verificationUrl, long ttlSeconds) {
         long ttlMinutes = Math.max(1L, ttlSeconds / 60L);
         StandardMailTemplate template = new StandardMailTemplate();
-        template.setTitle("激活账号，完成注册");
+        template.setTitle("验证邮箱，完成注册");
         template.setGreeting("您好，");
-        template.setSummary("你正在创建后台账号，请点击下方按钮激活账号，激活后即可登录后台。");
+        template.setSummary("你正在创建后台账号，请点击下方按钮验证邮箱。验证完成后即可登录后台。");
         template.setDescription("本链接将在 " + ttlMinutes + " 分钟内有效，且仅能用于本次账号激活。");
-        template.setActionText("激活账号");
+        template.setActionText("验证邮箱并激活账号");
         template.setActionUrl(verificationUrl);
+        template.setActionFallbackTip("如果按钮无法打开，请复制下方链接到浏览器地址栏完成邮箱验证。");
         template.setFooterNote("如果这不是你的操作，请直接忽略本邮件，无需进行任何处理。");
         return template;
     }

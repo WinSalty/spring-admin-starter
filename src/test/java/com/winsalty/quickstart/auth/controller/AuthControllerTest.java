@@ -1,6 +1,7 @@
 package com.winsalty.quickstart.auth.controller;
 
 import com.winsalty.quickstart.auth.dto.RegisterRequest;
+import com.winsalty.quickstart.auth.dto.RegisterResendVerifyMailRequest;
 import com.winsalty.quickstart.auth.dto.RegisterVerifyLinkRequest;
 import com.winsalty.quickstart.auth.service.AuthService;
 import com.winsalty.quickstart.auth.service.support.AuthRateLimitService;
@@ -69,6 +70,21 @@ class AuthControllerTest {
         verify(authService).verifyRegisterEmail(EMAIL, TOKEN);
     }
 
+    @Test
+    void resendRegisterVerifyMailChecksRateLimitBeforeSendingWhenEnabled() {
+        AuthService authService = mock(AuthService.class);
+        AuthRateLimitService authRateLimitService = mock(AuthRateLimitService.class);
+        AuthController controller = new AuthController(authService, authRateLimitService);
+        ReflectionTestUtils.setField(controller, "registerEnabled", true);
+        ReflectionTestUtils.setField(controller, "registerVerifyLinkBaseUrl", VERIFY_BASE_URL);
+        RegisterResendVerifyMailRequest request = resendRequest();
+
+        controller.resendRegisterVerifyMail(request, servletRequest());
+
+        verify(authRateLimitService).checkRegisterVerifyCode(eq(EMAIL), eq(CLIENT_IP));
+        verify(authService).resendRegisterVerifyMail(EMAIL, VERIFY_BASE_URL);
+    }
+
     private RegisterRequest registerRequest() {
         RegisterRequest request = new RegisterRequest();
         request.setUsername(USERNAME);
@@ -87,6 +103,12 @@ class AuthControllerTest {
         RegisterVerifyLinkRequest request = new RegisterVerifyLinkRequest();
         request.setEmail(EMAIL);
         request.setToken(TOKEN);
+        return request;
+    }
+
+    private RegisterResendVerifyMailRequest resendRequest() {
+        RegisterResendVerifyMailRequest request = new RegisterResendVerifyMailRequest();
+        request.setEmail(EMAIL);
         return request;
     }
 }

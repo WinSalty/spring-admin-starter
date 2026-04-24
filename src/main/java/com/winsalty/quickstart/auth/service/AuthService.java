@@ -25,6 +25,8 @@ public interface AuthService {
 
     void register(RegisterRequest request, String verifyLinkBaseUrl);
 
+    void resendRegisterVerifyMail(String email, String verifyLinkBaseUrl);
+
     void verifyRegisterEmail(String email, String token);
 
     ProfileResponse getProfile(Long userId);

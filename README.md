@@ -68,6 +68,7 @@
 | 退出登录 | `/api/auth/logout`，基于 Redis 失效当前会话 |
 | 注册 | `/api/auth/register`，仅 `dev` 环境默认开放；提交后创建 `pending` 待激活账号并发送激活邮件 |
 | 注册账号激活 | `POST /api/auth/register/verify-link` 校验邮件链接并激活账号，激活前无法登录 |
+| 重发注册验证邮件 | `POST /api/auth/register/resend-verify-mail`，仅 pending 待激活账号可重新发送 |
 | 个人中心 | `/api/auth/profile`、资料修改、密码修改、通知设置 |
 | 登录限流 | 基于账号/IP 的匿名接口限流 |
 | JWT 安全校验 | 生产环境要求外部注入强密钥 |
@@ -373,7 +374,7 @@ app:
 
 邮件能力已升级为通用服务，当前内置的注册账号激活邮件只是其中一个业务实现。项目内其他业务模块可以直接注入 `com.winsalty.quickstart.infra.mail.MailService` 发送文本或 HTML 邮件，不需要关心底层使用 SMTP 还是阿里云 DirectMail。系统同时内置了统一的卡片式 HTML 邮件模板，默认对齐 `react-admin-starter` 的浅色品牌风格与文案语气，默认品牌名为 `React Admin Starter`，并自动附带纯文本 fallback，兼容只支持纯文本的客户端。
 
-注册提交接口 `POST /api/auth/register` 会完成用户名和邮箱唯一性校验，创建 `pending` 状态账号，分配默认 viewer 角色，并发送账号激活邮件。`pending` 账号会占用用户名和邮箱，但登录时会返回“账号尚未激活”的业务错误。用户点击邮件中的链接后，前端调用 `POST /api/auth/register/verify-link` 校验一次性 token，校验成功后后端把账号状态切换为 `active`，之后才能正常登录。用户在激活前用同一用户名和邮箱再次提交注册时，系统会刷新待激活账号密码并重发激活邮件。
+注册提交接口 `POST /api/auth/register` 会完成用户名和邮箱唯一性校验，创建 `pending` 状态账号，分配默认 viewer 角色，并发送账号激活邮件。`pending` 账号会占用用户名和邮箱，但登录时会返回“账号尚未激活”的业务错误。用户点击邮件中的链接后，前端调用 `POST /api/auth/register/verify-link` 校验一次性 token，校验成功后后端把账号状态切换为 `active`，之后才能正常登录。用户在激活前用同一用户名和邮箱再次提交注册时，系统会刷新待激活账号密码并重发激活邮件；也可以在前端待验证页面调用 `POST /api/auth/register/resend-verify-mail` 重新发送验证邮件，后端会校验邮箱仍处于 `pending` 状态并复用注册验证邮件限流。
 
 注册激活已经切换为一次性邮件链接，不再复用手填验证码。后续业务如果仍需要邮箱验证码，可注入 `com.winsalty.quickstart.infra.verification.EmailVerificationCodeService`。该服务按 `scene` 隔离不同业务，Redis key 使用 `scene + email fingerprint`，缓存内容为 HMAC 摘要而非明文验证码，并支持错误次数限制、`verifyCode` 后一次性消费、或 `consumeCode` 直接校验消费。
 

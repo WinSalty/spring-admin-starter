@@ -51,7 +51,7 @@ class RegisterVerificationServiceImplTest {
         verify(redisCacheService).set(eq(PENDING_KEY), cacheValueCaptor.capture(), eq(LINK_TTL_SECONDS));
         verify(redisCacheService).delete(FAIL_KEY);
         String token = extractToken(urlCaptor.getValue());
-        assertTrue(urlCaptor.getValue().startsWith(VERIFY_BASE_URL + "/register?"));
+        assertTrue(urlCaptor.getValue().startsWith(VERIFY_BASE_URL + "/register/verify-email?"));
         assertTrue(urlCaptor.getValue().contains("email=test%40example.com"));
         assertTrue(token.length() > 32);
         assertNotEquals(token, cacheValueCaptor.getValue());

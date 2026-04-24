@@ -44,6 +44,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     private static final long DEFAULT_DEPARTMENT_ID = 2L;
     private static final long DEFAULT_VIEWER_ROLE_ID = 2L;
     private static final String REGISTER_SCENE_SUBMIT = "submit-register";
+    private static final String REGISTER_SCENE_RESEND = "resend-register";
     private static final String REGISTER_SCENE_ACTIVATE = "activate-register";
     private static final String REGISTER_AVAILABILITY_USERNAME_EXISTS = "username_exists";
     private static final String REGISTER_AVAILABILITY_EMAIL_EXISTS = "email_exists";
@@ -170,6 +171,26 @@ public class AuthServiceImpl extends BaseService implements AuthService {
                     user.getUsername(), user.getId(), user.getStatus());
         } catch (BusinessException exception) {
             logRegisterFailure(REGISTER_SCENE_SUBMIT, username, email, exception);
+            throw exception;
+        }
+    }
+
+    /**
+     * 为待激活注册账号重新发送验证邮件。只允许 pending 账号重发，避免向非待激活账号发送邮件。
+     */
+    @Override
+    public void resendRegisterVerifyMail(String email, String verifyLinkBaseUrl) {
+        String normalizedEmail = normalizeEmail(email);
+        try {
+            UserEntity pendingUser = userMapper.findByEmail(normalizedEmail);
+            if (pendingUser == null || !CommonStatusConstants.PENDING.equals(pendingUser.getStatus())) {
+                throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "待激活账号不存在或已激活");
+            }
+            registerVerificationService.sendVerificationLink(normalizedEmail, verifyLinkBaseUrl);
+            log.info("register activation mail resent, username={}, userId={}, email={}",
+                    pendingUser.getUsername(), pendingUser.getId(), maskEmail(normalizedEmail));
+        } catch (BusinessException exception) {
+            logRegisterFailure(REGISTER_SCENE_RESEND, "", normalizedEmail, exception);
             throw exception;
         }
     }

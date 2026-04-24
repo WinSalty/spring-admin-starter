@@ -38,7 +38,7 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
     private static final String FAIL_KEY_PREFIX = "sa:register:verify-fail:";
     private static final String HMAC_SHA256_ALGORITHM = "HmacSHA256";
     private static final String VERIFY_TOKEN_SEPARATOR = ":";
-    private static final String REGISTER_PATH = "/register";
+    private static final String REGISTER_VERIFY_EMAIL_PATH = "/register/verify-email";
     private static final String EMAIL_QUERY_PARAM = "email";
     private static final String TOKEN_QUERY_PARAM = "token";
     private static final String HTTP_SCHEME = "http";
@@ -163,7 +163,7 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
 
     private String buildVerificationUrl(String verifyLinkBaseUrl, String email, String token) {
         String baseUrl = normalizeVerifyLinkBaseUrl(verifyLinkBaseUrl);
-        return baseUrl + REGISTER_PATH
+        return baseUrl + REGISTER_VERIFY_EMAIL_PATH
                 + URL_QUERY_PREFIX + EMAIL_QUERY_PARAM + URL_VALUE_SEPARATOR + encodeQueryValue(email)
                 + URL_QUERY_SEPARATOR + TOKEN_QUERY_PARAM + URL_VALUE_SEPARATOR + encodeQueryValue(token);
     }
