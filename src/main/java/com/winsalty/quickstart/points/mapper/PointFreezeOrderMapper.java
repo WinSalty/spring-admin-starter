@@ -29,6 +29,10 @@ public interface PointFreezeOrderMapper {
     @Select(FREEZE_SELECT + "WHERE freeze_no = #{freezeNo} LIMIT 1")
     PointFreezeOrderEntity findByFreezeNo(@Param("freezeNo") String freezeNo);
 
+    @Select(FREEZE_SELECT + "WHERE user_id = #{userId} AND idempotency_key = #{idempotencyKey} LIMIT 1")
+    PointFreezeOrderEntity findByUserIdAndIdempotencyKey(@Param("userId") Long userId,
+                                                         @Param("idempotencyKey") String idempotencyKey);
+
     @Update("UPDATE point_freeze_order SET status = #{status} WHERE freeze_no = #{freezeNo}")
     int updateStatus(@Param("freezeNo") String freezeNo, @Param("status") String status);
 

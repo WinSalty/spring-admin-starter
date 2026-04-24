@@ -54,6 +54,7 @@ public class PermissionServiceImpl implements PermissionService {
         List<MenuEntity> menus = permissionMapper.findMenusByRoleCode(roleCode);
         List<String> routes = permissionMapper.findRouteCodesByRoleCode(roleCode);
         List<RoleActionEntity> actions = permissionMapper.findActionsByRoleCode(roleCode);
+        mergeBenefitPermissions(userId, routes, actions);
 
         PermissionBootstrapVo response = new PermissionBootstrapVo();
         // menus 给侧边栏和动态路由使用，routes 给前端 RouteGuard 使用，actions 给按钮级 Access 使用。
@@ -63,6 +64,35 @@ public class PermissionServiceImpl implements PermissionService {
         log.info("permission bootstrap loaded, userId={}, roleCode={}, menuSize={}, routeSize={}, actionSize={}",
                 userId, roleCode, menus.size(), routes.size(), actions.size());
         return response;
+    }
+
+    /**
+     * 合并用户通过积分兑换获得的权限码。
+     */
+    private void mergeBenefitPermissions(Long userId, List<String> routes, List<RoleActionEntity> actions) {
+        List<String> benefitCodes = permissionMapper.findActiveBenefitPermissionCodes(userId);
+        Set<String> routeSet = new LinkedHashSet<String>(routes);
+        Set<String> actionSet = new LinkedHashSet<String>();
+        for (RoleActionEntity action : actions) {
+            actionSet.add(action.getActionCode());
+        }
+        for (String benefitCode : benefitCodes) {
+            if (!StringUtils.hasText(benefitCode)) {
+                continue;
+            }
+            if (benefitCode.contains(":")) {
+                if (actionSet.add(benefitCode)) {
+                    RoleActionEntity action = new RoleActionEntity();
+                    action.setActionCode(benefitCode);
+                    action.setActionName(resolveActionName(benefitCode));
+                    actions.add(action);
+                }
+                continue;
+            }
+            if (routeSet.add(benefitCode)) {
+                routes.add(benefitCode);
+            }
+        }
     }
 
     /**

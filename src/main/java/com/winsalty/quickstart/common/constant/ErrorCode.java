@@ -84,7 +84,12 @@ public enum ErrorCode {
     CDK_BATCH_SIZE_EXCEEDED(4081, "CDK 批次数量超过上限"),
     CDK_EXPORT_EXPIRED(4082, "CDK 明文导出窗口已失效"),
     CDK_REDEEM_LOCKED(4083, "CDK 兑换失败次数过多，请稍后再试"),
-    CDK_BENEFIT_UNSUPPORTED(4084, "CDK 权益类型不支持");
+    CDK_BENEFIT_UNSUPPORTED(4084, "CDK 权益类型不支持"),
+    BENEFIT_PRODUCT_NOT_FOUND(4085, "权益商品不存在"),
+    BENEFIT_PRODUCT_UNAVAILABLE(4086, "权益商品不可兑换"),
+    BENEFIT_PRODUCT_STOCK_NOT_ENOUGH(4087, "权益商品库存不足"),
+    BENEFIT_ORDER_NOT_FOUND(4088, "权益兑换订单不存在"),
+    BENEFIT_ORDER_STATUS_INVALID(4089, "权益兑换订单状态不允许当前操作");
 
     private final int code;
     private final String message;

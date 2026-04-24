@@ -25,6 +25,7 @@ author：sunshengxian
 | 后端积分模块 | 已新增 `com.winsalty.quickstart.points`，支持账户初始化、充值、扣减、冻结、确认冻结、取消冻结、退款、账本哈希链、管理端账户/流水查询、人工调整申请与审批、对账汇总 |
 | 后端 CDK 模块 | 已新增 `com.winsalty.quickstart.cdk`，支持批次创建、提交审批、审批生成、暂停、作废、一次性导出、兑换记录查询和用户兑换 |
 | 后端权益抽象 | 已新增 `com.winsalty.quickstart.benefit`，首期实现积分权益发放，后续权限或服务包可扩展独立发放器 |
+| 后端权益兑换 | 已新增权益商品、兑换订单、用户权益表和接口，支持积分冻结、权益发放、确认扣减和失败取消冻结；权限类权益已并入权限 bootstrap |
 | 后端对账任务 | 已新增 `PointReconciliationJob`，通过 Quartz 按 `app.points.reconciliation-cron` 定时执行积分账户和流水汇总对账 |
 | 后端集成测试 | 已新增 `CdkPointsDevIntegrationTest`，通过 `RUN_DEV_INTEGRATION_TESTS=true` 显式连接本地 MySQL/Redis 验证兑换链路 |
 | 安全与审计 | CDK 仅存 HMAC Hash；明文只进入短期 Redis 导出窗口；兑换接口接入用户/IP/连续失败限流；管理操作和兑换操作接入 `@AuditLog` |
@@ -32,6 +33,7 @@ author：sunshengxian
 | 前端管理页 | 已新增 `/system/cdk/batches`、`/system/cdk/redeem-records`、`/system/points/audit` |
 | 权限菜单 | 已新增 `points_wallet`、`points_admin_account`、`points_admin_ledger`、`cdk_batch`、`cdk_redeem_record` 路由码和对应按钮权限；`points_wallet` 已调整到个人中心子菜单 |
 | 权限协议 | 权限 bootstrap 菜单已透传 `routeCode`，前端按 `routeCode` 或路径映射过滤菜单，避免路径末段与路由码不一致时隐藏入口 |
+| 数据库脚本 | 已新增 `V24__init_benefit_exchange_schema.sql` 初始化权益商品、兑换订单、用户权益和菜单权限 |
 
 ### 已验证内容
 
@@ -58,7 +60,7 @@ author：sunshengxian
 | 优先级 | 待办 | 说明 |
 | --- | --- | --- |
 | 高 | 完成目标环境联调 | 本地开发 MySQL/Redis 已完成集成测试；仍需在目标部署环境跑迁移并走完整兑换链路 |
-| 中 | 二阶段权益发放 | 按阶段二实现权限/服务包权益、冻结确认/取消的业务页面和补偿任务 |
+| 中 | 二阶段权益前端与补偿任务 | 后端权益兑换链路已完成；仍需前端页面和冻结超时补偿任务 |
 | 中 | 对账差异记录 | 当前已接入 Quartz 日终对账，后续应持久化差异记录并提供处理入口 |
 | 中 | 导出文件强化 | 当前返回一次性明文列表，后续可改为加密 ZIP 和受控临时文件下载 |
 | 中 | 高价值双人复核 | 当前已有审批流状态，高价值批次双人复核规则尚未落地 |

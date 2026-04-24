@@ -99,8 +99,10 @@
 | 文件管理 | `/api/file/upload`、`/avatar/upload`、`/biz/upload`、`/biz/{id}/download-url`、`/biz/{id}/download`、`/public/**`、`/private/upload`、`/private/{id}/download-url`、`/private/{id}/download`、`/avatar/{id}`、`/object-storage/status`、`/list`、`/{id}/download`、`/{id}/delete`、`/{id}/status` |
 | 积分账户 | `/api/points/account`、`/api/points/ledger`、`/api/points/recharge/orders`、`/api/points/consume/orders`、`/api/points/freeze/orders` |
 | CDK 兑换 | `/api/points/cdk/redeem`，支持 HMAC 存储、幂等兑换、限流和积分入账 |
+| 权益兑换 | `/api/benefits/products`、`/products/{id}/exchange`、`/orders`、`/mine`，支持积分冻结、权益发放和确认扣减 |
 | 管理端 CDK | `/api/admin/cdk/batches`、`/submit`、`/approve`、`/pause`、`/void`、`/export`、`/api/admin/cdk/redeem-records` |
 | 积分审计 | `/api/admin/points/accounts`、`/ledger`、`/adjustments`、`/adjustments/{id}/approve`、`/reconciliation` |
+| 权益管理 | `/api/admin/benefits/products`、`/products/{id}`、`/products/{id}/status`、`/orders` |
 
 ### CDK 与积分模块
 
@@ -114,7 +116,9 @@
 6. CDK 兑换按用户、IP、连续失败次数做 Redis 限流，成功兑换在同一事务内完成码状态、兑换记录、充值单、账户余额和账本流水。
 7. 管理员人工调整先创建调整单，审批通过后再调用积分账务服务入账或扣减。
 8. 积分对账已接入 Quartz 日终任务，按 `app.points.reconciliation-cron` 定时执行账户与流水汇总校验。
-9. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql` 初始化表结构和权限菜单。
+9. 权益兑换通过 `benefit_product`、`benefit_exchange_order`、`user_benefit` 承载，兑换流程使用积分冻结、权益发放、确认扣减，失败时取消冻结。
+10. 权限类用户权益会在权限 bootstrap 时合并到当前用户路由或按钮权限中。
+11. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql` 初始化表结构和权限菜单。
 
 ## 配套环境说明
 

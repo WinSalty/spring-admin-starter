@@ -48,6 +48,9 @@ public interface PermissionMapper {
     @Select("SELECT ra.action_code FROM sys_role_action ra INNER JOIN sys_role r ON r.id = ra.role_id WHERE r.role_code = #{roleCode} ORDER BY ra.id ASC")
     List<String> findActionCodesByRoleCode(@Param("roleCode") String roleCode);
 
+    @Select("SELECT benefit_code FROM user_benefit WHERE user_id = #{userId} AND benefit_type = 'permission' AND status = 'active' AND effective_at <= NOW() AND (expire_at IS NULL OR expire_at > NOW()) ORDER BY id ASC")
+    List<String> findActiveBenefitPermissionCodes(@Param("userId") Long userId);
+
     @Select({
             "<script>",
             "SELECT m.id, m.parent_id AS parentId, m.title, m.path, m.icon, m.order_no AS orderNo, m.menu_type AS menuType, ",

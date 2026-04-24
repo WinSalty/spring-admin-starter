@@ -17,8 +17,10 @@ public final class PointsConstants {
     public static final String DIRECTION_REFUND = "refund";
     public static final String BIZ_TYPE_CDK_RECHARGE = "cdk_recharge";
     public static final String BIZ_TYPE_ADMIN_ADJUST = "admin_adjust";
+    public static final String BIZ_TYPE_BENEFIT_EXCHANGE = "benefit_exchange";
     public static final String OPERATOR_TYPE_USER = "user";
     public static final String OPERATOR_TYPE_ADMIN = "admin";
+    public static final String OPERATOR_TYPE_SYSTEM = "system";
     public static final String ORDER_STATUS_CREATED = "created";
     public static final String ORDER_STATUS_PROCESSING = "processing";
     public static final String ORDER_STATUS_SUCCESS = "success";
