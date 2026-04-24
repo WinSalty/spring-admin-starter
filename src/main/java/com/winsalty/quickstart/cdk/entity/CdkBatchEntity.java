@@ -41,6 +41,10 @@ public class CdkBatchEntity {
     private String approvedBy;
     /** 审批时间。 */
     private String approvedAt;
+    /** 二次复核人。 */
+    private String secondApprovedBy;
+    /** 二次复核时间。 */
+    private String secondApprovedAt;
     /** 导出次数。 */
     private Integer exportCount;
     /** 创建时间。 */

@@ -3,6 +3,7 @@ package com.winsalty.quickstart.cdk.controller;
 import com.winsalty.quickstart.auth.annotation.AuditLog;
 import com.winsalty.quickstart.cdk.dto.CdkBatchCreateRequest;
 import com.winsalty.quickstart.cdk.dto.CdkBatchListRequest;
+import com.winsalty.quickstart.cdk.dto.CdkExportRequest;
 import com.winsalty.quickstart.cdk.dto.CdkRedeemRecordListRequest;
 import com.winsalty.quickstart.cdk.service.CdkService;
 import com.winsalty.quickstart.cdk.vo.CdkBatchVo;
@@ -59,7 +60,13 @@ public class AdminCdkController {
     @AuditLog(logType = "operation", code = "cdk_batch_approve", name = "审批并生成CDK批次")
     @PostMapping("/batches/{id}/approve")
     public ApiResponse<CdkBatchVo> approveBatch(@PathVariable("id") Long id) {
-        return ApiResponse.success("审批通过并已生成", cdkService.approveBatch(id));
+        return ApiResponse.success("审批成功", cdkService.approveBatch(id));
+    }
+
+    @AuditLog(logType = "operation", code = "cdk_batch_second_approve", name = "二次复核CDK批次")
+    @PostMapping("/batches/{id}/second-approve")
+    public ApiResponse<CdkBatchVo> secondApproveBatch(@PathVariable("id") Long id) {
+        return ApiResponse.success("复核通过并已生成", cdkService.secondApproveBatch(id));
     }
 
     @AuditLog(logType = "operation", code = "cdk_batch_pause", name = "暂停CDK批次")
@@ -76,8 +83,9 @@ public class AdminCdkController {
 
     @AuditLog(logType = "operation", code = "cdk_batch_export", name = "导出CDK批次", recordResponse = false)
     @PostMapping("/batches/{id}/export")
-    public ApiResponse<CdkExportVo> exportBatch(@PathVariable("id") Long id) {
-        return ApiResponse.success("导出成功", cdkService.exportBatch(id));
+    public ApiResponse<CdkExportVo> exportBatch(@PathVariable("id") Long id,
+                                                @Valid @RequestBody CdkExportRequest request) {
+        return ApiResponse.success("导出成功", cdkService.exportBatch(id, request));
     }
 
     @GetMapping("/redeem-records")

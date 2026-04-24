@@ -22,7 +22,8 @@ public interface CdkBatchMapper {
             + "total_count AS totalCount, generated_count AS generatedCount, redeemed_count AS redeemedCount, "
             + "DATE_FORMAT(valid_from, '%Y-%m-%d %H:%i:%s') AS validFrom, DATE_FORMAT(valid_to, '%Y-%m-%d %H:%i:%s') AS validTo, "
             + "status, risk_level AS riskLevel, created_by AS createdBy, approved_by AS approvedBy, "
-            + "DATE_FORMAT(approved_at, '%Y-%m-%d %H:%i:%s') AS approvedAt, export_count AS exportCount, "
+            + "DATE_FORMAT(approved_at, '%Y-%m-%d %H:%i:%s') AS approvedAt, second_approved_by AS secondApprovedBy, "
+            + "DATE_FORMAT(second_approved_at, '%Y-%m-%d %H:%i:%s') AS secondApprovedAt, export_count AS exportCount, "
             + "DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt FROM cdk_batch ";
 
     @Insert("INSERT INTO cdk_batch(batch_no, batch_name, benefit_type, benefit_config, total_count, generated_count, redeemed_count, valid_from, valid_to, status, risk_level, created_by, export_count) VALUES(#{batchNo}, #{batchName}, #{benefitType}, #{benefitConfig}, #{totalCount}, #{generatedCount}, #{redeemedCount}, STR_TO_DATE(#{validFrom}, '%Y-%m-%d %H:%i:%s'), STR_TO_DATE(#{validTo}, '%Y-%m-%d %H:%i:%s'), #{status}, #{riskLevel}, #{createdBy}, #{exportCount})")
@@ -38,10 +39,21 @@ public interface CdkBatchMapper {
     @Update("UPDATE cdk_batch SET status = #{status} WHERE id = #{id}")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
 
-    @Update("UPDATE cdk_batch SET status = 'active', generated_count = #{generatedCount}, approved_by = #{approvedBy}, approved_at = NOW() WHERE id = #{id}")
+    @Update("UPDATE cdk_batch SET status = #{status}, generated_count = #{generatedCount}, approved_by = #{approvedBy}, approved_at = NOW() WHERE id = #{id}")
     int markApproved(@Param("id") Long id,
                      @Param("generatedCount") Integer generatedCount,
-                     @Param("approvedBy") String approvedBy);
+                     @Param("approvedBy") String approvedBy,
+                     @Param("status") String status);
+
+    @Update("UPDATE cdk_batch SET approved_by = #{approvedBy}, approved_at = NOW() WHERE id = #{id} AND approved_by IS NULL")
+    int markFirstApproved(@Param("id") Long id,
+                          @Param("approvedBy") String approvedBy);
+
+    @Update("UPDATE cdk_batch SET status = #{status}, generated_count = #{generatedCount}, second_approved_by = #{secondApprovedBy}, second_approved_at = NOW() WHERE id = #{id}")
+    int markSecondApproved(@Param("id") Long id,
+                           @Param("generatedCount") Integer generatedCount,
+                           @Param("secondApprovedBy") String secondApprovedBy,
+                           @Param("status") String status);
 
     @Update("UPDATE cdk_batch SET redeemed_count = redeemed_count + 1 WHERE id = #{id}")
     int incrementRedeemed(@Param("id") Long id);

@@ -91,6 +91,9 @@ app:
     redeem-lock-seconds: ${CDK_REDEEM_LOCK_SECONDS:900}
     redeem-failure-limit: ${CDK_REDEEM_FAILURE_LIMIT:5}
     export-window-seconds: ${CDK_EXPORT_WINDOW_SECONDS:1800}
+    double-review-enabled: ${CDK_DOUBLE_REVIEW_ENABLED:true}
+    double-review-total-points-threshold: ${CDK_DOUBLE_REVIEW_TOTAL_POINTS_THRESHOLD:100000}
+    export-encrypt-iterations: ${CDK_EXPORT_ENCRYPT_ITERATIONS:120000}
   points:
     reconciliation-enabled: ${POINTS_RECONCILIATION_ENABLED:true}
     reconciliation-cron: ${POINTS_RECONCILIATION_CRON:0 10 2 * * ?}

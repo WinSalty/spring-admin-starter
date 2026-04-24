@@ -2,6 +2,7 @@ package com.winsalty.quickstart.cdk.service;
 
 import com.winsalty.quickstart.cdk.dto.CdkBatchCreateRequest;
 import com.winsalty.quickstart.cdk.dto.CdkBatchListRequest;
+import com.winsalty.quickstart.cdk.dto.CdkExportRequest;
 import com.winsalty.quickstart.cdk.dto.CdkRedeemRecordListRequest;
 import com.winsalty.quickstart.cdk.dto.CdkRedeemRequest;
 import com.winsalty.quickstart.cdk.vo.CdkBatchVo;
@@ -28,11 +29,13 @@ public interface CdkService {
 
     CdkBatchVo approveBatch(Long id);
 
+    CdkBatchVo secondApproveBatch(Long id);
+
     CdkBatchVo pauseBatch(Long id);
 
     CdkBatchVo voidBatch(Long id);
 
-    CdkExportVo exportBatch(Long id);
+    CdkExportVo exportBatch(Long id, CdkExportRequest request);
 
     CdkRedeemResultVo redeem(CdkRedeemRequest request, HttpServletRequest servletRequest);
 

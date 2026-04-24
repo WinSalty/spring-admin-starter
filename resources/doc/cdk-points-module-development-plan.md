@@ -31,6 +31,7 @@ author：sunshengxian
 | 后端事务事件 | 已新增 `transaction_outbox` 和 `TransactionOutboxJob`，CDK 兑换成功、权益兑换成功会写入事务事件，作为后续 MQ 投递和补偿扩展点 |
 | 后端对账记录 | 已新增 `point_reconciliation_record`，每次积分对账会持久化检查账户数、差异账户数和汇总差异 |
 | 后端在线充值 | 已新增 `com.winsalty.quickstart.trade`，支持在线充值单创建、状态查询、支付回调 HMAC 验签、重复回调幂等和成功入账 |
+| 后端高级审计 | 已新增 CDK 高价值双人复核、AES-256-GCM 加密 ZIP 导出和 `risk_alert` 风控告警记录 |
 | 后端集成测试 | 已新增 `CdkPointsDevIntegrationTest`，通过 `RUN_DEV_INTEGRATION_TESTS=true` 显式连接本地 MySQL/Redis 验证兑换链路 |
 | 安全与审计 | CDK 仅存 HMAC Hash；明文只进入短期 Redis 导出窗口；兑换接口接入用户/IP/连续失败限流；管理操作和兑换操作接入 `@AuditLog` |
 | 前端钱包 | 已新增 `/points/wallet`，展示余额、CDK 兑换、流水、充值、消费、冻结记录；工作台已按钱包余额卡片重构，仅保留系统公告、钱包余额和预留图表位 |
@@ -66,8 +67,8 @@ author：sunshengxian
 | 高 | 完成目标环境联调 | 本地开发 MySQL/Redis 已完成集成测试；仍需在目标部署环境跑迁移并走完整兑换链路 |
 | 中 | 二阶段权益前端 | 后端权益兑换、冻结超时补偿和权限类权益合并已完成；仍需前端权益兑换页和管理页 |
 | 中 | 对账差异处理入口 | 当前已接入 Quartz 日终对账并持久化结果，后续应提供差异处理入口 |
-| 中 | 导出文件强化 | 当前返回一次性明文列表，后续可改为加密 ZIP 和受控临时文件下载 |
-| 中 | 高价值双人复核 | 当前已有审批流状态，高价值批次双人复核规则尚未落地 |
+| 中 | 导出文件前端适配 | 后端已返回加密 ZIP 包；仍需前端导出弹窗收集密码并下载 Base64 文件 |
+| 中 | 高价值双人复核前端适配 | 后端双人复核规则已落地；仍需前端展示首次审批人和二次复核入口 |
 | 低 | 在线充值前端 | 后端在线充值创建和回调入账已完成；仍需前端入口、状态轮询和真实支付渠道参数适配 |
 
 设计原则按金融级企业项目处理：
@@ -144,6 +145,7 @@ SQL 脚本统一放入项目根目录 `resources/sql`，建议按迁移顺序拆
 - `V23__seed_points_cdk_permissions.sql`
 - `V24__init_benefit_exchange_schema.sql`
 - `V25__init_points_compensation_outbox_schema.sql`
+- `V26__enhance_cdk_audit_risk_schema.sql`
 
 ### 4.1 积分账户表 `point_account`
 
@@ -581,6 +583,9 @@ app:
     redeem-ip-window-seconds: ${CDK_REDEEM_IP_WINDOW_SECONDS:60}
     redeem-ip-limit: ${CDK_REDEEM_IP_LIMIT:30}
     redeem-lock-seconds: ${CDK_REDEEM_LOCK_SECONDS:900}
+    double-review-enabled: ${CDK_DOUBLE_REVIEW_ENABLED:true}
+    double-review-total-points-threshold: ${CDK_DOUBLE_REVIEW_TOTAL_POINTS_THRESHOLD:100000}
+    export-encrypt-iterations: ${CDK_EXPORT_ENCRYPT_ITERATIONS:120000}
   points:
     reconciliation-enabled: ${POINTS_RECONCILIATION_ENABLED:true}
     reconciliation-cron: ${POINTS_RECONCILIATION_CRON:0 10 2 * * ?}
@@ -681,12 +686,14 @@ app:
 - 对账报表和差异处理。
 - 高价值 CDK 双人复核。
 - 异常兑换告警。
+- CDK 加密 ZIP 导出，不直接返回明文码列表。
 
 前端：
 
 - 对账结果页。
 - 审批中心。
 - 风控告警列表。
+- CDK 导出密码弹窗和加密文件下载。
 
 验收：
 

@@ -25,6 +25,8 @@ public class CdkBatchVo {
     private String createdBy;
     private String approvedBy;
     private String approvedAt;
+    private String secondApprovedBy;
+    private String secondApprovedAt;
     private Integer exportCount;
     private String createdAt;
     private String updatedAt;

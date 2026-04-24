@@ -21,6 +21,13 @@ public final class CdkConstants {
     public static final String RECORD_STATUS_SUCCESS = "success";
     public static final String RECORD_STATUS_FAILED = "failed";
     public static final String RISK_LEVEL_NORMAL = "normal";
+    public static final String RISK_LEVEL_HIGH = "high";
+    public static final String RISK_LEVEL_CRITICAL = "critical";
+    public static final String ALERT_TYPE_REDEEM_LOCKED = "cdk_redeem_locked";
+    public static final String ALERT_TYPE_BATCH_DOUBLE_REVIEW = "cdk_batch_double_review";
+    public static final String ALERT_STATUS_OPEN = "open";
+    public static final String SUBJECT_TYPE_USER = "user";
+    public static final String SUBJECT_TYPE_CDK_BATCH = "cdk_batch";
     public static final String CODE_PREFIX = "WSA";
     public static final String EXPORT_CACHE_PREFIX = "sa:cdk:export:";
     public static final String REDEEM_USER_LIMIT_PREFIX = "sa:cdk:limit:user:";

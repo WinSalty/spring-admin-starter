@@ -109,6 +109,7 @@
 | 管理端 CDK | `/api/admin/cdk/batches`、`/submit`、`/approve`、`/pause`、`/void`、`/export`、`/api/admin/cdk/redeem-records` |
 | 积分审计 | `/api/admin/points/accounts`、`/ledger`、`/adjustments`、`/adjustments/{id}/approve`、`/reconciliation` |
 | 权益管理 | `/api/admin/benefits/products`、`/products/{id}`、`/products/{id}/status`、`/orders` |
+| 风控告警 | `/api/admin/risk-alerts`，支持查询异常兑换锁定和高价值批次复核告警 |
 
 ### CDK 与积分模块
 
@@ -127,7 +128,9 @@
 11. 过期冻结单通过 `PointFreezeCompensationJob` 自动取消，避免权益发放超时后长期占用冻结积分。
 12. CDK 兑换成功、权益兑换成功会写入 `transaction_outbox`，当前由定时任务标记处理，后续可平滑替换为 MQ 投递。
 13. 在线充值通过 `trade` 模块创建 `online_pay` 充值单，支付回调使用 `TRADE_CALLBACK_SECRET` 做 HMAC 验签，成功后按充值单号幂等入账。
-14. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql` 初始化表结构和权限菜单。
+14. 高风险或超过积分阈值的 CDK 批次需要两个不同管理员完成审批和二次复核后才会生成码。
+15. CDK 导出接口要求管理员提供导出密码，返回 AES-256-GCM 加密后的 ZIP 包，不再直接返回明文码列表。
+16. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql`、`V26__enhance_cdk_audit_risk_schema.sql` 初始化表结构和权限菜单。
 
 ## 配套环境说明
 
@@ -291,6 +294,9 @@ export CDK_REDEEM_USER_LIMIT=10
 export CDK_REDEEM_IP_WINDOW_SECONDS=60
 export CDK_REDEEM_IP_LIMIT=30
 export CDK_REDEEM_LOCK_SECONDS=900
+export CDK_DOUBLE_REVIEW_ENABLED=true
+export CDK_DOUBLE_REVIEW_TOTAL_POINTS_THRESHOLD=100000
+export CDK_EXPORT_ENCRYPT_ITERATIONS=120000
 export POINTS_RECONCILIATION_ENABLED=true
 export POINTS_RECONCILIATION_CRON='0 10 2 * * ?'
 export POINTS_FREEZE_DEFAULT_EXPIRE_SECONDS=1800

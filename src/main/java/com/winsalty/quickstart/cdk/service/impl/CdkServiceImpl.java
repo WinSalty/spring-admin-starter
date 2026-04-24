@@ -10,6 +10,7 @@ import com.winsalty.quickstart.cdk.config.CdkProperties;
 import com.winsalty.quickstart.cdk.constant.CdkConstants;
 import com.winsalty.quickstart.cdk.dto.CdkBatchCreateRequest;
 import com.winsalty.quickstart.cdk.dto.CdkBatchListRequest;
+import com.winsalty.quickstart.cdk.dto.CdkExportRequest;
 import com.winsalty.quickstart.cdk.dto.CdkRedeemRecordListRequest;
 import com.winsalty.quickstart.cdk.dto.CdkRedeemRequest;
 import com.winsalty.quickstart.cdk.entity.CdkBatchEntity;
@@ -37,6 +38,7 @@ import com.winsalty.quickstart.infra.web.TraceIdFilter;
 import com.winsalty.quickstart.points.constant.PointsConstants;
 import com.winsalty.quickstart.points.entity.PointRechargeOrderEntity;
 import com.winsalty.quickstart.points.mapper.PointRechargeOrderMapper;
+import com.winsalty.quickstart.risk.service.RiskAlertService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -45,22 +47,30 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import javax.crypto.Mac;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.servlet.http.HttpServletRequest;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.security.spec.KeySpec;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * CDK 服务实现。
@@ -90,6 +100,18 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     private static final String EMPTY_FAILURE_REASON = "";
     private static final String OUTBOX_AGGREGATE_TYPE = "cdk_redeem";
     private static final String OUTBOX_EVENT_SUCCESS = "cdk.redeem.success";
+    private static final String EXPORT_FILE_TYPE = "zip";
+    private static final String EXPORT_ENCRYPTION_ALGORITHM = "AES-256-GCM";
+    private static final String EXPORT_KDF_ALGORITHM = "PBKDF2WithHmacSHA256";
+    private static final String EXPORT_CIPHER_ALGORITHM = "AES/GCM/NoPadding";
+    private static final String EXPORT_ZIP_PAYLOAD_NAME = "cdk.enc";
+    private static final String EXPORT_ZIP_MANIFEST_NAME = "manifest.json";
+    private static final String EXPORT_FILE_SUFFIX = "-cdk-export.zip";
+    private static final String EXPORT_SECRET_ALGORITHM = "AES";
+    private static final int EXPORT_KEY_LENGTH_BITS = 256;
+    private static final int EXPORT_SALT_LENGTH = 16;
+    private static final int EXPORT_IV_LENGTH = 12;
+    private static final int EXPORT_GCM_TAG_LENGTH_BITS = 128;
     private static final int UUID_FRAGMENT_LENGTH = 12;
     private static final int PEPPER_MIN_LENGTH = 32;
     private static final int HEX_RADIX_SHIFT = 4;
@@ -106,6 +128,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     private final BenefitGrantService benefitGrantService;
     private final RedisCacheService redisCacheService;
     private final TransactionOutboxService transactionOutboxService;
+    private final RiskAlertService riskAlertService;
     private final CdkProperties cdkProperties;
 
     public CdkServiceImpl(CdkBatchMapper cdkBatchMapper,
@@ -116,6 +139,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
                           BenefitGrantService benefitGrantService,
                           RedisCacheService redisCacheService,
                           TransactionOutboxService transactionOutboxService,
+                          RiskAlertService riskAlertService,
                           CdkProperties cdkProperties) {
         this.cdkBatchMapper = cdkBatchMapper;
         this.cdkCodeMapper = cdkCodeMapper;
@@ -125,6 +149,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         this.benefitGrantService = benefitGrantService;
         this.redisCacheService = redisCacheService;
         this.transactionOutboxService = transactionOutboxService;
+        this.riskAlertService = riskAlertService;
         this.cdkProperties = cdkProperties;
     }
 
@@ -190,11 +215,44 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         if (batch.getTotalCount() > cdkProperties.getMaxBatchSize()) {
             throw new BusinessException(ErrorCode.CDK_BATCH_SIZE_EXCEEDED);
         }
+        if (requiresDoubleReview(batch)) {
+            if (StringUtils.hasText(batch.getApprovedBy())) {
+                throw new BusinessException(ErrorCode.CDK_SECOND_APPROVAL_REQUIRED);
+            }
+            cdkBatchMapper.markFirstApproved(batch.getId(), currentUsername());
+            createBatchReviewAlert(batch);
+            log.info("cdk batch first approved and waits second review, batchNo={}, approvedBy={}",
+                    batch.getBatchNo(), currentUsername());
+            return toBatchVo(cdkBatchMapper.findById(id));
+        }
         List<String> plainCodes = generateCodes(batch);
-        cdkBatchMapper.markApproved(batch.getId(), plainCodes.size(), currentUsername());
+        cdkBatchMapper.markApproved(batch.getId(), plainCodes.size(), currentUsername(), CdkConstants.BATCH_STATUS_ACTIVE);
         redisCacheService.set(CdkConstants.EXPORT_CACHE_PREFIX + batch.getBatchNo(),
                 String.join(EXPORT_LINE_SEPARATOR, plainCodes), cdkProperties.getExportWindowSeconds());
         log.info("cdk batch approved and generated, batchNo={}, generatedCount={}", batch.getBatchNo(), plainCodes.size());
+        return toBatchVo(cdkBatchMapper.findById(id));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CdkBatchVo secondApproveBatch(Long id) {
+        ensurePepperConfigured();
+        CdkBatchEntity batch = loadBatchForUpdate(id);
+        if (!CdkConstants.BATCH_STATUS_PENDING_APPROVAL.equals(batch.getStatus()) || !StringUtils.hasText(batch.getApprovedBy())) {
+            throw new BusinessException(ErrorCode.CDK_BATCH_STATUS_INVALID);
+        }
+        if (currentUsername().equals(batch.getApprovedBy())) {
+            throw new BusinessException(ErrorCode.CDK_SECOND_APPROVER_INVALID);
+        }
+        if (batch.getTotalCount() > cdkProperties.getMaxBatchSize()) {
+            throw new BusinessException(ErrorCode.CDK_BATCH_SIZE_EXCEEDED);
+        }
+        List<String> plainCodes = generateCodes(batch);
+        cdkBatchMapper.markSecondApproved(batch.getId(), plainCodes.size(), currentUsername(), CdkConstants.BATCH_STATUS_ACTIVE);
+        redisCacheService.set(CdkConstants.EXPORT_CACHE_PREFIX + batch.getBatchNo(),
+                String.join(EXPORT_LINE_SEPARATOR, plainCodes), cdkProperties.getExportWindowSeconds());
+        log.info("cdk batch second approved and generated, batchNo={}, generatedCount={}, secondApprovedBy={}",
+                batch.getBatchNo(), plainCodes.size(), currentUsername());
         return toBatchVo(cdkBatchMapper.findById(id));
     }
 
@@ -224,7 +282,10 @@ public class CdkServiceImpl extends BaseService implements CdkService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public CdkExportVo exportBatch(Long id) {
+    public CdkExportVo exportBatch(Long id, CdkExportRequest request) {
+        if (request == null || !StringUtils.hasText(request.getExportPassword())) {
+            throw new BusinessException(ErrorCode.CDK_EXPORT_PASSWORD_REQUIRED);
+        }
         CdkBatchEntity batch = loadBatchForUpdate(id);
         Object cached = redisCacheService.get(CdkConstants.EXPORT_CACHE_PREFIX + batch.getBatchNo());
         if (!(cached instanceof String) || !StringUtils.hasText((String) cached)) {
@@ -232,8 +293,9 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         }
         String content = (String) cached;
         redisCacheService.delete(CdkConstants.EXPORT_CACHE_PREFIX + batch.getBatchNo());
-        String fingerprint = sha256(content);
         List<String> codes = Arrays.asList(content.split(EXPORT_LINE_SEPARATOR));
+        byte[] exportPackage = buildEncryptedExportPackage(batch, content, request.getExportPassword(), codes.size());
+        String fingerprint = sha256(exportPackage);
         CdkExportAuditEntity audit = new CdkExportAuditEntity();
         audit.setBatchId(batch.getId());
         audit.setBatchNo(batch.getBatchNo());
@@ -246,9 +308,90 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         vo.setBatchNo(batch.getBatchNo());
         vo.setCount(codes.size());
         vo.setFingerprint(fingerprint);
-        vo.setCodes(codes);
+        vo.setFileName(batch.getBatchNo() + EXPORT_FILE_SUFFIX);
+        vo.setFileType(EXPORT_FILE_TYPE);
+        vo.setEncryptionAlgorithm(EXPORT_ENCRYPTION_ALGORITHM);
+        vo.setEncryptedPackageBase64(Base64.getEncoder().encodeToString(exportPackage));
         log.info("cdk batch exported once, batchNo={}, count={}, fingerprint={}", batch.getBatchNo(), codes.size(), fingerprint);
         return vo;
+    }
+
+    private boolean requiresDoubleReview(CdkBatchEntity batch) {
+        if (!cdkProperties.isDoubleReviewEnabled()) {
+            return false;
+        }
+        if (CdkConstants.RISK_LEVEL_HIGH.equals(batch.getRiskLevel())
+                || CdkConstants.RISK_LEVEL_CRITICAL.equals(batch.getRiskLevel())) {
+            return true;
+        }
+        return calculateTotalPoints(batch) >= cdkProperties.getDoubleReviewTotalPointsThreshold();
+    }
+
+    private long calculateTotalPoints(CdkBatchEntity batch) {
+        if (!CdkConstants.BENEFIT_TYPE_POINTS.equals(batch.getBenefitType())) {
+            return 0L;
+        }
+        long points = JSON.parseObject(batch.getBenefitConfig()).getLongValue(CONFIG_POINTS);
+        return points * batch.getTotalCount();
+    }
+
+    private void createBatchReviewAlert(CdkBatchEntity batch) {
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("batchNo", batch.getBatchNo());
+        detail.put("riskLevel", batch.getRiskLevel());
+        detail.put("totalCount", batch.getTotalCount());
+        detail.put("totalPoints", calculateTotalPoints(batch));
+        riskAlertService.createAlert(CdkConstants.ALERT_TYPE_BATCH_DOUBLE_REVIEW,
+                CdkConstants.RISK_LEVEL_HIGH,
+                CdkConstants.SUBJECT_TYPE_CDK_BATCH,
+                batch.getBatchNo(),
+                null,
+                FastJsonUtils.toJsonString(detail));
+    }
+
+    private byte[] buildEncryptedExportPackage(CdkBatchEntity batch, String content, String exportPassword, int count) {
+        try {
+            byte[] salt = randomBytes(EXPORT_SALT_LENGTH);
+            byte[] iv = randomBytes(EXPORT_IV_LENGTH);
+            byte[] cipherText = encryptExportPayload(content, exportPassword, salt, iv);
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream);
+            writeZipEntry(zipOutputStream, EXPORT_ZIP_MANIFEST_NAME, buildExportManifest(batch, count, salt, iv).getBytes(StandardCharsets.UTF_8));
+            writeZipEntry(zipOutputStream, EXPORT_ZIP_PAYLOAD_NAME, cipherText);
+            zipOutputStream.close();
+            return outputStream.toByteArray();
+        } catch (GeneralSecurityException exception) {
+            throw new BusinessException(ErrorCode.CDK_EXPORT_ENCRYPT_FAILED);
+        } catch (java.io.IOException exception) {
+            throw new BusinessException(ErrorCode.CDK_EXPORT_ENCRYPT_FAILED, "CDK 导出文件生成失败");
+        }
+    }
+
+    private byte[] encryptExportPayload(String content, String exportPassword, byte[] salt, byte[] iv) throws GeneralSecurityException {
+        SecretKeyFactory factory = SecretKeyFactory.getInstance(EXPORT_KDF_ALGORITHM);
+        KeySpec spec = new PBEKeySpec(exportPassword.toCharArray(), salt, cdkProperties.getExportEncryptIterations(), EXPORT_KEY_LENGTH_BITS);
+        SecretKeySpec key = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), EXPORT_SECRET_ALGORITHM);
+        javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance(EXPORT_CIPHER_ALGORITHM);
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(EXPORT_GCM_TAG_LENGTH_BITS, iv));
+        return cipher.doFinal(content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String buildExportManifest(CdkBatchEntity batch, int count, byte[] salt, byte[] iv) {
+        Map<String, Object> manifest = new HashMap<>();
+        manifest.put("batchNo", batch.getBatchNo());
+        manifest.put("count", count);
+        manifest.put("algorithm", EXPORT_ENCRYPTION_ALGORITHM);
+        manifest.put("kdf", EXPORT_KDF_ALGORITHM);
+        manifest.put("iterations", cdkProperties.getExportEncryptIterations());
+        manifest.put("saltBase64", Base64.getEncoder().encodeToString(salt));
+        manifest.put("ivBase64", Base64.getEncoder().encodeToString(iv));
+        return FastJsonUtils.toJsonString(manifest);
+    }
+
+    private void writeZipEntry(ZipOutputStream zipOutputStream, String name, byte[] bytes) throws java.io.IOException {
+        zipOutputStream.putNextEntry(new ZipEntry(name));
+        zipOutputStream.write(bytes);
+        zipOutputStream.closeEntry();
     }
 
     @Override
@@ -452,8 +595,22 @@ public class CdkServiceImpl extends BaseService implements CdkService {
             redisCacheService.set(CdkConstants.REDEEM_LOCK_PREFIX + digestKey(String.valueOf(userId)), "locked",
                     cdkProperties.getRedeemLockSeconds());
             redisCacheService.delete(failKey);
+            createRedeemLockedAlert(userId);
             log.info("cdk redeem locked after repeated failures, userId={}, lockSeconds={}", userId, cdkProperties.getRedeemLockSeconds());
         }
+    }
+
+    private void createRedeemLockedAlert(Long userId) {
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("userId", userId);
+        detail.put("failureLimit", cdkProperties.getRedeemFailureLimit());
+        detail.put("lockSeconds", cdkProperties.getRedeemLockSeconds());
+        riskAlertService.createAlert(CdkConstants.ALERT_TYPE_REDEEM_LOCKED,
+                CdkConstants.RISK_LEVEL_HIGH,
+                CdkConstants.SUBJECT_TYPE_USER,
+                String.valueOf(userId),
+                userId,
+                FastJsonUtils.toJsonString(detail));
     }
 
     private void recordRedeemSuccess(Long userId) {
@@ -541,6 +698,20 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         }
     }
 
+    private String sha256(byte[] value) {
+        try {
+            return toHex(MessageDigest.getInstance(SHA_256_ALGORITHM).digest(value));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("cdk sha256 failed", exception);
+        }
+    }
+
+    private byte[] randomBytes(int length) {
+        byte[] bytes = new byte[length];
+        secureRandom.nextBytes(bytes);
+        return bytes;
+    }
+
     private String toHex(byte[] bytes) {
         char[] chars = new char[bytes.length * 2];
         for (int index = 0; index < bytes.length; index++) {
@@ -612,6 +783,8 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         vo.setCreatedBy(entity.getCreatedBy());
         vo.setApprovedBy(entity.getApprovedBy());
         vo.setApprovedAt(entity.getApprovedAt());
+        vo.setSecondApprovedBy(entity.getSecondApprovedBy());
+        vo.setSecondApprovedAt(entity.getSecondApprovedAt());
         vo.setExportCount(entity.getExportCount());
         vo.setCreatedAt(entity.getCreatedAt());
         vo.setUpdatedAt(entity.getUpdatedAt());

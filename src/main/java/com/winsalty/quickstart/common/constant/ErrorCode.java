@@ -93,7 +93,11 @@ public enum ErrorCode {
     TRADE_RECHARGE_ORDER_NOT_FOUND(4090, "在线充值订单不存在"),
     TRADE_RECHARGE_ORDER_STATUS_INVALID(4091, "在线充值订单状态不允许当前操作"),
     TRADE_CALLBACK_SIGNATURE_INVALID(4092, "支付回调签名无效"),
-    TRADE_CALLBACK_SECRET_MISSING(4093, "支付回调密钥未配置");
+    TRADE_CALLBACK_SECRET_MISSING(4093, "支付回调密钥未配置"),
+    CDK_SECOND_APPROVAL_REQUIRED(4094, "高价值 CDK 批次需要二次复核"),
+    CDK_SECOND_APPROVER_INVALID(4095, "二次复核人不能与首次审批人相同"),
+    CDK_EXPORT_PASSWORD_REQUIRED(4096, "CDK 导出密码不能为空"),
+    CDK_EXPORT_ENCRYPT_FAILED(4097, "CDK 导出文件加密失败");
 
     private final int code;
     private final String message;
