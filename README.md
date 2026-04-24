@@ -67,7 +67,7 @@
 | 刷新令牌 | `/api/auth/refresh-token`，支持 refresh token 轮换 |
 | 退出登录 | `/api/auth/logout`，基于 Redis 失效当前会话 |
 | 注册 | `/api/auth/register`，仅 `dev` 环境默认开放，且一个邮箱仅允许注册一个账号 |
-| 注册验证码 | `/api/auth/register/verify-code`，基于邮件发送 |
+| 注册验证码 | `POST /api/auth/register/verify-code`，基于邮件发送，随注册开关联动关闭 |
 | 个人中心 | `/api/auth/profile`、资料修改、密码修改、通知设置 |
 | 登录限流 | 基于账号/IP 的匿名接口限流 |
 | JWT 安全校验 | 生产环境要求外部注入强密钥 |
@@ -312,12 +312,29 @@ spring:
     port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          connectiontimeout: ${MAIL_SMTP_CONNECTION_TIMEOUT:5000}
+          timeout: ${MAIL_SMTP_READ_TIMEOUT:5000}
+          writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:5000}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
+            required: ${MAIL_SMTP_STARTTLS_REQUIRED:false}
+          ssl:
+            enable: ${MAIL_SMTP_SSL_ENABLE:false}
 
 app:
   mail:
     enabled: ${MAIL_ENABLED:true}
     from: ${MAIL_FROM:${MAIL_USERNAME:}}
     default-encoding: ${APP_MAIL_DEFAULT_ENCODING:UTF-8}
+    async:
+      core-pool-size: ${MAIL_ASYNC_CORE_POOL_SIZE:2}
+      max-pool-size: ${MAIL_ASYNC_MAX_POOL_SIZE:8}
+      queue-capacity: ${MAIL_ASYNC_QUEUE_CAPACITY:200}
+      await-termination-seconds: ${MAIL_ASYNC_AWAIT_TERMINATION_SECONDS:30}
     template:
       brand-name: ${APP_MAIL_TEMPLATE_BRAND_NAME:React Admin Starter}
       signature: ${APP_MAIL_TEMPLATE_SIGNATURE:React Admin Starter}
@@ -330,6 +347,8 @@ app:
 ```
 
 邮件能力已升级为通用服务，当前内置的注册验证码邮件只是其中一个业务实现。项目内其他业务模块可以直接注入 `com.winsalty.quickstart.infra.mail.MailService` 发送文本或 HTML 邮件，不需要再重复封装 SMTP 逻辑。系统同时内置了统一的卡片式 HTML 邮件模板，默认对齐 `react-admin-starter` 的浅色品牌风格与文案语气，默认品牌名为 `React Admin Starter`，并自动附带纯文本 fallback，兼容只支持纯文本的客户端。
+
+注册验证码发送接口使用 `POST /api/auth/register/verify-code`，请求体为 `{"email":"user@example.com"}`。接口不再使用 GET query 传递邮箱，避免代理日志、浏览器历史或链路追踪系统记录明文邮箱。
 
 通用邮件服务使用示例：
 
@@ -382,6 +401,10 @@ public class WorkflowMailService {
 1. `app.mail.enabled`：控制整个项目的通用邮件服务是否启用。
 2. `app.mail.register.enabled`：只控制注册验证码邮件是否启用。
 
+`prod` profile 中 `app.mail.register.enabled` 默认值为 `false`，即使通用邮件服务可用，也不会自动开放注册验证码邮件。若生产环境确需开放自助注册，需要同时显式开启 `APP_SECURITY_REGISTER_ENABLED=true` 和 `MAIL_REGISTER_ENABLED=true`。
+
+通用邮件发送使用有界线程池异步提交 SMTP 发送任务，并配置 SMTP 连接、读取和写入超时，避免邮件服务慢调用长期占用 Web 请求线程。邮件发送日志只记录脱敏收件人和主题指纹，不记录明文邮箱主题。
+
 邮件相关配置项说明：
 
 | 环境变量 | 说明 | 是否必填 |
@@ -398,12 +421,19 @@ public class WorkflowMailService {
 | `MAIL_SMTP_STARTTLS_ENABLE` | 是否开启 STARTTLS | 否 |
 | `MAIL_SMTP_STARTTLS_REQUIRED` | 是否强制要求 STARTTLS | 否 |
 | `MAIL_SMTP_SSL_ENABLE` | 是否开启 SSL | 否 |
+| `MAIL_SMTP_CONNECTION_TIMEOUT` | SMTP 建连超时时间，单位毫秒，默认 `5000` | 否 |
+| `MAIL_SMTP_READ_TIMEOUT` | SMTP 读取超时时间，单位毫秒，默认 `5000` | 否 |
+| `MAIL_SMTP_WRITE_TIMEOUT` | SMTP 写入超时时间，单位毫秒，默认 `5000` | 否 |
+| `MAIL_ASYNC_CORE_POOL_SIZE` | 邮件发送核心线程数，默认 `2` | 否 |
+| `MAIL_ASYNC_MAX_POOL_SIZE` | 邮件发送最大线程数，默认 `8` | 否 |
+| `MAIL_ASYNC_QUEUE_CAPACITY` | 邮件发送队列容量，默认 `200` | 否 |
+| `MAIL_ASYNC_AWAIT_TERMINATION_SECONDS` | 停机等待已提交邮件任务完成的秒数，默认 `30` | 否 |
 | `APP_MAIL_DEFAULT_ENCODING` | 邮件默认编码 | 否 |
 | `APP_MAIL_TEMPLATE_BRAND_NAME` | HTML 模板品牌名称 | 否 |
 | `APP_MAIL_TEMPLATE_SIGNATURE` | HTML 模板页脚签名 | 否 |
-| `APP_MAIL_TEMPLATE_PRIMARY_COLOR` | HTML 模板主色 | 否 |
-| `APP_MAIL_TEMPLATE_BACKGROUND_COLOR` | HTML 模板背景色 | 否 |
-| `APP_MAIL_TEMPLATE_CARD_BACKGROUND_COLOR` | HTML 模板卡片背景色 | 否 |
+| `APP_MAIL_TEMPLATE_PRIMARY_COLOR` | HTML 模板主色，仅支持 `#RRGGBB` | 否 |
+| `APP_MAIL_TEMPLATE_BACKGROUND_COLOR` | HTML 模板背景色，仅支持 `#RRGGBB` | 否 |
+| `APP_MAIL_TEMPLATE_CARD_BACKGROUND_COLOR` | HTML 模板卡片背景色，仅支持 `#RRGGBB` | 否 |
 
 163 邮箱推荐配置示例：
 
@@ -419,6 +449,9 @@ export MAIL_SMTP_AUTH=true
 export MAIL_SMTP_STARTTLS_ENABLE=false
 export MAIL_SMTP_STARTTLS_REQUIRED=false
 export MAIL_SMTP_SSL_ENABLE=true
+export MAIL_SMTP_CONNECTION_TIMEOUT=5000
+export MAIL_SMTP_READ_TIMEOUT=5000
+export MAIL_SMTP_WRITE_TIMEOUT=5000
 ```
 
 说明：
@@ -430,16 +463,16 @@ export MAIL_SMTP_SSL_ENABLE=true
 IDEA Run Configuration 可以直接使用如下环境变量串：
 
 ```text
-MAIL_HOST=smtp.163.com;MAIL_PORT=465;MAIL_USERNAME=winsalty@163.com;MAIL_PASSWORD=replace-with-163-auth-code;MAIL_FROM=winsalty@163.com;MAIL_REGISTER_ENABLED=true;MAIL_REGISTER_SUBJECT=Spring Admin 注册验证码;MAIL_SMTP_AUTH=true;MAIL_SMTP_STARTTLS_ENABLE=false;MAIL_SMTP_STARTTLS_REQUIRED=false;MAIL_SMTP_SSL_ENABLE=true
+MAIL_HOST=smtp.163.com;MAIL_PORT=465;MAIL_USERNAME=winsalty@163.com;MAIL_PASSWORD=replace-with-163-auth-code;MAIL_FROM=winsalty@163.com;MAIL_REGISTER_ENABLED=true;MAIL_REGISTER_SUBJECT=Spring Admin 注册验证码;MAIL_SMTP_AUTH=true;MAIL_SMTP_STARTTLS_ENABLE=false;MAIL_SMTP_STARTTLS_REQUIRED=false;MAIL_SMTP_SSL_ENABLE=true;MAIL_SMTP_CONNECTION_TIMEOUT=5000;MAIL_SMTP_READ_TIMEOUT=5000;MAIL_SMTP_WRITE_TIMEOUT=5000
 ```
 
 如果在 `prod` 环境需要开放用户自助注册，还要额外追加：
 
 ```text
-;APP_SECURITY_REGISTER_ENABLED=true
+;APP_SECURITY_REGISTER_ENABLED=true;MAIL_REGISTER_ENABLED=true
 ```
 
-原因是生产环境 [application-prod.yml](src/main/resources/application-prod.yml) 默认 `app.security.register-enabled=false`，即便邮件服务已经可用，也不会自动开放 `/api/auth/register` 注册入口。
+原因是生产环境 [application-prod.yml](src/main/resources/application-prod.yml) 默认 `app.security.register-enabled=false` 且 `app.mail.register.enabled=false`，即便通用邮件服务已经可用，也不会自动开放 `/api/auth/register` 注册入口和注册验证码发送入口。
 
 ### 推荐环境变量
 

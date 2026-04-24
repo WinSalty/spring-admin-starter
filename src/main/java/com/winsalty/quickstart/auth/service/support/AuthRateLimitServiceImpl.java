@@ -6,10 +6,11 @@ import com.winsalty.quickstart.infra.cache.RedisCacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * 认证限流服务实现。
@@ -42,6 +43,17 @@ public class AuthRateLimitServiceImpl implements AuthRateLimitService {
     private static final long VERIFY_IP_LIMIT = 30L;
     private static final long VERIFY_EMAIL_LIMIT = 5L;
     private static final String UNKNOWN_KEY_PART = "unknown";
+    private static final String MASKED_TARGET = "***";
+    private static final String SINGLE_CHAR_MASK = "*";
+    private static final String SHA_256_ALGORITHM = "SHA-256";
+    private static final char EMAIL_SEPARATOR = '@';
+    private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
+    private static final int HEX_CHARS_PER_BYTE = 2;
+    private static final int SINGLE_CHARACTER_LENGTH = 1;
+    private static final int NEXT_HEX_INDEX_OFFSET = 1;
+    private static final int BYTE_MASK = 0xFF;
+    private static final int HEX_RADIX_SHIFT = 4;
+    private static final int LOW_NIBBLE_MASK = 0x0F;
 
     private final RedisCacheService redisCacheService;
 
@@ -60,12 +72,13 @@ public class AuthRateLimitServiceImpl implements AuthRateLimitService {
         if (Boolean.TRUE.equals(redisCacheService.hasKey(lockKey))) {
             Long lockTtl = redisCacheService.ttl(lockKey);
             log.info("login blocked by temporary account lock, username={}, clientIp={}, ttlSeconds={}",
-                    normalizedUsername, normalizedClientIp, lockTtl);
+                    maskSensitiveTarget(normalizedUsername), normalizedClientIp, lockTtl);
             throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
         }
         checkLimit(LOGIN_IP_PREFIX + digest(normalizedClientIp), LOGIN_IP_LIMIT, LOGIN_WINDOW_SECONDS, "login-ip", normalizedClientIp);
         String accountKey = normalizedUsername + ":" + normalizedClientIp;
-        checkLimit(LOGIN_ACCOUNT_PREFIX + digest(accountKey), LOGIN_ACCOUNT_LIMIT, LOGIN_WINDOW_SECONDS, "login-account", username);
+        checkLimit(LOGIN_ACCOUNT_PREFIX + digest(accountKey), LOGIN_ACCOUNT_LIMIT, LOGIN_WINDOW_SECONDS,
+                "login-account", normalizedUsername);
     }
 
     /**
@@ -85,7 +98,7 @@ public class AuthRateLimitServiceImpl implements AuthRateLimitService {
             redisCacheService.set(lockKey, normalizedClientIp, LOGIN_LOCK_SECONDS);
             redisCacheService.delete(failCountKey);
             log.info("login account locked after repeated failures, username={}, clientIp={}, failCount={}, lockSeconds={}",
-                    normalizedUsername, normalizedClientIp, current, LOGIN_LOCK_SECONDS);
+                    maskSensitiveTarget(normalizedUsername), normalizedClientIp, current, LOGIN_LOCK_SECONDS);
             throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
         }
     }
@@ -98,7 +111,8 @@ public class AuthRateLimitServiceImpl implements AuthRateLimitService {
         String normalizedUsername = normalize(username);
         redisCacheService.delete(LOGIN_FAIL_COUNT_PREFIX + digest(normalizedUsername));
         redisCacheService.delete(LOGIN_LOCK_PREFIX + digest(normalizedUsername));
-        log.info("login failure counter cleared, username={}, clientIp={}", normalizedUsername, normalize(clientIp));
+        log.info("login failure counter cleared, username={}, clientIp={}",
+                maskSensitiveTarget(normalizedUsername), normalize(clientIp));
     }
 
     /**
@@ -130,16 +144,48 @@ public class AuthRateLimitServiceImpl implements AuthRateLimitService {
         }
         if (current != null && current > limit) {
             log.info("auth rate limited, scene={}, target={}, current={}, limit={}, windowSeconds={}",
-                    scene, target, current, limit, windowSeconds);
+                    scene, maskSensitiveTarget(target), current, limit, windowSeconds);
             throw new BusinessException(ErrorCode.AUTH_RATE_LIMITED);
         }
     }
 
     private String digest(String value) {
-        return DigestUtils.md5DigestAsHex(normalize(value).getBytes(StandardCharsets.UTF_8));
+        try {
+            byte[] digest = MessageDigest.getInstance(SHA_256_ALGORITHM)
+                    .digest(normalize(value).getBytes(StandardCharsets.UTF_8));
+            return toHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("auth rate limit key digest failed", exception);
+        }
     }
 
     private String normalize(String value) {
         return StringUtils.hasText(value) ? value.trim().toLowerCase() : UNKNOWN_KEY_PART;
+    }
+
+    private String maskSensitiveTarget(String target) {
+        String normalizedTarget = normalize(target);
+        int atIndex = normalizedTarget.indexOf(EMAIL_SEPARATOR);
+        if (atIndex <= 0) {
+            return normalizedTarget;
+        }
+        String localPart = normalizedTarget.substring(0, atIndex);
+        String domainPart = normalizedTarget.substring(atIndex);
+        if (localPart.length() == SINGLE_CHARACTER_LENGTH) {
+            return SINGLE_CHAR_MASK + domainPart;
+        }
+        return localPart.charAt(0) + MASKED_TARGET
+                + localPart.charAt(localPart.length() - SINGLE_CHARACTER_LENGTH) + domainPart;
+    }
+
+    private String toHex(byte[] bytes) {
+        char[] result = new char[bytes.length * HEX_CHARS_PER_BYTE];
+        for (int index = 0; index < bytes.length; index++) {
+            int value = bytes[index] & BYTE_MASK;
+            int resultIndex = index * HEX_CHARS_PER_BYTE;
+            result[resultIndex] = HEX_DIGITS[value >>> HEX_RADIX_SHIFT];
+            result[resultIndex + NEXT_HEX_INDEX_OFFSET] = HEX_DIGITS[value & LOW_NIBBLE_MASK];
+        }
+        return new String(result);
     }
 }

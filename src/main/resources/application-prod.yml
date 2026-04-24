@@ -51,3 +51,6 @@ app:
     jwt-expire-seconds: 7200
     jwt-refresh-expire-seconds: 604800
     register-enabled: false
+  mail:
+    register:
+      enabled: ${MAIL_REGISTER_ENABLED:false}

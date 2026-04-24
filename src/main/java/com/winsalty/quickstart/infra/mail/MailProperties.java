@@ -31,9 +31,43 @@ public class MailProperties {
     private String defaultEncoding = "UTF-8";
 
     /**
+     * 邮件异步发送线程池配置。
+     */
+    private Async async = new Async();
+
+    /**
      * 邮件模板统一配置。
      */
     private Template template = new Template();
+
+    /**
+     * 邮件异步发送配置。
+     * 创建日期：2026-04-24
+     * author：sunshengxian
+     */
+    @Data
+    public static class Async {
+
+        /**
+         * 核心发送线程数。
+         */
+        private int corePoolSize = 2;
+
+        /**
+         * 最大发送线程数。
+         */
+        private int maxPoolSize = 8;
+
+        /**
+         * 待发送任务队列容量。
+         */
+        private int queueCapacity = 200;
+
+        /**
+         * 停机时等待已提交发送任务完成的秒数。
+         */
+        private int awaitTerminationSeconds = 30;
+    }
 
     /**
      * 邮件模板样式配置。

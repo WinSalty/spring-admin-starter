@@ -17,6 +17,9 @@ spring:
       mail:
         smtp:
           auth: ${MAIL_SMTP_AUTH:true}
+          connectiontimeout: ${MAIL_SMTP_CONNECTION_TIMEOUT:5000}
+          timeout: ${MAIL_SMTP_READ_TIMEOUT:5000}
+          writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:5000}
           starttls:
             enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
             required: ${MAIL_SMTP_STARTTLS_REQUIRED:false}
@@ -82,6 +85,11 @@ app:
     enabled: ${MAIL_ENABLED:true}
     from: ${MAIL_FROM:${MAIL_USERNAME:}}
     default-encoding: ${APP_MAIL_DEFAULT_ENCODING:${spring.mail.default-encoding:UTF-8}}
+    async:
+      core-pool-size: ${MAIL_ASYNC_CORE_POOL_SIZE:2}
+      max-pool-size: ${MAIL_ASYNC_MAX_POOL_SIZE:8}
+      queue-capacity: ${MAIL_ASYNC_QUEUE_CAPACITY:200}
+      await-termination-seconds: ${MAIL_ASYNC_AWAIT_TERMINATION_SECONDS:30}
     template:
       brand-name: ${APP_MAIL_TEMPLATE_BRAND_NAME:React Admin Starter}
       signature: ${APP_MAIL_TEMPLATE_SIGNATURE:React Admin Starter}

@@ -7,6 +7,7 @@ import com.winsalty.quickstart.auth.dto.PasswordUpdateRequest;
 import com.winsalty.quickstart.auth.dto.ProfileUpdateRequest;
 import com.winsalty.quickstart.auth.dto.RefreshTokenRequest;
 import com.winsalty.quickstart.auth.dto.RegisterRequest;
+import com.winsalty.quickstart.auth.dto.RegisterVerifyCodeRequest;
 import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.auth.service.AuthService;
 import com.winsalty.quickstart.auth.service.support.AuthRateLimitService;
@@ -25,12 +26,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletRequest;
-import javax.validation.constraints.Email;
-import javax.validation.constraints.NotBlank;
 
 /**
  * 认证控制器。
@@ -109,16 +107,17 @@ public class AuthController extends BaseController {
     }
 
     /**
-     * 注册验证码发送入口。未注册用户必须能匿名访问，验证码只通过邮件送达。
+     * 注册验证码发送入口。未注册用户必须能匿名访问，但必须随注册开关一起关闭。
      */
-    @GetMapping("/register/verify-code")
-    public ApiResponse<Object> registerVerifyCode(@NotBlank(message = "邮箱不能为空")
-                                                  @Email(message = "邮箱格式不正确")
-                                                  @RequestParam("email") String email,
+    @PostMapping("/register/verify-code")
+    public ApiResponse<Object> registerVerifyCode(@Validated @RequestBody RegisterVerifyCodeRequest request,
                                                   HttpServletRequest servletRequest) {
-        authRateLimitService.checkRegisterVerifyCode(email, IpUtils.getClientIp(servletRequest));
-        authService.sendRegisterVerifyCode(email);
-        return ApiResponse.success("发送成功", null);
+        if (!registerEnabled) {
+            throw new BusinessException(ErrorCode.REGISTER_DISABLED);
+        }
+        authRateLimitService.checkRegisterVerifyCode(request.getEmail(), IpUtils.getClientIp(servletRequest));
+        authService.sendRegisterVerifyCode(request.getEmail());
+        return ApiResponse.success("验证码已提交发送", null);
     }
 
     @GetMapping("/profile")
