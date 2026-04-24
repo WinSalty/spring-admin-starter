@@ -309,7 +309,7 @@ app:
 spring:
   mail:
     host: ${MAIL_HOST:}
-    port: ${MAIL_PORT:587}
+    port: ${MAIL_PORT:465}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
     properties:
@@ -320,10 +320,10 @@ spring:
           timeout: ${MAIL_SMTP_READ_TIMEOUT:5000}
           writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:5000}
           starttls:
-            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
             required: ${MAIL_SMTP_STARTTLS_REQUIRED:false}
           ssl:
-            enable: ${MAIL_SMTP_SSL_ENABLE:false}
+            enable: ${MAIL_SMTP_SSL_ENABLE:true}
 
 app:
   mail:
@@ -410,7 +410,7 @@ public class WorkflowMailService {
 | 环境变量 | 说明 | 是否必填 |
 | --- | --- | --- |
 | `MAIL_HOST` | SMTP 服务器地址 | 是 |
-| `MAIL_PORT` | SMTP 端口，例如 `465` 或 `587` | 是 |
+| `MAIL_PORT` | SMTP 端口，默认 `465` | 否 |
 | `MAIL_USERNAME` | SMTP 用户名，通常为完整邮箱地址 | 是 |
 | `MAIL_PASSWORD` | SMTP 密码或授权码 | 是 |
 | `MAIL_FROM` | 发件人地址，不配置时默认取 `MAIL_USERNAME` | 否 |
@@ -418,9 +418,9 @@ public class WorkflowMailService {
 | `MAIL_REGISTER_ENABLED` | 注册验证码邮件开关 | 否 |
 | `MAIL_REGISTER_SUBJECT` | 注册验证码邮件主题 | 否 |
 | `MAIL_SMTP_AUTH` | 是否开启 SMTP 鉴权 | 否 |
-| `MAIL_SMTP_STARTTLS_ENABLE` | 是否开启 STARTTLS | 否 |
+| `MAIL_SMTP_STARTTLS_ENABLE` | 是否开启 STARTTLS，默认 `false` | 否 |
 | `MAIL_SMTP_STARTTLS_REQUIRED` | 是否强制要求 STARTTLS | 否 |
-| `MAIL_SMTP_SSL_ENABLE` | 是否开启 SSL | 否 |
+| `MAIL_SMTP_SSL_ENABLE` | 是否开启 SSL，默认 `true` | 否 |
 | `MAIL_SMTP_CONNECTION_TIMEOUT` | SMTP 建连超时时间，单位毫秒，默认 `5000` | 否 |
 | `MAIL_SMTP_READ_TIMEOUT` | SMTP 读取超时时间，单位毫秒，默认 `5000` | 否 |
 | `MAIL_SMTP_WRITE_TIMEOUT` | SMTP 写入超时时间，单位毫秒，默认 `5000` | 否 |

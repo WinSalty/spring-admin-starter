@@ -9,7 +9,7 @@ spring:
       max-request-size: 10MB
   mail:
     host: ${MAIL_HOST:}
-    port: ${MAIL_PORT:587}
+    port: ${MAIL_PORT:465}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
     default-encoding: UTF-8
@@ -21,10 +21,10 @@ spring:
           timeout: ${MAIL_SMTP_READ_TIMEOUT:5000}
           writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:5000}
           starttls:
-            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
             required: ${MAIL_SMTP_STARTTLS_REQUIRED:false}
           ssl:
-            enable: ${MAIL_SMTP_SSL_ENABLE:false}
+            enable: ${MAIL_SMTP_SSL_ENABLE:true}
   quartz:
     job-store-type: memory
     properties:
