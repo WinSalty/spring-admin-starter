@@ -38,4 +38,22 @@ public interface PointRechargeOrderMapper {
 
     @Select("SELECT COUNT(1) FROM point_recharge_order WHERE user_id = #{userId}")
     long countUserPage(@Param("userId") Long userId);
+
+    @Select(RECHARGE_SELECT + "WHERE user_id = #{userId} AND idempotency_key = #{idempotencyKey} LIMIT 1")
+    PointRechargeOrderEntity findByUserIdAndIdempotencyKey(@Param("userId") Long userId,
+                                                           @Param("idempotencyKey") String idempotencyKey);
+
+    @Select(RECHARGE_SELECT + "WHERE recharge_no = #{rechargeNo} LIMIT 1")
+    PointRechargeOrderEntity findByRechargeNo(@Param("rechargeNo") String rechargeNo);
+
+    @Select(RECHARGE_SELECT + "WHERE recharge_no = #{rechargeNo} LIMIT 1 FOR UPDATE")
+    PointRechargeOrderEntity findByRechargeNoForUpdate(@Param("rechargeNo") String rechargeNo);
+
+    @Update("UPDATE point_recharge_order SET status = #{status}, external_no = #{externalNo}, result_snapshot = #{resultSnapshot} WHERE recharge_no = #{rechargeNo} AND status IN (#{createdStatus}, #{processingStatus})")
+    int updateCallbackResult(@Param("rechargeNo") String rechargeNo,
+                             @Param("status") String status,
+                             @Param("externalNo") String externalNo,
+                             @Param("resultSnapshot") String resultSnapshot,
+                             @Param("createdStatus") String createdStatus,
+                             @Param("processingStatus") String processingStatus);
 }

@@ -403,7 +403,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         PointRechargeOrderEntity order = new PointRechargeOrderEntity();
         order.setRechargeNo(createNo(RECHARGE_NO_PREFIX));
         order.setUserId(authUser.getUserId());
-        order.setChannel("cdk");
+        order.setChannel(PointsConstants.CHANNEL_CDK);
         order.setAmount(JSON.parseObject(batch.getBenefitConfig()).getLongValue(CONFIG_POINTS));
         order.setStatus(PointsConstants.ORDER_STATUS_PROCESSING);
         order.setExternalNo(redeemNo);

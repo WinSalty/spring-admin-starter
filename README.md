@@ -43,6 +43,10 @@
 | `com.winsalty.quickstart.param` | 参数配置管理与缓存刷新 |
 | `com.winsalty.quickstart.file` | 本地/阿里云 OSS 文件上传、下载、状态管理 |
 | `com.winsalty.quickstart.log` | 登录日志、操作日志、接口日志与归档 |
+| `com.winsalty.quickstart.points` | 积分账户、积分流水、充值/消费/冻结单据、人工调整和对账 |
+| `com.winsalty.quickstart.cdk` | CDK 批次、码池、兑换、风控、导出审计 |
+| `com.winsalty.quickstart.benefit` | 权益商品、积分兑换、用户权益和权限类权益合并 |
+| `com.winsalty.quickstart.trade` | 在线充值单、支付回调验签和积分入账 |
 | `com.winsalty.quickstart.common` | 统一响应、异常、常量、基础父类、工具类 |
 | `com.winsalty.quickstart.infra` | CORS、Redis、Quartz、OpenAPI、ES、JSON、对象存储等基础设施配置 |
 | `com.winsalty.quickstart.infra.outbox` | 数据库事务事件、定时扫描和后续 MQ 投递扩展点 |
@@ -100,6 +104,7 @@
 | 文件管理 | `/api/file/upload`、`/avatar/upload`、`/biz/upload`、`/biz/{id}/download-url`、`/biz/{id}/download`、`/public/**`、`/private/upload`、`/private/{id}/download-url`、`/private/{id}/download`、`/avatar/{id}`、`/object-storage/status`、`/list`、`/{id}/download`、`/{id}/delete`、`/{id}/status` |
 | 积分账户 | `/api/points/account`、`/api/points/ledger`、`/api/points/recharge/orders`、`/api/points/consume/orders`、`/api/points/freeze/orders` |
 | CDK 兑换 | `/api/points/cdk/redeem`，支持 HMAC 存储、幂等兑换、限流和积分入账 |
+| 在线充值 | `/api/trade/recharge/orders`、`/orders/{rechargeNo}`、`/callback`，支持充值单创建、支付回调 HMAC 验签、重复回调幂等和积分入账 |
 | 权益兑换 | `/api/benefits/products`、`/products/{id}/exchange`、`/orders`、`/mine`，支持积分冻结、权益发放和确认扣减 |
 | 管理端 CDK | `/api/admin/cdk/batches`、`/submit`、`/approve`、`/pause`、`/void`、`/export`、`/api/admin/cdk/redeem-records` |
 | 积分审计 | `/api/admin/points/accounts`、`/ledger`、`/adjustments`、`/adjustments/{id}/approve`、`/reconciliation` |
@@ -121,7 +126,8 @@
 10. 权限类用户权益会在权限 bootstrap 时合并到当前用户路由或按钮权限中。
 11. 过期冻结单通过 `PointFreezeCompensationJob` 自动取消，避免权益发放超时后长期占用冻结积分。
 12. CDK 兑换成功、权益兑换成功会写入 `transaction_outbox`，当前由定时任务标记处理，后续可平滑替换为 MQ 投递。
-13. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql` 初始化表结构和权限菜单。
+13. 在线充值通过 `trade` 模块创建 `online_pay` 充值单，支付回调使用 `TRADE_CALLBACK_SECRET` 做 HMAC 验签，成功后按充值单号幂等入账。
+14. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql` 初始化表结构和权限菜单。
 
 ## 配套环境说明
 
@@ -293,9 +299,13 @@ export POINTS_FREEZE_COMPENSATION_CRON='0 */10 * * * ?'
 export POINTS_FREEZE_COMPENSATION_BATCH_SIZE=100
 export OUTBOX_ENABLED=true
 export OUTBOX_CRON='0 */5 * * * ?'
+export TRADE_CALLBACK_SECRET='replace-with-at-least-32-bytes-random-secret'
+export TRADE_CALLBACK_SKEW_SECONDS=300
+export TRADE_MAX_RECHARGE_POINTS=100000
 ```
 
 生产环境必须显式配置 `CDK_PEPPER`，且长度不少于 32 字节。未配置时，CDK 批次审批生成和兑换会拒绝执行，避免使用弱密钥生成高价值凭证。
+在线充值回调必须显式配置 `TRADE_CALLBACK_SECRET`，且长度不少于 32 字节；回调签名原文按 `amount`、`externalNo`、`nonce`、`rechargeNo`、`status`、`timestamp` 的字典序字段拼接。
 
 开发环境可使用本地 MySQL 和 Redis 执行 CDK/积分集成测试：
 

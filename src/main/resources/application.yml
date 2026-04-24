@@ -101,6 +101,10 @@ app:
   outbox:
     enabled: ${OUTBOX_ENABLED:true}
     cron: ${OUTBOX_CRON:0 */5 * * * ?}
+  trade:
+    callback-secret: ${TRADE_CALLBACK_SECRET:}
+    callback-skew-seconds: ${TRADE_CALLBACK_SKEW_SECONDS:300}
+    max-recharge-points: ${TRADE_MAX_RECHARGE_POINTS:100000}
   mail:
     enabled: ${MAIL_ENABLED:true}
     from: ${MAIL_FROM:${MAIL_USERNAME:}}

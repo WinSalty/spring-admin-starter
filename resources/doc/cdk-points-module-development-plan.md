@@ -30,6 +30,7 @@ author：sunshengxian
 | 后端补偿任务 | 已新增 `PointFreezeCompensationJob`，通过 Quartz 按 `app.points.freeze-compensation-cron` 自动取消过期冻结单 |
 | 后端事务事件 | 已新增 `transaction_outbox` 和 `TransactionOutboxJob`，CDK 兑换成功、权益兑换成功会写入事务事件，作为后续 MQ 投递和补偿扩展点 |
 | 后端对账记录 | 已新增 `point_reconciliation_record`，每次积分对账会持久化检查账户数、差异账户数和汇总差异 |
+| 后端在线充值 | 已新增 `com.winsalty.quickstart.trade`，支持在线充值单创建、状态查询、支付回调 HMAC 验签、重复回调幂等和成功入账 |
 | 后端集成测试 | 已新增 `CdkPointsDevIntegrationTest`，通过 `RUN_DEV_INTEGRATION_TESTS=true` 显式连接本地 MySQL/Redis 验证兑换链路 |
 | 安全与审计 | CDK 仅存 HMAC Hash；明文只进入短期 Redis 导出窗口；兑换接口接入用户/IP/连续失败限流；管理操作和兑换操作接入 `@AuditLog` |
 | 前端钱包 | 已新增 `/points/wallet`，展示余额、CDK 兑换、流水、充值、消费、冻结记录；工作台已按钱包余额卡片重构，仅保留系统公告、钱包余额和预留图表位 |
@@ -67,7 +68,7 @@ author：sunshengxian
 | 中 | 对账差异处理入口 | 当前已接入 Quartz 日终对账并持久化结果，后续应提供差异处理入口 |
 | 中 | 导出文件强化 | 当前返回一次性明文列表，后续可改为加密 ZIP 和受控临时文件下载 |
 | 中 | 高价值双人复核 | 当前已有审批流状态，高价值批次双人复核规则尚未落地 |
-| 低 | 在线充值扩展 | 按阶段三接入在线充值渠道、支付回调验签和补偿 |
+| 低 | 在线充值前端 | 后端在线充值创建和回调入账已完成；仍需前端入口、状态轮询和真实支付渠道参数适配 |
 
 设计原则按金融级企业项目处理：
 
@@ -590,11 +591,16 @@ app:
   outbox:
     enabled: ${OUTBOX_ENABLED:true}
     cron: ${OUTBOX_CRON:0 */5 * * * ?}
+  trade:
+    callback-secret: ${TRADE_CALLBACK_SECRET:}
+    callback-skew-seconds: ${TRADE_CALLBACK_SKEW_SECONDS:300}
+    max-recharge-points: ${TRADE_MAX_RECHARGE_POINTS:100000}
 ```
 
 生产环境要求：
 
 - `CDK_PEPPER` 必须显式注入，长度不少于 32 字节。
+- `TRADE_CALLBACK_SECRET` 必须显式注入，长度不少于 32 字节。
 - 批量导出目录必须为受控临时目录，定期清理。
 - 高价值权益阈值通过配置或系统参数维护。
 - `transaction_outbox` 当前使用数据库事件表和定时任务承接最终一致扩展，接入 MQ 后消费端必须继续保持幂等。
@@ -654,6 +660,7 @@ app:
 - 新增在线充值渠道抽象。
 - 支持支付创建、回调验签、充值入账。
 - 增加第三方流水号唯一约束和回调重放防护。
+- 在线充值回调签名原文按 `amount`、`externalNo`、`nonce`、`rechargeNo`、`status`、`timestamp` 字段顺序拼接。
 
 前端：
 

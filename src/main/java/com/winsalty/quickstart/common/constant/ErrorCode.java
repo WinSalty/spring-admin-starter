@@ -89,7 +89,11 @@ public enum ErrorCode {
     BENEFIT_PRODUCT_UNAVAILABLE(4086, "权益商品不可兑换"),
     BENEFIT_PRODUCT_STOCK_NOT_ENOUGH(4087, "权益商品库存不足"),
     BENEFIT_ORDER_NOT_FOUND(4088, "权益兑换订单不存在"),
-    BENEFIT_ORDER_STATUS_INVALID(4089, "权益兑换订单状态不允许当前操作");
+    BENEFIT_ORDER_STATUS_INVALID(4089, "权益兑换订单状态不允许当前操作"),
+    TRADE_RECHARGE_ORDER_NOT_FOUND(4090, "在线充值订单不存在"),
+    TRADE_RECHARGE_ORDER_STATUS_INVALID(4091, "在线充值订单状态不允许当前操作"),
+    TRADE_CALLBACK_SIGNATURE_INVALID(4092, "支付回调签名无效"),
+    TRADE_CALLBACK_SECRET_MISSING(4093, "支付回调密钥未配置");
 
     private final int code;
     private final String message;
