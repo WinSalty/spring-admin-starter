@@ -200,6 +200,7 @@ public class PermissionServiceImpl implements PermissionService {
             item.setIcon(menu.getIcon());
             item.setOrderNo(menu.getOrderNo());
             item.setType(menu.getMenuType());
+            item.setRouteCode(menu.getRouteCode());
             item.setPermissionCode(menu.getPermissionCode());
             item.setHiddenInMenu(menu.getHiddenInMenu());
             item.setRedirect(menu.getRedirect());

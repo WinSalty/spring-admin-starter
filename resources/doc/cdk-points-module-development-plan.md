@@ -26,9 +26,10 @@ author：sunshengxian
 | 后端 CDK 模块 | 已新增 `com.winsalty.quickstart.cdk`，支持批次创建、提交审批、审批生成、暂停、作废、一次性导出、兑换记录查询和用户兑换 |
 | 后端权益抽象 | 已新增 `com.winsalty.quickstart.benefit`，首期实现积分权益发放，后续权限或服务包可扩展独立发放器 |
 | 安全与审计 | CDK 仅存 HMAC Hash；明文只进入短期 Redis 导出窗口；兑换接口接入用户/IP/连续失败限流；管理操作和兑换操作接入 `@AuditLog` |
-| 前端钱包 | 已新增工作台积分卡和 `/points/wallet`，展示余额、CDK 兑换、流水、充值、消费、冻结记录 |
+| 前端钱包 | 已新增 `/points/wallet`，展示余额、CDK 兑换、流水、充值、消费、冻结记录；工作台已按钱包余额卡片重构，仅保留系统公告、钱包余额和预留图表位 |
 | 前端管理页 | 已新增 `/system/cdk/batches`、`/system/cdk/redeem-records`、`/system/points/audit` |
-| 权限菜单 | 已新增 `points_wallet`、`points_admin_account`、`points_admin_ledger`、`cdk_batch`、`cdk_redeem_record` 路由码和对应按钮权限 |
+| 权限菜单 | 已新增 `points_wallet`、`points_admin_account`、`points_admin_ledger`、`cdk_batch`、`cdk_redeem_record` 路由码和对应按钮权限；`points_wallet` 已调整到个人中心子菜单 |
+| 权限协议 | 权限 bootstrap 菜单已透传 `routeCode`，前端按 `routeCode` 或路径映射过滤菜单，避免路径末段与路由码不一致时隐藏入口 |
 
 ### 已验证内容
 
@@ -39,6 +40,7 @@ author：sunshengxian
 | 前端类型检查 | `npm run typecheck` 通过 |
 | 前端单元测试 | `npm run test:unit` 通过；当前无测试文件 |
 | 前端生产构建 | `npm run build` 通过 |
+| 前端页面联调 | 已用 `admin / 123456` 登录本地前端，验证工作台钱包余额卡、系统公告、个人中心 > 积分钱包入口和 `/points/wallet` 路由可访问 |
 
 ### 部署与联调前置条件
 

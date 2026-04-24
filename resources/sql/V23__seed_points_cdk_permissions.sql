@@ -1,6 +1,12 @@
 INSERT INTO sys_menu (record_code, parent_id, title, code, path, icon, order_no, menu_type, route_code, permission_code, hidden_in_menu, redirect, keep_alive, external_link, badge, disabled, status, owner, description)
-SELECT 'M2001', 2, '积分钱包', 'points_wallet', '/points/wallet', 'WalletOutlined', 30, 'menu', 'points_wallet', 'points:wallet:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '用户积分钱包入口'
+SELECT 'M2001', (SELECT id FROM sys_menu WHERE code = 'account' LIMIT 1), '积分钱包', 'points_wallet', '/points/wallet', 'WalletOutlined', 20, 'menu', 'points_wallet', 'points:wallet:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '用户积分钱包入口'
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE code = 'points_wallet');
+
+UPDATE sys_menu
+SET parent_id = (SELECT account_menu.id FROM (SELECT id FROM sys_menu WHERE code = 'account' LIMIT 1) account_menu),
+    order_no = 20
+WHERE code = 'points_wallet'
+  AND EXISTS (SELECT 1 FROM (SELECT id FROM sys_menu WHERE code = 'account' LIMIT 1) account_menu);
 
 INSERT INTO sys_menu (record_code, parent_id, title, code, path, icon, order_no, menu_type, route_code, permission_code, hidden_in_menu, redirect, keep_alive, external_link, badge, disabled, status, owner, description)
 SELECT 'M2002', 5, 'CDK批次', 'cdk_batch', '/system/cdk/batches', 'GiftOutlined', 80, 'menu', 'cdk_batch', 'cdk:batch:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', 'CDK批次管理入口'

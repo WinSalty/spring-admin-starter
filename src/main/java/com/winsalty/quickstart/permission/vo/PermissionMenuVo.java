@@ -20,6 +20,7 @@ public class PermissionMenuVo {
     private String icon;
     private Integer orderNo;
     private String type;
+    private String routeCode;
     private String permissionCode;
     private Boolean hiddenInMenu;
     private String redirect;
