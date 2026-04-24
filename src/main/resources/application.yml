@@ -81,6 +81,19 @@ app:
   security:
     swagger-public-enabled: true
     trusted-proxies: ${TRUSTED_PROXIES:127.0.0.1/32,::1/128}
+  cdk:
+    pepper: ${CDK_PEPPER:}
+    max-batch-size: ${CDK_MAX_BATCH_SIZE:10000}
+    redeem-user-window-seconds: ${CDK_REDEEM_USER_WINDOW_SECONDS:60}
+    redeem-user-limit: ${CDK_REDEEM_USER_LIMIT:10}
+    redeem-ip-window-seconds: ${CDK_REDEEM_IP_WINDOW_SECONDS:60}
+    redeem-ip-limit: ${CDK_REDEEM_IP_LIMIT:30}
+    redeem-lock-seconds: ${CDK_REDEEM_LOCK_SECONDS:900}
+    redeem-failure-limit: ${CDK_REDEEM_FAILURE_LIMIT:5}
+    export-window-seconds: ${CDK_EXPORT_WINDOW_SECONDS:1800}
+  points:
+    reconciliation-enabled: ${POINTS_RECONCILIATION_ENABLED:true}
+    freeze-default-expire-seconds: ${POINTS_FREEZE_DEFAULT_EXPIRE_SECONDS:1800}
   mail:
     enabled: ${MAIL_ENABLED:true}
     from: ${MAIL_FROM:${MAIL_USERNAME:}}
