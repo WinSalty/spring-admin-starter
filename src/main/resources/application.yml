@@ -99,7 +99,7 @@ app:
       account-name: ${ALIYUN_MAIL_ACCOUNT_NAME:${MAIL_FROM:}}
       from-alias: ${ALIYUN_MAIL_FROM_ALIAS:}
       address-type: ${ALIYUN_MAIL_ADDRESS_TYPE:1}
-      reply-to-address: ${ALIYUN_MAIL_REPLY_TO_ADDRESS:true}
+      reply-to-address: ${ALIYUN_MAIL_REPLY_TO_ADDRESS:false}
       reply-address: ${ALIYUN_MAIL_REPLY_ADDRESS:}
       reply-address-alias: ${ALIYUN_MAIL_REPLY_ADDRESS_ALIAS:}
       tag-name: ${ALIYUN_MAIL_TAG_NAME:}
@@ -114,7 +114,7 @@ app:
       card-background-color: ${APP_MAIL_TEMPLATE_CARD_BACKGROUND_COLOR:#ffffff}
     register:
       enabled: ${MAIL_REGISTER_ENABLED:true}
-      subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 账号激活}
+      subject: ${MAIL_REGISTER_SUBJECT:ai-quick-web 账号激活}
       verify-link-base-url: ${MAIL_REGISTER_VERIFY_LINK_BASE_URL:http://localhost:5173}
   batch:
     log-archive:
