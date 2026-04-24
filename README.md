@@ -361,11 +361,21 @@ app:
       enabled: ${MAIL_REGISTER_ENABLED:true}
       subject: ${MAIL_REGISTER_SUBJECT:Spring Admin 注册验证}
       verify-link-base-url: ${MAIL_REGISTER_VERIFY_LINK_BASE_URL:http://localhost:5173}
+    verification-code:
+      enabled: ${MAIL_VERIFICATION_CODE_ENABLED:true}
+      code-length: ${MAIL_VERIFICATION_CODE_LENGTH:6}
+      ttl-seconds: ${MAIL_VERIFICATION_CODE_TTL_SECONDS:300}
+      verified-ttl-seconds: ${MAIL_VERIFICATION_CODE_VERIFIED_TTL_SECONDS:600}
+      fail-limit: ${MAIL_VERIFICATION_CODE_FAIL_LIMIT:5}
+      subject: ${MAIL_VERIFICATION_CODE_SUBJECT:邮箱验证码}
+      title: ${MAIL_VERIFICATION_CODE_TITLE:邮箱验证码}
 ```
 
 邮件能力已升级为通用服务，当前内置的注册邮箱验证邮件只是其中一个业务实现。项目内其他业务模块可以直接注入 `com.winsalty.quickstart.infra.mail.MailService` 发送文本或 HTML 邮件，不需要关心底层使用 SMTP 还是阿里云 DirectMail。系统同时内置了统一的卡片式 HTML 邮件模板，默认对齐 `react-admin-starter` 的浅色品牌风格与文案语气，默认品牌名为 `React Admin Starter`，并自动附带纯文本 fallback，兼容只支持纯文本的客户端。
 
 注册邮箱验证邮件发送接口使用 `POST /api/auth/register/verify-code`，请求体为 `{"username":"new-user","email":"user@example.com"}`。接口不再使用 GET query 传递邮箱，避免代理日志、浏览器历史或链路追踪系统记录明文邮箱。发送验证邮件前会先校验用户名和邮箱是否已存在，避免用户点击邮件链接后才发现账号不可用。用户点击邮件中的链接后，前端调用 `POST /api/auth/register/verify-link` 完成邮箱验证，后续 `/api/auth/register` 注册提交会一次性消费该邮箱的已验证状态。
+
+注册链接验证已经切换为一次性邮件链接，不再复用手填验证码。后续业务如果仍需要邮箱验证码，可注入 `com.winsalty.quickstart.infra.verification.EmailVerificationCodeService`。该服务按 `scene` 隔离不同业务，Redis key 使用 `scene + email fingerprint`，缓存内容为 HMAC 摘要而非明文验证码，并支持错误次数限制、`verifyCode` 后一次性消费、或 `consumeCode` 直接校验消费。
 
 通用邮件服务使用示例：
 
@@ -413,11 +423,46 @@ public class WorkflowMailService {
 }
 ```
 
-当前邮件开关分为三层：
+通用邮箱验证码使用示例：
+
+```java
+@Service
+public class PasswordResetVerifyService {
+
+    private static final String SCENE_PASSWORD_RESET = "password-reset";
+
+    private final EmailVerificationCodeService emailVerificationCodeService;
+
+    public PasswordResetVerifyService(EmailVerificationCodeService emailVerificationCodeService) {
+        this.emailVerificationCodeService = emailVerificationCodeService;
+    }
+
+    public void sendResetCode(String email) {
+        EmailVerificationCodeSendRequest request = new EmailVerificationCodeSendRequest();
+        request.setScene(SCENE_PASSWORD_RESET);
+        request.setEmail(email);
+        request.setSubject("密码重置验证码");
+        request.setTitle("密码重置验证");
+        request.setSummary("请使用以下验证码完成密码重置。");
+        emailVerificationCodeService.sendCode(request);
+    }
+
+    public void consumeResetCode(String email, String code) {
+        EmailVerificationCodeVerifyRequest request = new EmailVerificationCodeVerifyRequest();
+        request.setScene(SCENE_PASSWORD_RESET);
+        request.setEmail(email);
+        request.setCode(code);
+        emailVerificationCodeService.consumeCode(request);
+    }
+}
+```
+
+当前邮件开关分为四层：
 
 1. `app.mail.enabled`：控制整个项目的通用邮件服务是否启用。
 2. `app.mail.register.enabled`：只控制注册邮箱验证邮件是否启用。
-3. `app.mail.aliyun.enabled`：控制是否使用阿里云 DirectMail API；默认 `false` 时使用 SMTP。
+3. `app.mail.verification-code.enabled`：控制后续业务复用的通用邮箱验证码服务是否启用。
+4. `app.mail.aliyun.enabled`：控制是否使用阿里云 DirectMail API；默认 `false` 时使用 SMTP。
 
 `prod` profile 中 `app.mail.register.enabled` 默认值为 `false`，即使通用邮件服务可用，也不会自动开放注册邮箱验证邮件。若生产环境确需开放自助注册，需要同时显式开启 `APP_SECURITY_REGISTER_ENABLED=true`、`MAIL_REGISTER_ENABLED=true`，并把 `MAIL_REGISTER_VERIFY_LINK_BASE_URL` 配置为前端站点地址。
 
@@ -436,6 +481,13 @@ public class WorkflowMailService {
 | `MAIL_REGISTER_ENABLED` | 注册邮箱验证邮件开关 | 否 |
 | `MAIL_REGISTER_SUBJECT` | 注册邮箱验证邮件主题 | 否 |
 | `MAIL_REGISTER_VERIFY_LINK_BASE_URL` | 邮件验证链接使用的前端站点地址，例如 `https://admin.example.com` | 生产环境必填 |
+| `MAIL_VERIFICATION_CODE_ENABLED` | 通用邮箱验证码服务开关 | 否 |
+| `MAIL_VERIFICATION_CODE_LENGTH` | 通用邮箱验证码长度，默认 `6`，允许 `4` 到 `8` 位 | 否 |
+| `MAIL_VERIFICATION_CODE_TTL_SECONDS` | 通用邮箱验证码有效期，单位秒，默认 `300` | 否 |
+| `MAIL_VERIFICATION_CODE_VERIFIED_TTL_SECONDS` | `verifyCode` 成功后的已验证状态有效期，单位秒，默认 `600` | 否 |
+| `MAIL_VERIFICATION_CODE_FAIL_LIMIT` | 验证码错误次数上限，默认 `5` | 否 |
+| `MAIL_VERIFICATION_CODE_SUBJECT` | 通用邮箱验证码默认邮件主题 | 否 |
+| `MAIL_VERIFICATION_CODE_TITLE` | 通用邮箱验证码默认邮件标题 | 否 |
 | `MAIL_SMTP_AUTH` | 是否开启 SMTP 鉴权 | 否 |
 | `MAIL_SMTP_STARTTLS_ENABLE` | 是否开启 STARTTLS，默认 `false` | 否 |
 | `MAIL_SMTP_STARTTLS_REQUIRED` | 是否强制要求 STARTTLS | 否 |

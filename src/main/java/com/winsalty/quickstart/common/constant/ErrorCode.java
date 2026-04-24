@@ -66,7 +66,9 @@ public enum ErrorCode {
     OBJECT_STORAGE_UPLOAD_FAILED(4063, "对象存储上传失败"),
     OBJECT_STORAGE_DISABLED(4064, "对象存储服务未开启"),
     FILE_SCHEMA_OUTDATED(4065, "文件表结构版本过旧"),
-    EMAIL_ALREADY_EXISTS(4066, "邮箱已存在");
+    EMAIL_ALREADY_EXISTS(4066, "邮箱已存在"),
+    EMAIL_VERIFY_CODE_INVALID(4067, "邮箱验证码无效或已过期"),
+    EMAIL_VERIFY_CODE_SEND_FAILED(4068, "邮箱验证码发送失败");
 
     private final int code;
     private final String message;
