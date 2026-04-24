@@ -214,7 +214,15 @@ public class FileController extends BaseController {
     @GetMapping("/avatar/{id}")
     public ResponseEntity<Resource> avatar(@PathVariable("id") String id) {
         FileRecordVo detail = fileRecordService.getPublicAvatarDetail(id);
-        Resource resource = fileRecordService.loadPublicAvatarResource(id);
+        Resource resource;
+        try {
+            resource = fileRecordService.loadPublicAvatarResource(id);
+        } catch (BusinessException exception) {
+            if (exception.getCode() == ErrorCode.FILE_NOT_FOUND.getCode()) {
+                return ResponseEntity.notFound().build();
+            }
+            throw exception;
+        }
         MediaType mediaType = detail.getContentType() == null || detail.getContentType().isEmpty()
                 ? MediaType.APPLICATION_OCTET_STREAM
                 : MediaType.parseMediaType(detail.getContentType());
