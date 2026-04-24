@@ -7,6 +7,59 @@ author：sunshengxian
 
 本计划用于在 `spring-admin-starter` 与配套 `react-admin-starter` 中新增 CDK 通用模块和积分钱包模块。CDK 可兑换不同权益或积分，管理员可批量生成 CDK；积分模块用于后续支持用户使用积分兑换权限、服务或其他业务资源。
 
+## 1.1 当前实施进度
+
+更新时间：2026-04-24
+
+author：sunshengxian
+
+当前已完成阶段一基础能力开发，后续开发应基于以下状态继续推进。
+
+### 已完成内容
+
+| 类型 | 完成情况 |
+| --- | --- |
+| 后端提交 | `2bcba88 实现CDK与积分阶段一模块 gpt-5.4`、`958062a 补充CDK环境变量配置映射 gpt-5.4` |
+| 前端提交 | `d78a6ea 接入CDK与积分钱包管理页面 gpt-5.4` |
+| 数据库脚本 | 已新增 `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql` |
+| 后端积分模块 | 已新增 `com.winsalty.quickstart.points`，支持账户初始化、充值、扣减、冻结、确认冻结、取消冻结、退款、账本哈希链、管理端账户/流水查询、人工调整申请与审批、对账汇总 |
+| 后端 CDK 模块 | 已新增 `com.winsalty.quickstart.cdk`，支持批次创建、提交审批、审批生成、暂停、作废、一次性导出、兑换记录查询和用户兑换 |
+| 后端权益抽象 | 已新增 `com.winsalty.quickstart.benefit`，首期实现积分权益发放，后续权限或服务包可扩展独立发放器 |
+| 安全与审计 | CDK 仅存 HMAC Hash；明文只进入短期 Redis 导出窗口；兑换接口接入用户/IP/连续失败限流；管理操作和兑换操作接入 `@AuditLog` |
+| 前端钱包 | 已新增工作台积分卡和 `/points/wallet`，展示余额、CDK 兑换、流水、充值、消费、冻结记录 |
+| 前端管理页 | 已新增 `/system/cdk/batches`、`/system/cdk/redeem-records`、`/system/points/audit` |
+| 权限菜单 | 已新增 `points_wallet`、`points_admin_account`、`points_admin_ledger`、`cdk_batch`、`cdk_redeem_record` 路由码和对应按钮权限 |
+
+### 已验证内容
+
+| 项目 | 结果 |
+| --- | --- |
+| 后端编译 | `mvn -q -DskipTests compile` 通过 |
+| 后端测试 | `mvn -q test` 通过 |
+| 前端类型检查 | `npm run typecheck` 通过 |
+| 前端单元测试 | `npm run test:unit` 通过；当前无测试文件 |
+| 前端生产构建 | `npm run build` 通过 |
+
+### 部署与联调前置条件
+
+1. 必须先执行数据库迁移脚本 `V21`、`V22`、`V23`。
+2. 必须配置 Redis，CDK 限流和明文导出窗口依赖 Redis。
+3. 必须通过环境变量或外部配置注入 `CDK_PEPPER`，长度不少于 32 字节；仓库内不保存真实密钥。
+4. `src/main/resources/application.yml` 已映射 `app.cdk.pepper: ${CDK_PEPPER:}`，本地可通过 `export CDK_PEPPER='...'` 注入。
+5. 生产环境需要确认 `CDK_PEPPER`、`JWT_SECRET`、数据库、Redis、CORS 等配置均由外部注入。
+
+### 仍需推进内容
+
+| 优先级 | 待办 | 说明 |
+| --- | --- | --- |
+| 高 | 增补 CDK/积分集成测试 | 需要覆盖同一 CDK 并发兑换、同一幂等键重复兑换、余额不足扣减、账本对账等验收项 |
+| 高 | 完成真实数据库联调 | 当前已完成编译和构建验证，仍需在目标 MySQL/Redis 环境跑迁移并走完整兑换链路 |
+| 中 | 二阶段权益发放 | 按阶段二实现权限/服务包权益、冻结确认/取消的业务页面和补偿任务 |
+| 中 | 对账任务定时化 | 当前提供管理端对账查询，后续应接入 Quartz 日终任务和差异记录 |
+| 中 | 导出文件强化 | 当前返回一次性明文列表，后续可改为加密 ZIP 和受控临时文件下载 |
+| 中 | 高价值双人复核 | 当前已有审批流状态，高价值批次双人复核规则尚未落地 |
+| 低 | 在线充值扩展 | 按阶段三接入在线充值渠道、支付回调验签和补偿 |
+
 设计原则按金融级企业项目处理：
 
 - 积分只能为整数，所有金额类字段使用 `BIGINT`，禁止浮点数。
@@ -677,4 +730,3 @@ app:
 4. 权益兑换权限或服务时，权益是否有有效期、次数限制、等级叠加规则。
 5. 高价值 CDK 的审批阈值和单批次上限。
 6. 是否需要短信、邮件或站内信通知用户积分到账和消费。
-
