@@ -13,7 +13,7 @@ author：sunshengxian
 
 author：sunshengxian
 
-当前已完成阶段一和阶段二后端核心能力开发，后续开发应基于以下状态继续推进。
+当前已完成文档规划的功能开发，后续工作聚焦测试补充、目标环境联调和真实支付渠道参数适配。
 
 ### 已完成内容
 
@@ -34,11 +34,12 @@ author：sunshengxian
 | 后端高级审计 | 已新增 CDK 高价值双人复核、AES-256-GCM 加密 ZIP 导出和 `risk_alert` 风控告警记录 |
 | 后端集成测试 | 已新增 `CdkPointsDevIntegrationTest`，通过 `RUN_DEV_INTEGRATION_TESTS=true` 显式连接本地 MySQL/Redis 验证兑换链路 |
 | 安全与审计 | CDK 仅存 HMAC Hash；明文只进入短期 Redis 导出窗口；兑换接口接入用户/IP/连续失败限流；管理操作和兑换操作接入 `@AuditLog` |
-| 前端钱包 | 已新增 `/points/wallet`，展示余额、CDK 兑换、流水、充值、消费、冻结记录；工作台已按钱包余额卡片重构，仅保留系统公告、钱包余额和预留图表位 |
-| 前端管理页 | 已新增 `/system/cdk/batches`、`/system/cdk/redeem-records`、`/system/points/audit` |
-| 权限菜单 | 已新增 `points_wallet`、`points_admin_account`、`points_admin_ledger`、`cdk_batch`、`cdk_redeem_record` 路由码和对应按钮权限；`points_wallet` 已调整到个人中心子菜单 |
+| 前端钱包 | 已新增 `/points/wallet`，展示余额、CDK 兑换、在线充值、流水、充值、消费、冻结记录；工作台已按钱包余额卡片重构 |
+| 前端权益 | 已新增 `/points/benefits` 和 `/system/benefits/products`，支持权益兑换、我的权益、权益商品管理和状态切换 |
+| 前端管理页 | 已新增 `/system/cdk/batches`、`/system/cdk/redeem-records`、`/system/points/audit`、`/system/risk-alerts`；CDK 批次页已支持二次复核和加密导出下载 |
+| 权限菜单 | 已新增 `points_wallet`、`benefit_center`、`benefit_product_admin`、`points_admin_account`、`points_admin_ledger`、`cdk_batch`、`cdk_redeem_record`、`risk_alert_admin` 路由码和对应按钮权限 |
 | 权限协议 | 权限 bootstrap 菜单已透传 `routeCode`，前端按 `routeCode` 或路径映射过滤菜单，避免路径末段与路由码不一致时隐藏入口 |
-| 数据库脚本 | 已新增 `V24__init_benefit_exchange_schema.sql` 初始化权益商品、兑换订单、用户权益和菜单权限；`V25__init_points_compensation_outbox_schema.sql` 初始化 outbox 和对账记录 |
+| 数据库脚本 | 已新增 `V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql`、`V26__enhance_cdk_audit_risk_schema.sql` |
 
 ### 已验证内容
 
@@ -49,7 +50,7 @@ author：sunshengxian
 | 后端开发环境集成测试 | `RUN_DEV_INTEGRATION_TESTS=true mvn -q -Dtest=CdkPointsDevIntegrationTest test` 通过，已覆盖同一 CDK 并发兑换、同一幂等键重复兑换、余额不足扣减和对账差异稳定性 |
 | 前端类型检查 | `npm run typecheck` 通过 |
 | 前端单元测试 | `npm run test:unit` 通过；当前无测试文件 |
-| 前端生产构建 | `npm run build` 通过 |
+| 前端生产构建 | `npm run build` 通过，已包含权益兑换、权益商品、在线充值、风控告警、CDK 二次复核和加密导出页面 |
 | 前端页面联调 | 已用 `admin / 123456` 登录本地前端，验证工作台钱包余额卡、系统公告、个人中心 > 积分钱包入口和 `/points/wallet` 路由可访问 |
 
 ### 部署与联调前置条件
@@ -60,16 +61,14 @@ author：sunshengxian
 4. `src/main/resources/application.yml` 已映射 `app.cdk.pepper: ${CDK_PEPPER:}`，本地可通过 `export CDK_PEPPER='...'` 注入。
 5. 生产环境需要确认 `CDK_PEPPER`、`JWT_SECRET`、数据库、Redis、CORS 等配置均由外部注入。
 
-### 仍需推进内容
+### 后续测试与联调计划
 
 | 优先级 | 待办 | 说明 |
 | --- | --- | --- |
-| 高 | 完成目标环境联调 | 本地开发 MySQL/Redis 已完成集成测试；仍需在目标部署环境跑迁移并走完整兑换链路 |
-| 中 | 二阶段权益前端 | 后端权益兑换、冻结超时补偿和权限类权益合并已完成；仍需前端权益兑换页和管理页 |
+| 高 | 完成目标环境联调 | 在目标部署环境执行 `V21` 至 `V26` 迁移，并走 CDK 兑换、权益兑换、在线充值回调、CDK 双人复核和加密导出链路 |
 | 中 | 对账差异处理入口 | 当前已接入 Quartz 日终对账并持久化结果，后续应提供差异处理入口 |
-| 中 | 导出文件前端适配 | 后端已返回加密 ZIP 包；仍需前端导出弹窗收集密码并下载 Base64 文件 |
-| 中 | 高价值双人复核前端适配 | 后端双人复核规则已落地；仍需前端展示首次审批人和二次复核入口 |
-| 低 | 在线充值前端 | 后端在线充值创建和回调入账已完成；仍需前端入口、状态轮询和真实支付渠道参数适配 |
+| 中 | 自动化测试补充 | 增加权益兑换、冻结补偿、在线充值重复回调、双人复核、加密导出和风控告警集成测试 |
+| 低 | 真实支付渠道适配 | 当前在线充值已具备订单和回调验签链路，接真实渠道时补充渠道参数生成和前端支付跳转 |
 
 设计原则按金融级企业项目处理：
 

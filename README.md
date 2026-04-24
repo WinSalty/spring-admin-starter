@@ -113,7 +113,7 @@
 
 ### CDK 与积分模块
 
-本项目已按 `resources/doc/cdk-points-module-development-plan.md` 落地阶段一能力：
+本项目已按 `resources/doc/cdk-points-module-development-plan.md` 落地 CDK 与积分模块规划功能：
 
 1. 积分账户通过 `PointAccountService` 统一变更，业务模块不直接更新余额表。
 2. 每次积分变更会写入 `point_ledger`，记录变更前后余额、幂等键、业务单号、操作人、traceId 和哈希链。
