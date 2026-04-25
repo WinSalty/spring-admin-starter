@@ -6,6 +6,12 @@ import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 
+/**
+ * 字典类型保存请求。
+ * 承载字典名称、类型编码、状态和备注。
+ * 创建日期：2026-04-25
+ * author：sunshengxian
+ */
 @Data
 public class DictTypeSaveRequest {
     private String id;

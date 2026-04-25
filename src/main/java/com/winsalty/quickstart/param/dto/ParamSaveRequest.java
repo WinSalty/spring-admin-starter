@@ -6,6 +6,12 @@ import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 
+/**
+ * 参数配置保存请求。
+ * 承载参数键、参数值、值类型、业务分类和启停状态。
+ * 创建日期：2026-04-25
+ * author：sunshengxian
+ */
 @Data
 public class ParamSaveRequest {
     private String id;

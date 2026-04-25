@@ -1,12 +1,16 @@
 spring:
+  # 应用标识会进入日志、Actuator 和部分链路追踪上下文。
   application:
     name: spring-admin-starter
+  # 默认使用 dev，本地启动无需额外指定；生产环境通过 SPRING_PROFILES_ACTIVE=prod 覆盖。
   profiles:
     active: dev
+  # 文件上传基础限制，业务侧还会按文件类型、存储桶和访问策略做二次校验。
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+  # Spring Mail 基础 SMTP 配置；实际发信会根据 app.mail.enabled 和 app.mail.aliyun.enabled 选择通道。
   mail:
     host: ${MAIL_HOST:}
     port: ${MAIL_PORT:465}
@@ -26,6 +30,7 @@ spring:
           ssl:
             enable: ${MAIL_SMTP_SSL_ENABLE:true}
   quartz:
+    # 当前使用内存调度器，单体部署足够；集群部署时可切换为 jdbc job-store。
     job-store-type: memory
     properties:
       org:
@@ -36,14 +41,17 @@ spring:
           threadPool:
             threadCount: 5
   elasticsearch:
+    # ES 用于后续全文检索扩展，本地默认连接 127.0.0.1:9200。
     uris: ${ES_URIS:http://127.0.0.1:9200}
     username: ${ES_USERNAME:}
     password: ${ES_PASSWORD:}
 
 server:
+  # 后端 HTTP 服务端口，前端默认通过 8080 访问 API。
   port: 8080
 
 management:
+  # 仅暴露必要 Actuator 端点，避免生产环境泄露过多运行细节。
   endpoints:
     web:
       exposure:
@@ -54,6 +62,7 @@ management:
       show-components: when-authorized
 
 springdoc:
+  # OpenAPI 文档路径；prod profile 会关闭。
   api-docs:
     path: /v3/api-docs
     enabled: true
@@ -63,8 +72,10 @@ springdoc:
 
 app:
   file:
+    # 本地文件兜底目录；生产建议使用对象存储并挂载持久卷或外部 Bucket。
     upload-dir: uploads
     object-storage:
+      # 对象存储总开关，关闭时统一落本地存储。
       enabled: ${APP_OBJECT_STORAGE_ENABLED:false}
       provider: aliyun-oss
       aliyun:
@@ -79,9 +90,19 @@ app:
         public-base-url: ${LOCAL_STORAGE_PUBLIC_BASE_URL:/api/file/public}
         private-url-expire-seconds: ${LOCAL_STORAGE_PRIVATE_URL_EXPIRE_SECONDS:600}
   security:
+    # 生产环境会在 application-prod.yml 中关闭 Swagger 匿名访问。
     swagger-public-enabled: true
+    # 可信代理用于解析真实客户端 IP，只允许配置可信网关网段。
     trusted-proxies: ${TRUSTED_PROXIES:127.0.0.1/32,::1/128}
+  redisson:
+    # RedissonUtil 获取分布式锁的默认等待时间，超时后返回空结果或 false。
+    lock-wait-seconds: ${REDISSON_LOCK_WAIT_SECONDS:3}
+    # RedissonUtil 获取锁后的自动释放时间，避免业务异常导致锁长期占用。
+    lock-lease-seconds: ${REDISSON_LOCK_LEASE_SECONDS:30}
+    # 锁生命周期日志开关，生产排查并发问题时建议保持开启。
+    lock-log-enabled: ${REDISSON_LOCK_LOG_ENABLED:true}
   cdk:
+    # CDK 明文哈希 pepper，生产环境必须外部注入。
     pepper: ${CDK_PEPPER:}
     max-batch-size: ${CDK_MAX_BATCH_SIZE:10000}
     redeem-user-window-seconds: ${CDK_REDEEM_USER_WINDOW_SECONDS:60}
@@ -95,6 +116,7 @@ app:
     double-review-total-points-threshold: ${CDK_DOUBLE_REVIEW_TOTAL_POINTS_THRESHOLD:100000}
     export-encrypt-iterations: ${CDK_EXPORT_ENCRYPT_ITERATIONS:120000}
   points:
+    # 积分对账和冻结补偿均由 Quartz 调度，Cron 支持按环境覆盖。
     reconciliation-enabled: ${POINTS_RECONCILIATION_ENABLED:true}
     reconciliation-cron: ${POINTS_RECONCILIATION_CRON:0 10 2 * * ?}
     freeze-default-expire-seconds: ${POINTS_FREEZE_DEFAULT_EXPIRE_SECONDS:1800}
@@ -102,13 +124,16 @@ app:
     freeze-compensation-cron: ${POINTS_FREEZE_COMPENSATION_CRON:0 */10 * * * ?}
     freeze-compensation-batch-size: ${POINTS_FREEZE_COMPENSATION_BATCH_SIZE:100}
   outbox:
+    # 本地事务事件轮询开关，后续可替换为 MQ 投递。
     enabled: ${OUTBOX_ENABLED:true}
     cron: ${OUTBOX_CRON:0 */5 * * * ?}
   trade:
+    # 支付回调验签密钥，生产环境必须外部注入。
     callback-secret: ${TRADE_CALLBACK_SECRET:}
     callback-skew-seconds: ${TRADE_CALLBACK_SKEW_SECONDS:300}
     max-recharge-points: ${TRADE_MAX_RECHARGE_POINTS:100000}
   mail:
+    # 项目级邮件开关；关闭后注册激活等邮件任务不会实际发送。
     enabled: ${MAIL_ENABLED:true}
     from: ${MAIL_FROM:${MAIL_USERNAME:}}
     default-encoding: ${APP_MAIL_DEFAULT_ENCODING:${spring.mail.default-encoding:UTF-8}}
@@ -145,6 +170,7 @@ app:
       verify-link-base-url: ${MAIL_REGISTER_VERIFY_LINK_BASE_URL:http://localhost:5173}
   batch:
     log-archive:
+      # 日志归档任务用于控制主日志表体积，保留天数按环境配置。
       enabled: ${LOG_ARCHIVE_ENABLED:true}
       cron: ${LOG_ARCHIVE_CRON:0 0 2 * * ?}
       retention-days: ${LOG_ARCHIVE_RETENTION_DAYS:30}

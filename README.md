@@ -17,7 +17,7 @@
 | 安全框架 | Spring Security |
 | ORM / 数据访问 | MyBatis-Plus 3.5.7 |
 | 数据库 | MySQL 5.7 / 8.0 |
-| 缓存 | Redis |
+| 缓存与分布式对象 | Redis + Redisson |
 | 连接池 | Druid |
 | JSON 序列化 | fastjson2 |
 | API 文档 | springdoc-openapi |
@@ -48,7 +48,7 @@
 | `com.winsalty.quickstart.benefit` | 权益商品、积分兑换、用户权益和权限类权益合并 |
 | `com.winsalty.quickstart.trade` | 在线充值单、支付回调验签和积分入账 |
 | `com.winsalty.quickstart.common` | 统一响应、异常、常量、基础父类、工具类 |
-| `com.winsalty.quickstart.infra` | CORS、Redis、Quartz、OpenAPI、ES、JSON、对象存储等基础设施配置 |
+| `com.winsalty.quickstart.infra` | CORS、Redis、Redisson、Quartz、OpenAPI、ES、JSON、对象存储等基础设施配置 |
 | `com.winsalty.quickstart.infra.outbox` | 数据库事务事件、定时扫描和后续 MQ 投递扩展点 |
 
 ### 关键架构说明
@@ -59,8 +59,9 @@
 4. 系统管理模块对用户、角色、字典、日志采用“统一控制器入口 + 服务层分发”的方式，减少重复 CRUD 模板代码。
 5. 关键管理操作通过 `@AuditLog` + AOP 记录审计日志，异常链路写入异常日志。
 6. 配置、字典、权限 bootstrap 等高频读取能力已接入 Redis 缓存。
-7. 日志归档通过 Quartz 定时任务迁移历史日志到归档表，减少主表膨胀。
-8. Elasticsearch 已完成基础接入和通用封装，可作为后续全文检索能力的扩展基础。
+7. Redisson 已接入 Spring Boot，用于后续分布式锁、分布式对象和跨节点并发控制。
+8. 日志归档通过 Quartz 定时任务迁移历史日志到归档表，减少主表膨胀。
+9. Elasticsearch 已完成基础接入和通用封装，可作为后续全文检索能力的扩展基础。
 
 ## 模块能力
 
@@ -194,6 +195,7 @@ spring:
   redis:
     host: ${REDIS_HOST:127.0.0.1}
     port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
 ```
 
 Redis 当前承担以下职责：
@@ -205,8 +207,28 @@ Redis 当前承担以下职责：
 5. 匿名接口限流
 6. 通用对象缓存
 7. CDK 兑换风控计数与短期导出窗口
+8. Redisson 分布式锁和分布式对象
 
-#### 3. JWT
+#### 3. Redisson
+
+项目通过 `org.redisson:redisson-spring-boot-starter` 接入 Redisson。由于当前基座使用 Spring Boot 2.7，依赖中显式引入 `redisson-spring-data-27` 以匹配 Spring Data Redis 2.7 适配层。
+
+```yaml
+app:
+  redisson:
+    lock-wait-seconds: ${REDISSON_LOCK_WAIT_SECONDS:3}
+    lock-lease-seconds: ${REDISSON_LOCK_LEASE_SECONDS:30}
+    lock-log-enabled: ${REDISSON_LOCK_LOG_ENABLED:true}
+```
+
+`RedissonUtil` 位于 `com.winsalty.quickstart.infra.redisson`，统一封装：
+
+1. 默认等待时间和租约时间的分布式锁执行入口。
+2. 带返回值的锁保护任务执行入口。
+3. `RBucket`、`RMap`、`RAtomicLong` 等常用分布式对象获取入口。
+4. 锁获取、跳过、释放和异常链路的 `log.info` / `log.error` 日志。
+
+#### 4. JWT
 
 开发环境默认值：
 
@@ -224,7 +246,7 @@ app:
 export JWT_SECRET='replace-with-a-long-random-secret'
 ```
 
-#### 4. CORS
+#### 5. CORS
 
 开发环境默认允许：
 
@@ -237,7 +259,7 @@ app:
 
 生产环境需改为真实前端域名，不允许使用宽泛通配。
 
-#### 5. 文件上传
+#### 6. 文件上传
 
 ```yaml
 app:
@@ -284,7 +306,7 @@ app:
 7. 文件上传和头像上传统一按 IP 与用户双维度限流：同一 IP 每 10 分钟最多 60 次，同一用户每 10 分钟最多 20 次。
 8. `sys_file` 额外记录 `biz_module`、`biz_id`、`visibility`、`owner_type`、`owner_id`，支持多个业务模块共享同一文件中心并按归属做授权。
 
-#### 6. CDK 与积分
+#### 7. CDK 与积分
 
 ```bash
 export CDK_PEPPER='replace-with-at-least-32-bytes-random-secret'

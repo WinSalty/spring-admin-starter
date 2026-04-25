@@ -10,6 +10,12 @@ import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
+/**
+ * 参数配置 Mapper。
+ * 负责 sys_config 表的分页查询、详情查询、保存和状态更新。
+ * 创建日期：2026-04-25
+ * author：sunshengxian
+ */
 @Mapper
 public interface ParamConfigMapper {
     String COLUMNS = "c.id, c.config_code AS configCode, c.config_name AS configName, c.config_key AS configKey, c.config_value AS configValue, c.value_type AS valueType, c.config_type AS configType, c.status, c.remark, c.deleted, "

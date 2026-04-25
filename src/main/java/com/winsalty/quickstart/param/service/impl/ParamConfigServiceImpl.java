@@ -25,6 +25,8 @@ import java.util.Map;
 /**
  * 参数配置服务实现。
  * 管理系统运行参数，并提供启用参数的 Redis 缓存刷新能力。
+ * 创建日期：2026-04-25
+ * author：sunshengxian
  */
 @Service
 public class ParamConfigServiceImpl implements ParamConfigService {
@@ -52,12 +54,16 @@ public class ParamConfigServiceImpl implements ParamConfigService {
         int offset = (pageNo - 1) * pageSize;
         List<ParamConfigEntity> entities = paramConfigMapper.findPage(request.getKeyword(), request.getConfigType(), request.getStatus(), offset, pageSize);
         long total = paramConfigMapper.countPage(request.getKeyword(), request.getConfigType(), request.getStatus());
+        log.info("param config page loaded, keyword={}, configType={}, status={}, pageNo={}, pageSize={}, total={}",
+                request.getKeyword(), request.getConfigType(), request.getStatus(), pageNo, pageSize, total);
         return new PageResponse<ParamConfigVo>(toVoList(entities), pageNo, pageSize, total);
     }
 
     @Override
     public ParamConfigVo getDetail(String id) {
-        return toVo(load(parseId(id)));
+        ParamConfigEntity entity = load(parseId(id));
+        log.info("param config detail loaded, id={}, configKey={}", entity.getId(), entity.getConfigKey());
+        return toVo(entity);
     }
 
     /**
@@ -76,7 +82,9 @@ public class ParamConfigServiceImpl implements ParamConfigService {
             }
             applyFields(existed, request);
             paramConfigMapper.update(existed);
-            bumpVersion();
+            long version = bumpVersion();
+            log.info("param config updated, id={}, configKey={}, cacheVersion={}",
+                    existed.getId(), existed.getConfigKey(), version);
             return toVo(load(existed.getId()));
         }
         if (duplicated != null) {
@@ -86,7 +94,9 @@ public class ParamConfigServiceImpl implements ParamConfigService {
         entity.setConfigCode("P" + System.currentTimeMillis());
         applyFields(entity, request);
         paramConfigMapper.insert(entity);
-        bumpVersion();
+        long version = bumpVersion();
+        log.info("param config created, id={}, configKey={}, cacheVersion={}",
+                entity.getId(), entity.getConfigKey(), version);
         return toVo(load(entity.getId()));
     }
 
@@ -97,9 +107,11 @@ public class ParamConfigServiceImpl implements ParamConfigService {
     @Transactional(rollbackFor = Exception.class)
     public ParamConfigVo updateStatus(ParamStatusRequest request) {
         Long id = parseId(request.getId());
-        load(id);
+        ParamConfigEntity entity = load(id);
         paramConfigMapper.updateStatus(id, request.getStatus());
-        bumpVersion();
+        long version = bumpVersion();
+        log.info("param config status updated, id={}, configKey={}, status={}, cacheVersion={}",
+                id, entity.getConfigKey(), request.getStatus(), version);
         return toVo(load(id));
     }
 

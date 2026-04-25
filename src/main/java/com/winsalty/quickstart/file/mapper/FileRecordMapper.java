@@ -10,6 +10,12 @@ import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
+/**
+ * 文件记录 Mapper。
+ * 负责 sys_file 表的分页查询、复用查询、新增、删除和状态更新。
+ * 创建日期：2026-04-25
+ * author：sunshengxian
+ */
 @Mapper
 public interface FileRecordMapper {
     String COLUMNS = "f.id, f.file_code AS fileCode, f.original_name AS originalName, f.stored_name AS storedName, f.file_path AS filePath, f.storage_type AS storageType, f.bucket_type AS bucketType, f.bucket_name AS bucketName, f.access_policy AS accessPolicy, f.object_key AS objectKey, f.file_url AS fileUrl, f.biz_module AS bizModule, f.biz_id AS bizId, f.visibility, f.owner_type AS ownerType, f.owner_id AS ownerId, f.content_hash AS contentHash, f.content_type AS contentType, f.extension, f.size_bytes AS sizeBytes, f.status, f.deleted, f.created_by AS createdBy, "

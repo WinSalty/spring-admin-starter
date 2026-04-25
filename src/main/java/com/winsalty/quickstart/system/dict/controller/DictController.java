@@ -24,6 +24,8 @@ import javax.validation.Valid;
 /**
  * 新版字典控制器。
  * 拆分字典类型和字典项接口，供后续更完整的字典管理页使用。
+ * 创建日期：2026-04-25
+ * author：sunshengxian
  */
 @Validated
 @RestController

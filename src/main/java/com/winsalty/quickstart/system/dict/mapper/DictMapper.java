@@ -11,6 +11,12 @@ import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
+/**
+ * 字典 Mapper。
+ * 负责 sys_dict_type 和 sys_dict_data 表的数据读写。
+ * 创建日期：2026-04-25
+ * author：sunshengxian
+ */
 @Mapper
 public interface DictMapper {
 

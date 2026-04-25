@@ -6,6 +6,12 @@ import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.Pattern;
 
+/**
+ * 参数配置分页查询请求。
+ * 承载关键字、参数类型、状态和分页参数。
+ * 创建日期：2026-04-25
+ * author：sunshengxian
+ */
 @Data
 public class ParamListRequest {
     private String keyword;

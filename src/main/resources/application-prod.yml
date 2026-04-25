@@ -1,11 +1,13 @@
 spring:
   datasource:
+    # 生产数据库连接必须由环境变量或外部配置中心注入。
     type: com.alibaba.druid.pool.DruidDataSource
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME:spring_admin}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     druid:
+      # 生产连接池默认值偏保守，可按实例规格通过环境变量调优。
       name: DruidPool-SpringAdmin
       initial-size: ${DB_POOL_INITIAL_SIZE:5}
       min-idle: ${DB_POOL_MIN_IDLE:5}
@@ -24,8 +26,10 @@ spring:
       web-stat-filter:
         enabled: false
   redis:
+    # Redis 承载会话、缓存、限流、Redisson 分布式锁和短期导出数据。
     host: ${REDIS_HOST:127.0.0.1}
     port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
     database: 2
     timeout: 3000ms
     lettuce:
@@ -36,6 +40,7 @@ spring:
         max-wait: 3000ms
 
 springdoc:
+  # 生产环境关闭在线 API 文档。
   api-docs:
     enabled: false
   swagger-ui:
@@ -43,6 +48,7 @@ springdoc:
 
 app:
   cors:
+    # 生产环境默认不允许跨域，部署时按真实前端域名显式配置。
     allowed-origins: []
   security:
     swagger-public-enabled: false
@@ -51,6 +57,11 @@ app:
     jwt-expire-seconds: 7200
     jwt-refresh-expire-seconds: 604800
     register-enabled: false
+  redisson:
+    # 分布式锁配置需按生产 Redis 延迟和业务最长处理时间调优。
+    lock-wait-seconds: ${REDISSON_LOCK_WAIT_SECONDS:3}
+    lock-lease-seconds: ${REDISSON_LOCK_LEASE_SECONDS:30}
+    lock-log-enabled: ${REDISSON_LOCK_LOG_ENABLED:true}
   mail:
     register:
       enabled: ${MAIL_REGISTER_ENABLED:false}

@@ -6,6 +6,12 @@ import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.Pattern;
 
+/**
+ * 字典项分页查询请求。
+ * 承载字典类型、关键字、状态和分页参数。
+ * 创建日期：2026-04-25
+ * author：sunshengxian
+ */
 @Data
 public class DictDataListRequest {
     private String dictType;

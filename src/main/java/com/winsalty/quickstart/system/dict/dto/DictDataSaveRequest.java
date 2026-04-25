@@ -8,6 +8,12 @@ import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 
+/**
+ * 字典项保存请求。
+ * 承载字典类型、展示标签、实际值、排序号和状态。
+ * 创建日期：2026-04-25
+ * author：sunshengxian
+ */
 @Data
 public class DictDataSaveRequest {
     private String id;

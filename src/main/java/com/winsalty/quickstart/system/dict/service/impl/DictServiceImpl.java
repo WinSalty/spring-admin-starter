@@ -26,6 +26,8 @@ import java.util.List;
 /**
  * 新版字典服务实现。
  * 负责字典类型、字典项维护，以及按版本号控制的字典项缓存。
+ * 创建日期：2026-04-25
+ * author：sunshengxian
  */
 @Service
 public class DictServiceImpl implements DictService {
@@ -53,6 +55,8 @@ public class DictServiceImpl implements DictService {
         int offset = (pageNo - 1) * pageSize;
         List<DictTypeEntity> entities = dictMapper.findTypePage(request.getKeyword(), request.getStatus(), offset, pageSize);
         long total = dictMapper.countTypePage(request.getKeyword(), request.getStatus());
+        log.info("dict type page loaded, keyword={}, status={}, pageNo={}, pageSize={}, total={}",
+                request.getKeyword(), request.getStatus(), pageNo, pageSize, total);
         return new PageResponse<DictTypeVo>(toTypeVoList(entities), pageNo, pageSize, total);
     }
 
@@ -78,7 +82,9 @@ public class DictServiceImpl implements DictService {
                 // 类型编码变更时同步已有字典项，否则旧数据会挂在不可见的 dictType 下。
                 dictMapper.updateDataDictType(oldDictType, request.getDictType(), existed.getId());
             }
-            bumpVersion();
+            long version = bumpVersion();
+            log.info("dict type updated, id={}, dictType={}, oldDictType={}, cacheVersion={}",
+                    existed.getId(), existed.getDictType(), oldDictType, version);
             return toTypeVo(loadType(existed.getId()));
         }
         if (duplicated != null) {
@@ -91,7 +97,9 @@ public class DictServiceImpl implements DictService {
         entity.setStatus(request.getStatus());
         entity.setRemark(defaultText(request.getRemark()));
         dictMapper.insertType(entity);
-        bumpVersion();
+        long version = bumpVersion();
+        log.info("dict type created, id={}, dictType={}, cacheVersion={}",
+                entity.getId(), entity.getDictType(), version);
         return toTypeVo(loadType(entity.getId()));
     }
 
@@ -102,9 +110,11 @@ public class DictServiceImpl implements DictService {
     @Transactional(rollbackFor = Exception.class)
     public DictTypeVo updateTypeStatus(DictStatusRequest request) {
         Long id = parseId(request.getId());
-        loadType(id);
+        DictTypeEntity entity = loadType(id);
         dictMapper.updateTypeStatus(id, request.getStatus());
-        bumpVersion();
+        long version = bumpVersion();
+        log.info("dict type status updated, id={}, dictType={}, status={}, cacheVersion={}",
+                id, entity.getDictType(), request.getStatus(), version);
         return toTypeVo(loadType(id));
     }
 
@@ -122,10 +132,14 @@ public class DictServiceImpl implements DictService {
             List<DictDataVo> records;
             if (cached instanceof List) {
                 records = (List<DictDataVo>) cached;
+                log.info("dict data cache hit, dictType={}, pageNo={}, pageSize={}, size={}",
+                        request.getDictType(), pageNo, pageSize, records.size());
             } else {
                 // 常见业务只按 dictType 拉启用字典项，缓存该路径可以覆盖绝大多数前端下拉框。
                 records = toDataVoList(dictMapper.findActiveDataByType(request.getDictType()));
                 redisCacheService.set(cacheKey, records, CACHE_TTL_SECONDS);
+                log.info("dict data cache refreshed, dictType={}, cacheKey={}, size={}",
+                        request.getDictType(), cacheKey, records.size());
             }
             int fromIndex = Math.min((pageNo - 1) * pageSize, records.size());
             int toIndex = Math.min(fromIndex + pageSize, records.size());
@@ -134,12 +148,17 @@ public class DictServiceImpl implements DictService {
         int offset = (pageNo - 1) * pageSize;
         List<DictDataEntity> entities = dictMapper.findDataPage(request.getDictType(), request.getKeyword(), request.getStatus(), offset, pageSize);
         long total = dictMapper.countDataPage(request.getDictType(), request.getKeyword(), request.getStatus());
+        log.info("dict data page loaded, dictType={}, keyword={}, status={}, pageNo={}, pageSize={}, total={}",
+                request.getDictType(), request.getKeyword(), request.getStatus(), pageNo, pageSize, total);
         return new PageResponse<DictDataVo>(toDataVoList(entities), pageNo, pageSize, total);
     }
 
     @Override
     public DictDataVo getDataDetail(String id) {
-        return toDataVo(loadData(parseId(id)));
+        DictDataEntity entity = loadData(parseId(id));
+        log.info("dict data detail loaded, id={}, dictType={}, value={}",
+                entity.getId(), entity.getDictType(), entity.getValue());
+        return toDataVo(entity);
     }
 
     /**
@@ -161,7 +180,9 @@ public class DictServiceImpl implements DictService {
             }
             applyDataFields(existed, type, request);
             dictMapper.updateData(existed);
-            bumpVersion();
+            long version = bumpVersion();
+            log.info("dict data updated, id={}, dictType={}, value={}, cacheVersion={}",
+                    existed.getId(), existed.getDictType(), existed.getValue(), version);
             return toDataVo(loadData(existed.getId()));
         }
         if (duplicated != null) {
@@ -171,7 +192,9 @@ public class DictServiceImpl implements DictService {
         entity.setDataCode("DD" + System.currentTimeMillis());
         applyDataFields(entity, type, request);
         dictMapper.insertData(entity);
-        bumpVersion();
+        long version = bumpVersion();
+        log.info("dict data created, id={}, dictType={}, value={}, cacheVersion={}",
+                entity.getId(), entity.getDictType(), entity.getValue(), version);
         return toDataVo(loadData(entity.getId()));
     }
 
@@ -182,9 +205,11 @@ public class DictServiceImpl implements DictService {
     @Transactional(rollbackFor = Exception.class)
     public DictDataVo updateDataStatus(DictStatusRequest request) {
         Long id = parseId(request.getId());
-        loadData(id);
+        DictDataEntity entity = loadData(id);
         dictMapper.updateDataStatus(id, request.getStatus());
-        bumpVersion();
+        long version = bumpVersion();
+        log.info("dict data status updated, id={}, dictType={}, value={}, status={}, cacheVersion={}",
+                id, entity.getDictType(), entity.getValue(), request.getStatus(), version);
         return toDataVo(loadData(id));
     }
 

@@ -1,7 +1,9 @@
 spring:
   redis:
+    # 测试环境使用独立 Redis database，避免污染本地开发缓存。
     host: ${REDIS_HOST:127.0.0.1}
     port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
     database: 1
     timeout: 3000ms
     lettuce:
@@ -12,6 +14,7 @@ spring:
         max-wait: 3000ms
 
 springdoc:
+  # 测试环境默认关闭接口文档，减少无关暴露面。
   api-docs:
     enabled: false
   swagger-ui:
@@ -19,6 +22,7 @@ springdoc:
 
 app:
   cors:
+    # 测试环境默认不放开跨域，由集成测试或部署配置显式覆盖。
     allowed-origins: []
   security:
     swagger-public-enabled: false
@@ -27,3 +31,8 @@ app:
     jwt-expire-seconds: 7200
     jwt-refresh-expire-seconds: 604800
     register-enabled: false
+  redisson:
+    # 测试环境保留锁日志，便于排查并发用例。
+    lock-wait-seconds: ${REDISSON_LOCK_WAIT_SECONDS:3}
+    lock-lease-seconds: ${REDISSON_LOCK_LEASE_SECONDS:30}
+    lock-log-enabled: ${REDISSON_LOCK_LOG_ENABLED:true}
