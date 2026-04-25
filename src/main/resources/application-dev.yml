@@ -54,8 +54,7 @@ spring:
     host: ${REDIS_HOST:127.0.0.1}
     # Redis 端口。
     port: ${REDIS_PORT:6379}
-    # Redis 密码，空值表示本地无密码实例。
-    password: ${REDIS_PASSWORD:}
+    # Redis 密码不在本地默认配置中声明；如需密码请通过 REDIS_PASSWORD 或 spring.redis.password 外部注入。
     # Redis database，开发环境使用 0。
     database: 0
     # Redis 命令超时时间。
