@@ -18,6 +18,8 @@ import java.util.List;
 @Mapper
 public interface PermissionMapper {
 
+    String USER_BENEFIT_TABLE = "user_benefit";
+
     @Select("SELECT r.id FROM sys_role r WHERE r.role_code = #{roleCode} AND r.deleted = 0 LIMIT 1")
     Long findRoleIdByRoleCode(@Param("roleCode") String roleCode);
 
@@ -47,6 +49,9 @@ public interface PermissionMapper {
 
     @Select("SELECT ra.action_code FROM sys_role_action ra INNER JOIN sys_role r ON r.id = ra.role_id WHERE r.role_code = #{roleCode} ORDER BY ra.id ASC")
     List<String> findActionCodesByRoleCode(@Param("roleCode") String roleCode);
+
+    @Select("SELECT COUNT(1) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = '" + USER_BENEFIT_TABLE + "'")
+    int countUserBenefitTable();
 
     @Select("SELECT benefit_code FROM user_benefit WHERE user_id = #{userId} AND benefit_type = 'permission' AND status = 'active' AND effective_at <= NOW() AND (expire_at IS NULL OR expire_at > NOW()) ORDER BY id ASC")
     List<String> findActiveBenefitPermissionCodes(@Param("userId") Long userId);

@@ -34,6 +34,7 @@ import java.util.Set;
 public class PermissionServiceImpl implements PermissionService {
 
     private static final Logger log = LoggerFactory.getLogger(PermissionServiceImpl.class);
+    private static final int EXISTING_TABLE_COUNT = 1;
     private final PermissionMapper permissionMapper;
 
     public PermissionServiceImpl(PermissionMapper permissionMapper) {
@@ -70,6 +71,10 @@ public class PermissionServiceImpl implements PermissionService {
      * 合并用户通过积分兑换获得的权限码。
      */
     private void mergeBenefitPermissions(Long userId, List<String> routes, List<RoleActionEntity> actions) {
+        if (permissionMapper.countUserBenefitTable() < EXISTING_TABLE_COUNT) {
+            log.info("user benefit permission skipped because table is not initialized, userId={}", userId);
+            return;
+        }
         List<String> benefitCodes = permissionMapper.findActiveBenefitPermissionCodes(userId);
         Set<String> routeSet = new LinkedHashSet<String>(routes);
         Set<String> actionSet = new LinkedHashSet<String>();
