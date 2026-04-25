@@ -1,38 +1,64 @@
+# 测试环境 Spring 配置根节点。
 spring:
+  # 测试环境 Redis 配置，Spring Data Redis 与 Redisson 共用。
   redis:
-    # 测试环境使用独立 Redis database，避免污染本地开发缓存。
+    # Redis 主机地址。
     host: ${REDIS_HOST:127.0.0.1}
+    # Redis 端口。
     port: ${REDIS_PORT:6379}
+    # Redis 密码，空值表示本地无密码实例。
     password: ${REDIS_PASSWORD:}
+    # Redis database，测试环境使用 1 避免污染开发缓存。
     database: 1
+    # Redis 命令超时时间。
     timeout: 3000ms
+    # Lettuce 客户端连接池配置。
     lettuce:
+      # Lettuce 连接池参数。
       pool:
+        # 连接池最大活跃连接数。
         max-active: 20
+        # 连接池最大空闲连接数。
         max-idle: 10
+        # 连接池最小空闲连接数。
         min-idle: 5
+        # 获取 Redis 连接最大等待时间。
         max-wait: 3000ms
 
+# 测试环境 OpenAPI 与 Swagger 配置根节点。
 springdoc:
-  # 测试环境默认关闭接口文档，减少无关暴露面。
+  # 测试环境 OpenAPI JSON 文档配置。
   api-docs:
+    # 测试环境默认关闭 OpenAPI JSON 文档。
     enabled: false
+  # 测试环境 Swagger UI 配置。
   swagger-ui:
+    # 测试环境默认关闭 Swagger UI 页面。
     enabled: false
 
+# 测试环境应用自定义配置根节点。
 app:
+  # 测试环境 CORS 配置。
   cors:
     # 测试环境默认不放开跨域，由集成测试或部署配置显式覆盖。
     allowed-origins: []
+  # 测试环境安全配置。
   security:
+    # 测试环境关闭 Swagger 匿名访问。
     swagger-public-enabled: false
-    # 生产环境请通过环境变量注入，例如：jwt-secret: ${JWT_SECRET}
+    # 测试环境 JWT 密钥；生产环境必须通过环境变量注入。
     jwt-secret: ${JWT_SECRET:winsalty-quickstart-test-jwt-secret-2026-secure-key}
+    # Access Token 有效期，单位秒。
     jwt-expire-seconds: 7200
+    # Refresh Token 有效期，单位秒。
     jwt-refresh-expire-seconds: 604800
+    # 测试环境默认关闭注册入口。
     register-enabled: false
+  # 测试环境 Redisson 工具配置。
   redisson:
-    # 测试环境保留锁日志，便于排查并发用例。
+    # 获取分布式锁默认等待时间，单位秒。
     lock-wait-seconds: ${REDISSON_LOCK_WAIT_SECONDS:3}
+    # 获取分布式锁后的自动释放时间，单位秒。
     lock-lease-seconds: ${REDISSON_LOCK_LEASE_SECONDS:30}
+    # 是否记录 Redisson 锁生命周期日志。
     lock-log-enabled: ${REDISSON_LOCK_LOG_ENABLED:true}

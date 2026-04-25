@@ -57,6 +57,7 @@ public class RedissonUtil {
      */
     public boolean tryLock(String lockKey, long waitSeconds, long leaseSeconds, Runnable task) {
         Assert.notNull(task, TASK_REQUIRED_MESSAGE);
+        // Runnable 入口复用 Callable 入口，保证锁获取、异常处理和释放逻辑只有一份实现。
         Boolean result = tryLock(lockKey, waitSeconds, leaseSeconds, new Callable<Boolean>() {
             @Override
             public Boolean call() {
@@ -80,6 +81,7 @@ public class RedissonUtil {
     public <T> T tryLock(String lockKey, long waitSeconds, long leaseSeconds, Callable<T> task) {
         Assert.hasText(lockKey, LOCK_KEY_REQUIRED_MESSAGE);
         Assert.notNull(task, TASK_REQUIRED_MESSAGE);
+        // Redisson 的 RLock 是可重入分布式锁，这里不缓存对象，避免动态 lockKey 造成本地状态误用。
         RLock lock = redissonClient.getLock(lockKey);
         boolean locked = false;
         try {
@@ -89,6 +91,7 @@ public class RedissonUtil {
             }
             locked = lock.tryLock(waitSeconds, leaseSeconds, TimeUnit.SECONDS);
             if (!locked) {
+                // 抢锁失败不抛异常，调用方可以把 null 作为“本轮已有其他节点处理”的幂等结果。
                 log.info("redisson lock acquire skipped, lockKey={}, waitSeconds={}", lockKey, waitSeconds);
                 return null;
             }
@@ -97,10 +100,12 @@ public class RedissonUtil {
             }
             return task.call();
         } catch (InterruptedException exception) {
+            // 恢复中断标记，避免上层线程池无法感知取消信号。
             Thread.currentThread().interrupt();
             log.error("redisson lock interrupted, lockKey={}", lockKey, exception);
             throw new IllegalStateException("redisson lock interrupted", exception);
         } catch (RuntimeException exception) {
+            // 业务异常保持原类型向外抛出，避免调用方丢失原始错误语义。
             log.error("redisson lock task failed, lockKey={}", lockKey, exception);
             throw exception;
         } catch (Exception exception) {
@@ -108,6 +113,7 @@ public class RedissonUtil {
             throw new IllegalStateException("redisson lock task failed", exception);
         } finally {
             if (locked && lock.isHeldByCurrentThread()) {
+                // 只释放当前线程持有的锁，避免租约超时后误解锁其他线程重新获得的锁。
                 lock.unlock();
                 if (properties.isLockLogEnabled()) {
                     log.info("redisson lock released, lockKey={}", lockKey);

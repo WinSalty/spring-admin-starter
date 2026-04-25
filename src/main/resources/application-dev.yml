@@ -1,67 +1,114 @@
+# 开发环境 Spring 配置根节点。
 spring:
+  # 开发环境数据源配置。
   datasource:
-    # 开发环境默认连接本机 MySQL；生产环境不得使用这里的默认密码。
+    # 数据源实现类型，统一使用 Druid 连接池。
     type: com.alibaba.druid.pool.DruidDataSource
+    # MySQL JDBC 驱动类。
     driver-class-name: com.mysql.cj.jdbc.Driver
-    # 生产环境请通过环境变量注入，例如：url: jdbc:mysql://${DB_HOST}:${DB_PORT}/spring_admin?...
+    # 开发环境默认连接本机 MySQL；生产环境不得使用这里的默认地址。
     url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/spring_admin?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    # 开发环境数据库用户名。
     username: ${DB_USERNAME:spring_admin}
-    # 生产环境请通过环境变量注入，例如：password: ${DB_PASSWORD}
+    # 开发环境数据库密码；生产环境必须通过环境变量注入。
     password: ${DB_PASSWORD:SpringAdmin@2026}
+    # Druid 连接池配置。
     druid:
-      # Druid 连接池参数用于控制本地开发和联调期间的数据库连接占用。
+      # 连接池名称，便于监控和日志定位。
       name: DruidPool-SpringAdmin
+      # 应用启动时初始化连接数。
       initial-size: 5
+      # 连接池最小空闲连接数。
       min-idle: 5
+      # 连接池最大活跃连接数。
       max-active: 20
+      # 获取连接最大等待时间，单位毫秒。
       max-wait: 30000
+      # 空闲连接检测间隔，单位毫秒。
       time-between-eviction-runs-millis: 60000
+      # 空闲连接最小可回收时间，单位毫秒。
       min-evictable-idle-time-millis: 300000
+      # 数据库连接有效性检测 SQL。
       validation-query: SELECT 1
+      # 是否在连接空闲时检测有效性。
       test-while-idle: true
+      # 是否在借出连接时检测有效性，关闭以降低请求开销。
       test-on-borrow: false
+      # 是否在归还连接时检测有效性，关闭以降低请求开销。
       test-on-return: false
+      # 是否开启 PreparedStatement 缓存。
       pool-prepared-statements: true
+      # 单连接最大 PreparedStatement 缓存数量。
       max-pool-prepared-statement-per-connection-size: 20
+      # Druid 监控页面配置。
       stat-view-servlet:
+        # 是否启用 Druid 监控页面，默认关闭避免本地误暴露。
         enabled: ${DRUID_STAT_VIEW_ENABLED:false}
+      # Druid Web 统计过滤器配置。
       web-stat-filter:
+        # 是否启用 Web 统计过滤器，当前项目由业务日志承担排查。
         enabled: false
+  # 开发环境 Redis 配置，Spring Data Redis 与 Redisson 共用。
   redis:
-    # Spring Data Redis 与 Redisson 共用该连接配置，避免维护两套 Redis 地址。
+    # Redis 主机地址。
     host: ${REDIS_HOST:127.0.0.1}
+    # Redis 端口。
     port: ${REDIS_PORT:6379}
+    # Redis 密码，空值表示本地无密码实例。
     password: ${REDIS_PASSWORD:}
+    # Redis database，开发环境使用 0。
     database: 0
+    # Redis 命令超时时间。
     timeout: 3000ms
+    # Lettuce 客户端连接池配置。
     lettuce:
+      # Lettuce 连接池参数。
       pool:
+        # 连接池最大活跃连接数。
         max-active: 20
+        # 连接池最大空闲连接数。
         max-idle: 10
+        # 连接池最小空闲连接数。
         min-idle: 5
+        # 获取 Redis 连接最大等待时间。
         max-wait: 3000ms
 
+# 开发环境 MyBatis-Plus 配置根节点。
 mybatis-plus:
-  # 数据库字段统一使用下划线，实体统一使用驼峰。
+  # MyBatis-Plus 运行配置。
   configuration:
+    # 数据库下划线字段自动映射为 Java 驼峰属性。
     map-underscore-to-camel-case: true
+  # MyBatis-Plus 全局配置。
   global-config:
+    # 是否显示 MyBatis-Plus 启动 Banner。
     banner: false
 
+# 开发环境应用自定义配置根节点。
 app:
+  # 开发环境 CORS 配置。
   cors:
-    # 本地前端开发服务器地址。
+    # 允许跨域访问后端的前端源列表。
     allowed-origins:
+      # 本地 Vite 前端开发服务器地址。
       - http://localhost:5173
+  # 开发环境安全配置。
   security:
+    # 开发环境允许匿名访问 Swagger，便于接口联调。
     swagger-public-enabled: true
-    # 生产环境请通过环境变量注入，例如：jwt-secret: ${JWT_SECRET}
+    # 开发环境 JWT 密钥；生产环境必须通过环境变量注入。
     jwt-secret: ${JWT_SECRET:winsalty-quickstart-dev-jwt-secret-2026-secure-key}
+    # Access Token 有效期，单位秒。
     jwt-expire-seconds: 7200
+    # Refresh Token 有效期，单位秒。
     jwt-refresh-expire-seconds: 604800
+    # 开发环境默认开放注册入口。
     register-enabled: true
+  # 开发环境 Redisson 工具配置。
   redisson:
-    # 开发环境锁等待时间较短，避免本地调试时长时间阻塞。
+    # 获取分布式锁默认等待时间，单位秒。
     lock-wait-seconds: ${REDISSON_LOCK_WAIT_SECONDS:3}
+    # 获取分布式锁后的自动释放时间，单位秒。
     lock-lease-seconds: ${REDISSON_LOCK_LEASE_SECONDS:30}
+    # 是否记录 Redisson 锁生命周期日志。
     lock-log-enabled: ${REDISSON_LOCK_LOG_ENABLED:true}

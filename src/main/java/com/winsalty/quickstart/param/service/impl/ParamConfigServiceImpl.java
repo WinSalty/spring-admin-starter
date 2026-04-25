@@ -49,6 +49,7 @@ public class ParamConfigServiceImpl implements ParamConfigService {
      */
     @Override
     public PageResponse<ParamConfigVo> getPage(ParamListRequest request) {
+        // 后端兜底分页默认值，避免前端传空导致 SQL offset 计算异常。
         int pageNo = request.getPageNo() == null ? 1 : request.getPageNo();
         int pageSize = request.getPageSize() == null ? 10 : request.getPageSize();
         int offset = (pageNo - 1) * pageSize;
@@ -72,7 +73,9 @@ public class ParamConfigServiceImpl implements ParamConfigService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ParamConfigVo save(ParamSaveRequest request) {
+        // 先校验 valueType 与 configValue 的匹配关系，避免错误值进入后续唯一性校验和事务写入。
         validateValue(request.getValueType(), request.getConfigValue());
+        // configKey 是业务读取参数的稳定入口，新增和编辑都要做全局唯一校验。
         ParamConfigEntity duplicated = paramConfigMapper.findByKey(request.getConfigKey());
         if (StringUtils.hasText(request.getId())) {
             ParamConfigEntity existed = load(parseId(request.getId()));
@@ -82,6 +85,7 @@ public class ParamConfigServiceImpl implements ParamConfigService {
             }
             applyFields(existed, request);
             paramConfigMapper.update(existed);
+            // 参数发生变化后只递增版本，不主动删除旧缓存，旧缓存依靠 TTL 自然过期。
             long version = bumpVersion();
             log.info("param config updated, id={}, configKey={}, cacheVersion={}",
                     existed.getId(), existed.getConfigKey(), version);
@@ -91,6 +95,7 @@ public class ParamConfigServiceImpl implements ParamConfigService {
             throw new BusinessException(4031, "参数键已存在");
         }
         ParamConfigEntity entity = new ParamConfigEntity();
+        // configCode 仅作为管理端展示编号，真实读取和唯一约束以 configKey 为准。
         entity.setConfigCode("P" + System.currentTimeMillis());
         applyFields(entity, request);
         paramConfigMapper.insert(entity);
@@ -107,6 +112,7 @@ public class ParamConfigServiceImpl implements ParamConfigService {
     @Transactional(rollbackFor = Exception.class)
     public ParamConfigVo updateStatus(ParamStatusRequest request) {
         Long id = parseId(request.getId());
+        // 先加载原记录用于确认存在，并在日志中保留 configKey 方便排查误停用问题。
         ParamConfigEntity entity = load(id);
         paramConfigMapper.updateStatus(id, request.getStatus());
         long version = bumpVersion();
@@ -126,6 +132,7 @@ public class ParamConfigServiceImpl implements ParamConfigService {
             // 缓存里保存 typed value，业务读取参数时不必再按 valueType 转换。
             values.put(entity.getConfigKey(), resolveValue(entity.getValueType(), entity.getConfigValue()));
         }
+        // 缓存 key 携带版本号，配置更新时新读请求自动切到新版本，不需要扫描删除旧 key。
         redisCacheService.set(CONFIG_CACHE_PREFIX + version + ":all", values, CACHE_TTL_SECONDS);
         log.info("param config cache refreshed, version={}, size={}", version, values.size());
         return Boolean.TRUE;
@@ -135,6 +142,7 @@ public class ParamConfigServiceImpl implements ParamConfigService {
      * 保存参数字段，configValue 在落库前统一转为字符串。
      */
     private void applyFields(ParamConfigEntity entity, ParamSaveRequest request) {
+        // 所有可编辑字段集中赋值，新增和编辑共享同一套归一化规则。
         entity.setConfigName(request.getConfigName());
         entity.setConfigKey(request.getConfigKey());
         entity.setConfigValue(normalizeValue(request.getValueType(), request.getConfigValue()));
@@ -183,9 +191,11 @@ public class ParamConfigServiceImpl implements ParamConfigService {
      */
     private Object resolveValue(String valueType, String value) {
         if ("boolean".equals(valueType)) {
+            // 页面和业务侧读取布尔参数时直接拿 Boolean，避免每个调用方重复解析字符串。
             return Boolean.valueOf(value);
         }
         if ("number".equals(valueType)) {
+            // 数字类型保留 BigDecimal，避免金额、积分阈值这类参数出现浮点精度问题。
             return new BigDecimal(value).stripTrailingZeros();
         }
         return value;

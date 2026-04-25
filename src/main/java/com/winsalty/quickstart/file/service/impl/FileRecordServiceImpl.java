@@ -172,6 +172,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo upload(MultipartFile file) {
         FileUploadCommand command = new FileUploadCommand();
+        // 管理端普通上传默认公开可读，后续下载仍以文件记录状态控制是否可访问。
         command.setBizModule(BIZ_MODULE_ADMIN_FILE);
         command.setBizId(String.valueOf(currentUserId()));
         command.setVisibility(VISIBILITY_PUBLIC);
@@ -188,6 +189,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo uploadAvatar(MultipartFile file) {
         FileUploadCommand command = new FileUploadCommand();
+        // 头像是用户维度的公开图片，但实际展示仍通过 /api/file/avatar/{id} 受控代理。
         command.setBizModule(BIZ_MODULE_AVATAR);
         command.setBizId(String.valueOf(currentUserId()));
         command.setVisibility(VISIBILITY_PUBLIC);
@@ -206,6 +208,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo uploadPrivate(MultipartFile file) {
         FileUploadCommand command = new FileUploadCommand();
+        // 私有文件只返回受控下载入口，避免直接暴露本地路径或 OSS 长期地址。
         command.setBizModule(BIZ_MODULE_ADMIN_PRIVATE);
         command.setBizId(String.valueOf(currentUserId()));
         command.setVisibility(VISIBILITY_PRIVATE);
@@ -219,6 +222,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo uploadBiz(MultipartFile file, FileBizUploadRequest request) {
         FileUploadCommand command = new FileUploadCommand();
+        // 业务上传默认归属于当前用户，后续下载鉴权会按 ownerId 和 createdBy 双维度判断。
         command.setBizModule(request.getBizModule());
         command.setBizId(request.getBizId());
         command.setVisibility(request.getVisibility());
@@ -240,6 +244,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             throw new BusinessException(ErrorCode.FILE_EMPTY);
         }
         if (file.getSize() > MAX_FILE_SIZE_BYTES) {
+            // 大小限制放在最前面，避免超大文件进入临时落盘和哈希计算流程。
             throw new BusinessException(ErrorCode.FILE_TOO_LARGE);
         }
         String originalName = StringUtils.cleanPath(file.getOriginalFilename() == null ? "file" : file.getOriginalFilename());
@@ -257,11 +262,13 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         }
         Path tempFile = saveToTempFile(file, extension);
         try {
+            // 文件先落临时目录，再基于真实文件内容做魔数和 SHA-256 校验。
             validateMagicBytes(readSignature(tempFile), extension);
             String contentHash = sha256Hex(tempFile);
             ObjectStorageUploadResult uploadResult = storeFile(file, tempFile, extension, contentHash,
                     command.getUploadBizType(), resolveBucketType(command.getVisibility()));
             FileRecordEntity entity = new FileRecordEntity();
+            // 数据库记录保存业务归属、访问策略和物理存储信息，下载时只信任数据库记录。
             entity.setFileCode("F" + System.currentTimeMillis());
             entity.setOriginalName(originalName);
             entity.setStoredName(generateStoredName(extension));
@@ -300,6 +307,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         int pageNo = (request.getPageNo() == null || request.getPageNo() < 1) ? DEFAULT_PAGE_NO : request.getPageNo();
         int pageSize = (request.getPageSize() == null || request.getPageSize() < 1) ? DEFAULT_PAGE_SIZE
                 : Math.min(request.getPageSize(), MAX_PAGE_SIZE);
+        // pageSize 做上限截断，避免管理端误传大分页拖慢文件列表查询。
         int offset = (pageNo - 1) * pageSize;
         List<FileRecordEntity> entities = fileRecordMapper.findPage(request.getKeyword(), request.getStatus(), offset, pageSize);
         long total = fileRecordMapper.countPage(request.getKeyword(), request.getStatus());
@@ -332,6 +340,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     public Resource loadPublicAvatarResource(String id) {
         FileRecordEntity entity = loadPublicAvatar(parseId(id));
         if (STORAGE_TYPE_ALIYUN_OSS.equals(entity.getStorageType())) {
+            // OSS 头像由后端代理输出，前端不会拿到短期签名 URL，也不会暴露 Bucket 信息。
             InputStream inputStream = aliyunOssObjectStorageUtil.openObjectStream(
                     resolveAliyunBucketName(entity), entity.getObjectKey());
             return new InputStreamResource(inputStream);
@@ -351,6 +360,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     public Resource loadDownloadResource(String id) {
         FileRecordEntity entity = load(parseId(id));
         if (STORAGE_TYPE_ALIYUN_OSS.equals(entity.getStorageType())) {
+            // 云端对象不走本地 Resource 下载，必须使用签名 URL 或代理流，避免错误读取本地路径。
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "阿里云 OSS 文件请使用文件访问地址或私有下载地址");
         }
         File file = resolveLocalFile(entity.getFilePath());
@@ -366,6 +376,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Override
     public Resource loadPublicResource(String objectKey) {
         String normalizedObjectKey = normalizeObjectKey(objectKey);
+        // 公共静态访问只允许命中数据库 active 记录，不能直接按路径读取磁盘任意文件。
         FileRecordEntity entity = fileRecordMapper.findPublicLocalByObjectKey(normalizedObjectKey);
         if (entity == null) {
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
@@ -404,6 +415,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         PrivateDownloadUrlVo vo = new PrivateDownloadUrlVo();
         vo.setFileId(String.valueOf(entity.getId()));
         if (STORAGE_TYPE_ALIYUN_OSS.equals(entity.getStorageType())) {
+            // OSS 私有对象使用短期签名 URL，减少后端带宽占用，同时保持链接可过期。
             long expireSeconds = aliyunOssStorageProperties.getPrivateUrlExpireSeconds();
             vo.setDownloadUrl(aliyunOssObjectStorageUtil.generatePresignedUrl(resolveAliyunBucketName(entity), entity.getObjectKey(), expireSeconds));
             vo.setExpireSeconds(expireSeconds);
@@ -418,6 +430,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
 
     private String buildLocalDownloadUrl(FileRecordEntity entity) {
         if (BUCKET_TYPE_PRIVATE.equals(entity.getBucketType())) {
+            // 本地私有文件必须走后端代理下载接口，接口层继续做登录和权限校验。
             return "/api/file/private/" + entity.getId() + "/download";
         }
         if (BIZ_MODULE_AVATAR.equals(entity.getBizModule())) {
@@ -446,6 +459,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     @Transactional(rollbackFor = Exception.class)
     public FileRecordVo updateStatus(String id, FileStatusRequest request) {
         Long fileId = parseId(id);
+        // 更新前加载一次，确保要操作的是未删除文件记录。
         load(fileId);
         fileRecordMapper.updateStatus(fileId, request.getStatus());
         return toVo(load(fileId));
@@ -474,6 +488,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
                 || !StringUtils.hasText(command.getOwnerType())
                 || !StringUtils.hasText(command.getOwnerId())
                 || !StringUtils.hasText(command.getUploadBizType())) {
+            // 业务上下文缺失会导致后续授权不可判断，必须在写文件前拒绝。
             throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "文件业务上下文不完整");
         }
         if (!VISIBILITY_PUBLIC.equals(command.getVisibility()) && !VISIBILITY_PRIVATE.equals(command.getVisibility())) {
@@ -499,6 +514,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             String accessPolicy = STORAGE_TYPE_ALIYUN_OSS.equals(storageType)
                     ? ACCESS_POLICY_PRIVATE_READ
                     : (BUCKET_TYPE_PRIVATE.equals(bucketType) ? ACCESS_POLICY_PRIVATE_READ : ACCESS_POLICY_PUBLIC_READ);
+            // 相同内容优先复用已有物理对象，仍会新建一条业务文件记录保留上传审计。
             FileRecordEntity reusable = findReusableFile(contentHash, storageType, bucketType, accessPolicy);
             if (reusable != null) {
                 log.info("file content hash reused, storageType={}, bucketType={}, objectKey={}, contentHash={}",
@@ -506,8 +522,10 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
                 return toUploadResult(reusable);
             }
             if (objectStorageProperties.isEnabled()) {
+                // 对象存储开启后所有新文件进入 OSS 私有 Bucket，公共访问也由后端代理控制。
                 return uploadToAliyunOss(file, tempFile, contentHash, extension, bizType, bucketType);
             }
+            // 对象存储关闭时落本地目录，便于本地开发和未接 OSS 的环境运行。
             return saveToLocal(tempFile, contentHash, extension, bizType, bucketType);
         } catch (BadSqlGrammarException exception) {
             throw translateSchemaException(exception);
@@ -566,6 +584,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         File target = new File(rootDirectory, objectKey);
         File directory = target.getParentFile();
         if (directory == null || (!directory.exists() && !directory.mkdirs())) {
+            // 目录创建失败通常是权限或挂载问题，直接返回业务错误便于部署排查。
             throw new BusinessException(ErrorCode.DIRECTORY_CREATE_FAILED);
         }
         try {
@@ -667,6 +686,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         File rootDirectory = resolveLocalRootDirectory();
         File file = new File(filePath);
         try {
+            // 使用 canonical path 限制文件必须在配置根目录下，防止 ../ 路径穿越。
             File canonicalRoot = rootDirectory.getCanonicalFile();
             File canonicalFile = file.getCanonicalFile();
             String rootPath = canonicalRoot.getPath();
@@ -689,6 +709,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             normalized = normalized.substring(1);
         }
         if (normalized.contains("../") || normalized.contains("..\\")) {
+            // 公共访问入口只接受对象 Key，不允许路径穿越片段。
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
         }
         if (!normalized.startsWith(BUCKET_TYPE_PUBLIC + "/")) {
@@ -709,6 +730,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
         }
         List<byte[]> allowedMagicBytes = EXTENSION_MAGIC_BYTES_MAP.get(extension);
         if (allowedMagicBytes == null || allowedMagicBytes.isEmpty()) {
+            // 部分 Office 或文本类文件没有稳定魔数，前面已做扩展名和 MIME 双重校验。
             return;
         }
         for (byte[] expected : allowedMagicBytes) {
@@ -784,6 +806,7 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
         }
         if (userMapper.countByAvatarUrl(AVATAR_ACCESS_PATH_PREFIX + entity.getId()) < 1) {
+            // 头像匿名读取必须被用户资料引用，防止任意公开图片都可通过头像接口枚举。
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
         }
         return entity;
@@ -798,20 +821,24 @@ public class FileRecordServiceImpl extends BaseService implements FileRecordServ
     private void ensureAuthorized(FileRecordEntity entity) {
         AuthUser authUser = requireCurrentUser();
         if (isAdmin(authUser)) {
+            // 管理员可访问文件中心全部记录，用于后台审计和人工处理。
             return;
         }
         if (!CommonStatusConstants.ACTIVE.equals(entity.getStatus())) {
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
         }
         if (VISIBILITY_PUBLIC.equals(entity.getVisibility())) {
+            // 公开业务文件允许登录用户读取，但仍要求文件状态为 active。
             return;
         }
         if (OWNER_TYPE_USER.equals(entity.getOwnerType())
                 && StringUtils.hasText(entity.getOwnerId())
                 && entity.getOwnerId().equals(String.valueOf(authUser.getUserId()))) {
+            // 私有业务文件优先按 ownerId 授权，避免用户名变更影响访问。
             return;
         }
         if (StringUtils.hasText(entity.getCreatedBy()) && entity.getCreatedBy().equals(authUser.getUsername())) {
+            // createdBy 作为历史数据兼容兜底，保留旧记录的下载能力。
             return;
         }
         throw new BusinessException(ErrorCode.ACCESS_DENIED);

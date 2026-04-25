@@ -1,99 +1,166 @@
+# Spring 框架通用配置根节点。
 spring:
-  # 应用标识会进入日志、Actuator 和部分链路追踪上下文。
+  # 应用基础信息配置。
   application:
+    # 应用名称会进入日志、Actuator 信息和部分链路追踪上下文。
     name: spring-admin-starter
-  # 默认使用 dev，本地启动无需额外指定；生产环境通过 SPRING_PROFILES_ACTIVE=prod 覆盖。
+  # Spring Profile 激活配置。
   profiles:
+    # 默认使用 dev，本地启动无需额外指定；生产环境通过 SPRING_PROFILES_ACTIVE=prod 覆盖。
     active: dev
-  # 文件上传基础限制，业务侧还会按文件类型、存储桶和访问策略做二次校验。
+  # Servlet 上传配置。
   servlet:
+    # Multipart 文件上传限制配置。
     multipart:
+      # 单个文件最大大小，业务层还会继续校验文件类型和存储策略。
       max-file-size: 10MB
+      # 单次请求最大大小，用于限制多文件或附带表单字段的总请求体。
       max-request-size: 10MB
-  # Spring Mail 基础 SMTP 配置；实际发信会根据 app.mail.enabled 和 app.mail.aliyun.enabled 选择通道。
+  # Spring Mail SMTP 基础配置。
   mail:
+    # SMTP 服务器地址，空值表示未配置基础 SMTP 通道。
     host: ${MAIL_HOST:}
+    # SMTP 服务器端口，默认使用 SSL 端口 465。
     port: ${MAIL_PORT:465}
+    # SMTP 登录用户名，通常也是默认发件人来源。
     username: ${MAIL_USERNAME:}
+    # SMTP 登录密码，生产环境必须通过环境变量或外部配置注入。
     password: ${MAIL_PASSWORD:}
+    # 邮件正文和标题默认字符集。
     default-encoding: UTF-8
+    # JavaMail 扩展属性配置。
     properties:
+      # JavaMail 原生 mail 属性根节点。
       mail:
+        # SMTP 协议相关参数。
         smtp:
+          # 是否启用 SMTP 认证。
           auth: ${MAIL_SMTP_AUTH:true}
+          # 建立 SMTP 连接超时时间，单位毫秒。
           connectiontimeout: ${MAIL_SMTP_CONNECTION_TIMEOUT:5000}
+          # SMTP 读取响应超时时间，单位毫秒。
           timeout: ${MAIL_SMTP_READ_TIMEOUT:5000}
+          # SMTP 写入数据超时时间，单位毫秒。
           writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:5000}
+          # STARTTLS 安全传输配置。
           starttls:
+            # 是否启用 STARTTLS。
             enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
+            # 是否强制要求 STARTTLS。
             required: ${MAIL_SMTP_STARTTLS_REQUIRED:false}
+          # SSL 安全传输配置。
           ssl:
+            # 是否启用 SMTP SSL。
             enable: ${MAIL_SMTP_SSL_ENABLE:true}
+  # Quartz 定时任务配置。
   quartz:
     # 当前使用内存调度器，单体部署足够；集群部署时可切换为 jdbc job-store。
     job-store-type: memory
+    # Quartz 原生属性配置。
     properties:
+      # Quartz 属性命名空间根节点。
       org:
+        # Quartz 调度器配置。
         quartz:
+          # Scheduler 实例配置。
           scheduler:
+            # Scheduler 实例名称，便于日志中定位调度器。
             instanceName: SpringAdminQuartzScheduler
+            # Scheduler 实例 ID，AUTO 表示启动时自动生成。
             instanceId: AUTO
+          # Quartz 线程池配置。
           threadPool:
+            # Quartz 作业执行线程数，控制定时任务并发度。
             threadCount: 5
+  # Elasticsearch 客户端配置。
   elasticsearch:
-    # ES 用于后续全文检索扩展，本地默认连接 127.0.0.1:9200。
+    # ES 节点地址，本地默认连接 127.0.0.1:9200。
     uris: ${ES_URIS:http://127.0.0.1:9200}
+    # ES 用户名，空值表示不启用基础认证。
     username: ${ES_USERNAME:}
+    # ES 密码，生产环境必须通过环境变量或外部配置注入。
     password: ${ES_PASSWORD:}
 
+# Web 服务配置根节点。
 server:
   # 后端 HTTP 服务端口，前端默认通过 8080 访问 API。
   port: 8080
 
+# Actuator 运维监控配置根节点。
 management:
-  # 仅暴露必要 Actuator 端点，避免生产环境泄露过多运行细节。
+  # Actuator 端点配置。
   endpoints:
+    # Web 端点暴露配置。
     web:
+      # Actuator 暴露范围配置。
       exposure:
+        # 仅暴露健康检查、基础信息和指标端点，避免生产环境泄露过多运行细节。
         include: health,info,metrics
+  # Actuator 单端点配置。
   endpoint:
+    # 健康检查端点配置。
     health:
+      # 健康详情展示策略，要求授权后才展示详细信息。
       show-details: when-authorized
+      # 健康组件展示策略，要求授权后才展示组件级状态。
       show-components: when-authorized
 
+# OpenAPI 与 Swagger 配置根节点。
 springdoc:
-  # OpenAPI 文档路径；prod profile 会关闭。
+  # OpenAPI JSON 文档配置，prod profile 会关闭。
   api-docs:
+    # OpenAPI JSON 文档访问路径。
     path: /v3/api-docs
+    # 是否启用 OpenAPI JSON 文档。
     enabled: true
+  # Swagger UI 页面配置，prod profile 会关闭。
   swagger-ui:
+    # Swagger UI 页面访问路径。
     path: /swagger-ui.html
+    # 是否启用 Swagger UI 页面。
     enabled: true
 
+# 应用自定义业务配置根节点。
 app:
+  # 文件中心配置。
   file:
     # 本地文件兜底目录；生产建议使用对象存储并挂载持久卷或外部 Bucket。
     upload-dir: uploads
+    # 对象存储配置。
     object-storage:
       # 对象存储总开关，关闭时统一落本地存储。
       enabled: ${APP_OBJECT_STORAGE_ENABLED:false}
+      # 对象存储供应商标识，目前支持 aliyun-oss。
       provider: aliyun-oss
+      # 阿里云 OSS 配置。
       aliyun:
+        # OSS Endpoint，例如 https://oss-cn-hangzhou.aliyuncs.com。
         endpoint: ${ALIYUN_OSS_ENDPOINT:}
+        # OSS AccessKey ID，生产环境必须外部注入。
         access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
+        # OSS AccessKey Secret，生产环境必须外部注入。
         access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
+        # 私有 Bucket 名称，业务文件统一写入该 Bucket。
         private-bucket: ${ALIYUN_OSS_PRIVATE_BUCKET:}
+        # 私有文件签名 URL 有效期，单位秒。
         private-url-expire-seconds: ${ALIYUN_OSS_PRIVATE_URL_EXPIRE_SECONDS:600}
+        # OSS 对象 Key 前缀，用于区分当前应用上传对象。
         key-prefix: ${ALIYUN_OSS_KEY_PREFIX:uploads}
+      # 本地存储配置。
       local:
+        # 本地存储根目录，默认复用 app.file.upload-dir。
         root-path: ${LOCAL_STORAGE_ROOT_PATH:${app.file.upload-dir}}
+        # 本地公开文件访问前缀。
         public-base-url: ${LOCAL_STORAGE_PUBLIC_BASE_URL:/api/file/public}
+        # 本地私有下载代理地址有效期，单位秒。
         private-url-expire-seconds: ${LOCAL_STORAGE_PRIVATE_URL_EXPIRE_SECONDS:600}
+  # 安全基础配置。
   security:
-    # 生产环境会在 application-prod.yml 中关闭 Swagger 匿名访问。
+    # 是否允许 Swagger 匿名访问，生产环境会在 application-prod.yml 中关闭。
     swagger-public-enabled: true
-    # 可信代理用于解析真实客户端 IP，只允许配置可信网关网段。
+    # 可信代理网段，用于解析真实客户端 IP，只允许配置可信网关。
     trusted-proxies: ${TRUSTED_PROXIES:127.0.0.1/32,::1/128}
+  # Redisson 工具配置。
   redisson:
     # RedissonUtil 获取分布式锁的默认等待时间，超时后返回空结果或 false。
     lock-wait-seconds: ${REDISSON_LOCK_WAIT_SECONDS:3}
@@ -101,77 +168,139 @@ app:
     lock-lease-seconds: ${REDISSON_LOCK_LEASE_SECONDS:30}
     # 锁生命周期日志开关，生产排查并发问题时建议保持开启。
     lock-log-enabled: ${REDISSON_LOCK_LOG_ENABLED:true}
+  # CDK 兑换码业务配置。
   cdk:
     # CDK 明文哈希 pepper，生产环境必须外部注入。
     pepper: ${CDK_PEPPER:}
+    # 单个 CDK 批次最大生成数量，防止误操作生成超大批次。
     max-batch-size: ${CDK_MAX_BATCH_SIZE:10000}
+    # 单用户兑换限流窗口，单位秒。
     redeem-user-window-seconds: ${CDK_REDEEM_USER_WINDOW_SECONDS:60}
+    # 单用户在窗口期内允许兑换次数。
     redeem-user-limit: ${CDK_REDEEM_USER_LIMIT:10}
+    # 单 IP 兑换限流窗口，单位秒。
     redeem-ip-window-seconds: ${CDK_REDEEM_IP_WINDOW_SECONDS:60}
+    # 单 IP 在窗口期内允许兑换次数。
     redeem-ip-limit: ${CDK_REDEEM_IP_LIMIT:30}
+    # 连续兑换失败后用户锁定时间，单位秒。
     redeem-lock-seconds: ${CDK_REDEEM_LOCK_SECONDS:900}
+    # 触发兑换锁定的连续失败次数。
     redeem-failure-limit: ${CDK_REDEEM_FAILURE_LIMIT:5}
+    # CDK 明文导出缓存窗口，单位秒。
     export-window-seconds: ${CDK_EXPORT_WINDOW_SECONDS:1800}
+    # 是否启用高价值 CDK 批次双人复核。
     double-review-enabled: ${CDK_DOUBLE_REVIEW_ENABLED:true}
+    # 触发双人复核的批次总积分阈值。
     double-review-total-points-threshold: ${CDK_DOUBLE_REVIEW_TOTAL_POINTS_THRESHOLD:100000}
+    # CDK 导出文件加密 PBKDF2 迭代次数。
     export-encrypt-iterations: ${CDK_EXPORT_ENCRYPT_ITERATIONS:120000}
+  # 积分账务配置。
   points:
-    # 积分对账和冻结补偿均由 Quartz 调度，Cron 支持按环境覆盖。
+    # 是否启用积分日终对账任务。
     reconciliation-enabled: ${POINTS_RECONCILIATION_ENABLED:true}
+    # 积分日终对账 Cron 表达式。
     reconciliation-cron: ${POINTS_RECONCILIATION_CRON:0 10 2 * * ?}
+    # 积分冻结单默认过期时间，单位秒。
     freeze-default-expire-seconds: ${POINTS_FREEZE_DEFAULT_EXPIRE_SECONDS:1800}
+    # 是否启用过期冻结单补偿任务。
     freeze-compensation-enabled: ${POINTS_FREEZE_COMPENSATION_ENABLED:true}
+    # 过期冻结单补偿任务 Cron 表达式。
     freeze-compensation-cron: ${POINTS_FREEZE_COMPENSATION_CRON:0 */10 * * * ?}
+    # 单次冻结补偿任务最多处理数量。
     freeze-compensation-batch-size: ${POINTS_FREEZE_COMPENSATION_BATCH_SIZE:100}
+  # 本地事务事件配置。
   outbox:
     # 本地事务事件轮询开关，后续可替换为 MQ 投递。
     enabled: ${OUTBOX_ENABLED:true}
+    # 本地事务事件轮询 Cron 表达式。
     cron: ${OUTBOX_CRON:0 */5 * * * ?}
+  # 在线交易配置。
   trade:
     # 支付回调验签密钥，生产环境必须外部注入。
     callback-secret: ${TRADE_CALLBACK_SECRET:}
+    # 支付回调时间戳允许偏移，单位秒。
     callback-skew-seconds: ${TRADE_CALLBACK_SKEW_SECONDS:300}
+    # 单笔在线充值最大积分数。
     max-recharge-points: ${TRADE_MAX_RECHARGE_POINTS:100000}
+  # 应用邮件配置。
   mail:
     # 项目级邮件开关；关闭后注册激活等邮件任务不会实际发送。
     enabled: ${MAIL_ENABLED:true}
+    # 默认发件人地址，未显式配置时复用 Spring Mail 用户名。
     from: ${MAIL_FROM:${MAIL_USERNAME:}}
+    # 应用邮件默认字符集，优先使用 app 配置，兜底 Spring Mail 字符集。
     default-encoding: ${APP_MAIL_DEFAULT_ENCODING:${spring.mail.default-encoding:UTF-8}}
+    # 邮件异步线程池配置。
     async:
+      # 邮件发送核心线程数。
       core-pool-size: ${MAIL_ASYNC_CORE_POOL_SIZE:2}
+      # 邮件发送最大线程数。
       max-pool-size: ${MAIL_ASYNC_MAX_POOL_SIZE:8}
+      # 邮件发送队列容量。
       queue-capacity: ${MAIL_ASYNC_QUEUE_CAPACITY:200}
+      # 应用关闭时等待邮件线程池结束时间，单位秒。
       await-termination-seconds: ${MAIL_ASYNC_AWAIT_TERMINATION_SECONDS:30}
+    # 阿里云 DirectMail 配置。
     aliyun:
+      # 是否启用阿里云 DirectMail 通道。
       enabled: ${ALIYUN_MAIL_ENABLED:false}
+      # 阿里云 DirectMail Endpoint。
       endpoint: ${ALIYUN_MAIL_ENDPOINT:dm.aliyuncs.com}
+      # 阿里云 DirectMail 区域 ID。
       region-id: ${ALIYUN_MAIL_REGION_ID:cn-hangzhou}
+      # 阿里云 AccessKey ID，生产环境必须外部注入。
       access-key-id: ${ALIYUN_MAIL_ACCESS_KEY_ID:}
+      # 阿里云 AccessKey Secret，生产环境必须外部注入。
       access-key-secret: ${ALIYUN_MAIL_ACCESS_KEY_SECRET:}
+      # 阿里云发信地址。
       account-name: ${ALIYUN_MAIL_ACCOUNT_NAME:${MAIL_FROM:}}
+      # 发件人显示名称。
       from-alias: ${ALIYUN_MAIL_FROM_ALIAS:}
+      # 阿里云邮件地址类型，1 表示发信地址。
       address-type: ${ALIYUN_MAIL_ADDRESS_TYPE:1}
+      # 是否启用回信地址。
       reply-to-address: ${ALIYUN_MAIL_REPLY_TO_ADDRESS:false}
+      # 回信地址。
       reply-address: ${ALIYUN_MAIL_REPLY_ADDRESS:}
+      # 回信地址显示名称。
       reply-address-alias: ${ALIYUN_MAIL_REPLY_ADDRESS_ALIAS:}
+      # 阿里云邮件标签名称。
       tag-name: ${ALIYUN_MAIL_TAG_NAME:}
+      # 是否开启点击追踪，0 表示关闭。
       click-trace: ${ALIYUN_MAIL_CLICK_TRACE:0}
+      # 阿里云邮件客户端连接超时时间，单位毫秒。
       connect-timeout: ${ALIYUN_MAIL_CONNECT_TIMEOUT:5000}
+      # 阿里云邮件客户端读取超时时间，单位毫秒。
       read-timeout: ${ALIYUN_MAIL_READ_TIMEOUT:10000}
+    # 邮件模板展示配置。
     template:
+      # 邮件模板品牌名称。
       brand-name: ${APP_MAIL_TEMPLATE_BRAND_NAME:React Admin Starter}
+      # 邮件模板签名。
       signature: ${APP_MAIL_TEMPLATE_SIGNATURE:React Admin Starter}
+      # 邮件模板主色。
       primary-color: ${APP_MAIL_TEMPLATE_PRIMARY_COLOR:#1677ff}
+      # 邮件模板页面背景色。
       background-color: ${APP_MAIL_TEMPLATE_BACKGROUND_COLOR:#f4f7fb}
+      # 邮件模板卡片背景色。
       card-background-color: ${APP_MAIL_TEMPLATE_CARD_BACKGROUND_COLOR:#ffffff}
+    # 注册激活邮件配置。
     register:
+      # 是否启用注册激活邮件。
       enabled: ${MAIL_REGISTER_ENABLED:true}
+      # 注册激活邮件标题。
       subject: ${MAIL_REGISTER_SUBJECT:ai-quick-web 账号激活}
+      # 注册激活链接前端基础地址。
       verify-link-base-url: ${MAIL_REGISTER_VERIFY_LINK_BASE_URL:http://localhost:5173}
+  # 批处理任务配置。
   batch:
+    # 日志归档批处理配置。
     log-archive:
-      # 日志归档任务用于控制主日志表体积，保留天数按环境配置。
+      # 日志归档任务开关。
       enabled: ${LOG_ARCHIVE_ENABLED:true}
+      # 日志归档任务 Cron 表达式。
       cron: ${LOG_ARCHIVE_CRON:0 0 2 * * ?}
+      # 日志主表保留天数。
       retention-days: ${LOG_ARCHIVE_RETENTION_DAYS:30}
+      # 单次日志归档最大处理数量。
       batch-size: ${LOG_ARCHIVE_BATCH_SIZE:1000}
