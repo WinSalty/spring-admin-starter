@@ -36,6 +36,7 @@ public class TransactionOutboxJob implements Job {
             return;
         }
         try {
+            // @DisallowConcurrentExecution 保证同一任务不会并发扫描 pending 事件，降低重复投递概率。
             log.info("transaction outbox job started, fireTime={}", context.getFireTime());
             transactionOutboxService.processPendingEvents();
             log.info("transaction outbox job finished, nextFireTime={}", context.getNextFireTime());

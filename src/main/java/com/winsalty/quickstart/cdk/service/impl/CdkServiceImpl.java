@@ -170,6 +170,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
             throw new BusinessException(ErrorCode.CDK_BENEFIT_UNSUPPORTED);
         }
         if (request.getTotalCount() > cdkProperties.getMaxBatchSize()) {
+            // 批次数量限制放在创建阶段，避免后续审批生成大量码拖垮 Redis 和数据库。
             throw new BusinessException(ErrorCode.CDK_BATCH_SIZE_EXCEEDED);
         }
         CdkBatchEntity entity = new CdkBatchEntity();
@@ -219,6 +220,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
             if (StringUtils.hasText(batch.getApprovedBy())) {
                 throw new BusinessException(ErrorCode.CDK_SECOND_APPROVAL_REQUIRED);
             }
+            // 高风险批次第一次审批只记录审批人并发告警，不生成码，等待另一个管理员复核。
             cdkBatchMapper.markFirstApproved(batch.getId(), currentUsername());
             createBatchReviewAlert(batch);
             log.info("cdk batch first approved and waits second review, batchNo={}, approvedBy={}",
@@ -227,6 +229,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         }
         List<String> plainCodes = generateCodes(batch);
         cdkBatchMapper.markApproved(batch.getId(), plainCodes.size(), currentUsername(), CdkConstants.BATCH_STATUS_ACTIVE);
+        // 明文 CDK 只短期保存在 Redis 导出窗口中，数据库仅保存 HMAC hash。
         redisCacheService.set(CdkConstants.EXPORT_CACHE_PREFIX + batch.getBatchNo(),
                 String.join(EXPORT_LINE_SEPARATOR, plainCodes), cdkProperties.getExportWindowSeconds());
         log.info("cdk batch approved and generated, batchNo={}, generatedCount={}", batch.getBatchNo(), plainCodes.size());
@@ -242,6 +245,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
             throw new BusinessException(ErrorCode.CDK_BATCH_STATUS_INVALID);
         }
         if (currentUsername().equals(batch.getApprovedBy())) {
+            // 二次复核必须换人，避免高价值批次由同一个管理员闭环审批。
             throw new BusinessException(ErrorCode.CDK_SECOND_APPROVER_INVALID);
         }
         if (batch.getTotalCount() > cdkProperties.getMaxBatchSize()) {
@@ -292,6 +296,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
             throw new BusinessException(ErrorCode.CDK_EXPORT_EXPIRED);
         }
         String content = (String) cached;
+        // 导出是一次性操作，先删除 Redis 明文缓存，后续重复导出会失败。
         redisCacheService.delete(CdkConstants.EXPORT_CACHE_PREFIX + batch.getBatchNo());
         List<String> codes = Arrays.asList(content.split(EXPORT_LINE_SEPARATOR));
         byte[] exportPackage = buildEncryptedExportPackage(batch, content, request.getExportPassword(), codes.size());
@@ -322,8 +327,10 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         }
         if (CdkConstants.RISK_LEVEL_HIGH.equals(batch.getRiskLevel())
                 || CdkConstants.RISK_LEVEL_CRITICAL.equals(batch.getRiskLevel())) {
+            // 风险等级由创建人标记，高风险和严重风险无条件进入双人复核。
             return true;
         }
+        // 普通风险批次按总积分金额判断是否需要复核。
         return calculateTotalPoints(batch) >= cdkProperties.getDoubleReviewTotalPointsThreshold();
     }
 
@@ -356,6 +363,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
             byte[] cipherText = encryptExportPayload(content, exportPassword, salt, iv);
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream);
+            // manifest 保存解密所需的非敏感参数；真正的 CDK 明文只存在加密 payload 中。
             writeZipEntry(zipOutputStream, EXPORT_ZIP_MANIFEST_NAME, buildExportManifest(batch, count, salt, iv).getBytes(StandardCharsets.UTF_8));
             writeZipEntry(zipOutputStream, EXPORT_ZIP_PAYLOAD_NAME, cipherText);
             zipOutputStream.close();
@@ -369,6 +377,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
 
     private byte[] encryptExportPayload(String content, String exportPassword, byte[] salt, byte[] iv) throws GeneralSecurityException {
         SecretKeyFactory factory = SecretKeyFactory.getInstance(EXPORT_KDF_ALGORITHM);
+        // 导出密码不直接作为 AES key，先通过 PBKDF2 加盐派生，提高离线爆破成本。
         KeySpec spec = new PBEKeySpec(exportPassword.toCharArray(), salt, cdkProperties.getExportEncryptIterations(), EXPORT_KEY_LENGTH_BITS);
         SecretKeySpec key = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), EXPORT_SECRET_ALGORITHM);
         javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance(EXPORT_CIPHER_ALGORITHM);
@@ -399,6 +408,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     public CdkRedeemResultVo redeem(CdkRedeemRequest request, HttpServletRequest servletRequest) {
         AuthUser authUser = requireCurrentUser();
         String clientIp = IpUtils.getClientIp(servletRequest);
+        // 兑换前先做用户/IP/失败锁定检查，避免无效码请求继续打到数据库。
         checkRedeemRisk(authUser.getUserId(), clientIp);
         CdkRedeemRecordEntity existed = cdkRedeemRecordMapper.findByUserIdAndIdempotencyKey(authUser.getUserId(), request.getIdempotencyKey());
         if (existed != null) {
@@ -407,10 +417,12 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         }
         String normalizedCode = normalizeCode(request.getCdk());
         if (!isCodeFormatValid(normalizedCode)) {
+            // 格式错误不查库，但计入失败次数，防止暴力猜测。
             recordRedeemFailure(authUser.getUserId());
             throw new BusinessException(ErrorCode.CDK_CODE_INVALID);
         }
         ensurePepperConfigured();
+        // 数据库只保存 HMAC 后的 codeHash，兑换时用规范化后的明文计算 hash 查询。
         CdkCodeEntity code = cdkCodeMapper.findByCodeHash(hmacSha256(normalizedCode));
         CdkBatchEntity batch = code == null ? null : cdkBatchMapper.findByIdForUpdate(code.getBatchId());
         validateRedeemable(code, batch);
@@ -418,6 +430,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         CdkRedeemRecordEntity record = buildProcessingRecord(authUser, batch, code, request, servletRequest, redeemNo);
         cdkRedeemRecordMapper.insert(record);
         if (cdkCodeMapper.markRedeemed(code.getId(), authUser.getUserId(), redeemNo) == 0) {
+            // markRedeemed 带状态条件，返回 0 表示并发下该码已被其他请求抢先兑换。
             recordRedeemFailure(authUser.getUserId());
             throw new BusinessException(ErrorCode.CDK_CODE_UNAVAILABLE);
         }
@@ -432,6 +445,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         command.setOperatorType(PointsConstants.OPERATOR_TYPE_USER);
         command.setOperatorId(String.valueOf(authUser.getUserId()));
         command.setRemark("CDK 兑换积分");
+        // 权益发放服务统一处理积分入账或其他权益类型，CDK 只负责码状态和兑换记录。
         BenefitGrantResult grantResult = benefitGrantService.grant(command);
         pointRechargeOrderMapper.updateStatus(rechargeOrder.getRechargeNo(), PointsConstants.ORDER_STATUS_SUCCESS, grantResult.getSnapshot());
         cdkRedeemRecordMapper.updateResult(redeemNo, CdkConstants.RECORD_STATUS_SUCCESS,
@@ -439,6 +453,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         cdkBatchMapper.incrementRedeemed(batch.getId());
         transactionOutboxService.createEvent(OUTBOX_AGGREGATE_TYPE, redeemNo, OUTBOX_EVENT_SUCCESS,
                 buildRedeemOutboxPayload(authUser.getUserId(), batch, redeemNo, grantResult));
+        // 兑换成功清理失败计数和锁定状态，避免用户后续正常兑换受历史失败影响。
         recordRedeemSuccess(authUser.getUserId());
         log.info("cdk redeemed, userId={}, redeemNo={}, batchNo={}, benefitType={}",
                 authUser.getUserId(), redeemNo, batch.getBatchNo(), batch.getBenefitType());
@@ -482,6 +497,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
             String plainCode = generatePlainCode(yearMonth);
             CdkCodeEntity code = new CdkCodeEntity();
             code.setBatchId(batch.getId());
+            // 明文码不落库，只保存 HMAC，导出窗口结束后后台也无法恢复明文。
             code.setCodeHash(hmacSha256(plainCode));
             code.setCodePrefix(CdkConstants.CODE_PREFIX + CODE_SEPARATOR + yearMonth);
             code.setChecksum(resolveChecksum(plainCode));
@@ -509,6 +525,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
             throw new BusinessException(ErrorCode.CDK_CODE_UNAVAILABLE);
         }
         LocalDateTime now = LocalDateTime.now();
+        // 批次有效期按服务端当前时间判断，客户端时间不参与兑换有效性校验。
         LocalDateTime validFrom = LocalDateTime.parse(batch.getValidFrom(), DATE_TIME_FORMATTER);
         LocalDateTime validTo = LocalDateTime.parse(batch.getValidTo(), DATE_TIME_FORMATTER);
         if (now.isBefore(validFrom) || now.isAfter(validTo)) {
@@ -533,6 +550,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         record.setFailureCode(EMPTY_FAILURE_REASON);
         record.setFailureMessage(EMPTY_FAILURE_REASON);
         record.setClientIp(IpUtils.getClientIp(servletRequest));
+        // UA 只保存 hash，满足风控关联分析，同时避免记录完整浏览器指纹。
         record.setUserAgentHash(sha256(servletRequest == null ? "" : servletRequest.getHeader(UA_HEADER)));
         record.setTraceId(currentTraceId());
         record.setIdempotencyKey(request.getIdempotencyKey());
@@ -569,6 +587,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         if (Boolean.TRUE.equals(redisCacheService.hasKey(CdkConstants.REDEEM_LOCK_PREFIX + digestKey(userKey)))) {
             throw new BusinessException(ErrorCode.CDK_REDEEM_LOCKED);
         }
+        // 用户和 IP 双维度限流，既限制单用户刷码，也限制同 IP 批量猜码。
         checkLimit(CdkConstants.REDEEM_USER_LIMIT_PREFIX + digestKey(userKey), cdkProperties.getRedeemUserLimit(),
                 cdkProperties.getRedeemUserWindowSeconds());
         checkLimit(CdkConstants.REDEEM_IP_LIMIT_PREFIX + digestKey(defaultText(clientIp)), cdkProperties.getRedeemIpLimit(),
@@ -578,6 +597,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     private void checkLimit(String key, long limit, long windowSeconds) {
         Long current = redisCacheService.increment(key);
         if (current != null && current == 1L) {
+            // 限流计数器第一次创建时绑定窗口 TTL，后续窗口到期自动归零。
             redisCacheService.expire(key, windowSeconds);
         }
         if (current != null && current > limit) {
@@ -589,6 +609,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         String failKey = CdkConstants.REDEEM_FAIL_PREFIX + digestKey(String.valueOf(userId));
         Long current = redisCacheService.increment(failKey);
         if (current != null && current == 1L) {
+            // 失败计数的 TTL 与锁定时长一致，低频失败不会永久累计。
             redisCacheService.expire(failKey, cdkProperties.getRedeemLockSeconds());
         }
         if (current != null && current >= cdkProperties.getRedeemFailureLimit()) {
@@ -619,6 +640,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     }
 
     private String normalizeCode(String code) {
+        // 支持用户复制时带空格或小写，统一规范化后再做校验和 hash。
         return code == null ? "" : code.trim().replace(" ", "").toUpperCase();
     }
 
@@ -639,6 +661,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
                 return false;
             }
         }
+        // 校验位基于码体和固定盐计算，用于在查库前快速过滤明显伪造的 CDK。
         return checksum.equals(calculateChecksum(resolveCodeBody(code)));
     }
 
@@ -653,6 +676,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
                     .append(randomPart, index, index + CdkConstants.CODE_GROUP_LENGTH);
         }
         String body = builder.toString();
+        // 校验位追加在末尾，兑换时可先验格式再查 HMAC，减少数据库压力。
         return body + CODE_SEPARATOR + calculateChecksum(body);
     }
 

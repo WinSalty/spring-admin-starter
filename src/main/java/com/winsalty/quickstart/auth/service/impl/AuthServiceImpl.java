@@ -237,9 +237,11 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         if (user == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
+        // 个人资料允许部分字段为空，入库前统一 trim，避免前端传入空格造成展示异常。
         user.setEmail(trimToNull(request.getEmail()));
         user.setNickname(trimToNull(request.getNickname()));
         user.setDescription(trimToDefault(request.getDescription(), ""));
+        // 头像地址只接受后端文件接口生成的稳定地址，不允许浏览器 blob 临时地址落库。
         user.setAvatarUrl(normalizeAvatarUrl(request.getAvatarUrl()));
         user.setCountry(trimToDefault(request.getCountry(), "中国"));
         user.setProvince(trimToNull(request.getProvince()));
@@ -248,6 +250,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         user.setPhonePrefix(trimToNull(request.getPhonePrefix()));
         user.setPhoneNumber(trimToNull(request.getPhoneNumber()));
         userMapper.updateProfile(user);
+        log.info("user profile updated, userId={}, username={}", userId, user.getUsername());
         return getProfile(userId);
     }
 
@@ -258,9 +261,11 @@ public class AuthServiceImpl extends BaseService implements AuthService {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            // 修改密码必须校验当前密码，避免登录态被盗后直接静默改密。
             throw new BusinessException(ErrorCode.LOGIN_BAD_CREDENTIALS, "当前密码不正确");
         }
         userMapper.updatePassword(userId, passwordEncoder.encode(request.getNewPassword()));
+        log.info("user password updated, userId={}, username={}", userId, user.getUsername());
     }
 
     @Override
@@ -273,11 +278,14 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         user.setNotifySystem(Boolean.TRUE.equals(request.getNotifySystem()) ? 1 : 0);
         user.setNotifyTodo(Boolean.TRUE.equals(request.getNotifyTodo()) ? 1 : 0);
         userMapper.updateNotificationSettings(user);
+        log.info("user notification settings updated, userId={}, account={}, system={}, todo={}",
+                userId, user.getNotifyAccount(), user.getNotifySystem(), user.getNotifyTodo());
         return getProfile(userId);
     }
 
     private ProfileResponse buildProfileResponse(UserEntity user) {
         ProfileResponse response = new ProfileResponse();
+        // ProfileResponse 聚合用户基础资料和角色信息，供前端刷新后恢复登录上下文。
         response.setUserId(user.getId());
         response.setUsername(user.getUsername());
         response.setEmail(user.getEmail());
@@ -300,6 +308,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
 
     private Boolean toBoolean(Integer value, boolean defaultValue) {
         if (value == null) {
+            // 历史数据可能没有通知开关字段，按产品默认值返回，避免前端出现 null。
             return defaultValue;
         }
         return value == 1;
@@ -326,6 +335,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
     private UserEntity savePendingRegisterUser(String username, String email, String password) {
         UserEntity existedUser = userMapper.findByUsername(username);
         UserEntity existedEmailUser = userMapper.findByEmail(email);
+        // pending 账号允许原用户名和原邮箱重新提交注册，用于用户未收到激活邮件时刷新密码和链接。
         UserEntity pendingUser = resolveReusablePendingRegisterUser(username, email, existedUser, existedEmailUser);
         String encodedPassword = passwordEncoder.encode(password);
         if (pendingUser != null) {
@@ -338,6 +348,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
         user.setRecordCode(REGISTER_RECORD_CODE_PREFIX + System.currentTimeMillis());
         user.setUsername(username);
         user.setEmail(email);
+        // 注册用户默认昵称使用用户名，用户激活后可在个人中心修改。
         user.setNickname(username);
         user.setCountry(DEFAULT_COUNTRY);
         user.setPhonePrefix(DEFAULT_PHONE_PREFIX);
@@ -364,15 +375,18 @@ public class AuthServiceImpl extends BaseService implements AuthService {
             return null;
         }
         if (existedUser != null && !email.equals(normalizeEmail(existedUser.getEmail()))) {
+            // 用户名已被其他邮箱占用时直接拒绝，避免用 pending 复用路径覆盖他人账号。
             rejectRegisterAvailability(username, email, REGISTER_AVAILABILITY_USERNAME_EXISTS,
                     ErrorCode.USERNAME_ALREADY_EXISTS);
         }
         if (existedEmailUser != null && !username.equals(normalizeAccount(existedEmailUser.getUsername()))) {
+            // 邮箱已绑定其他用户名时直接拒绝，避免邮箱所有权被后续注册流程抢占。
             rejectRegisterAvailability(username, email, REGISTER_AVAILABILITY_EMAIL_EXISTS,
                     ErrorCode.EMAIL_ALREADY_EXISTS);
         }
         UserEntity existed = existedUser != null ? existedUser : existedEmailUser;
         if (!CommonStatusConstants.PENDING.equals(existed.getStatus())) {
+            // active/disabled 账号不能走注册刷新逻辑，必须提示账号或邮箱已存在。
             ErrorCode errorCode = existedUser != null ? ErrorCode.USERNAME_ALREADY_EXISTS : ErrorCode.EMAIL_ALREADY_EXISTS;
             String reason = existedUser != null ? REGISTER_AVAILABILITY_USERNAME_EXISTS : REGISTER_AVAILABILITY_EMAIL_EXISTS;
             rejectRegisterAvailability(username, email, reason, errorCode);
@@ -469,6 +483,7 @@ public class AuthServiceImpl extends BaseService implements AuthService {
      * @date 2026-04-23
      */
     private boolean isPersistentAvatarUrl(String avatarUrl) {
+        // 当前只允许后端头像代理地址；若未来支持 CDN 永久地址，需要在这里显式扩展白名单。
         return avatarUrl.startsWith("/api/file/avatar/");
     }
 }

@@ -51,6 +51,7 @@ public class AliyunDirectMailService implements MailService {
         String maskedTo = MailSendSupport.maskEmail(request.getTo());
         String subjectFingerprint = MailSendSupport.fingerprint(request.getSubject());
         try {
+            // 阿里云请求对象先同步构建和校验，远程 API 调用放入线程池降低接口响应耗时。
             SingleSendMailRequest aliyunRequest = buildAliyunRequest(request);
             mailTaskExecutor.execute(new Runnable() {
                 @Override
@@ -74,6 +75,7 @@ public class AliyunDirectMailService implements MailService {
     private SingleSendMailRequest buildAliyunRequest(MailSendRequest request) throws MessagingException {
         InternetAddress toAddress = MailSendSupport.parseSingleAddress(request.getTo().trim(), "邮件收件人格式不正确");
         InternetAddress accountName = MailSendSupport.parseSingleAddress(resolveAccountName(), "阿里云邮件发信地址格式不正确");
+        // SingleSendMail 一次只投递一个收件人，避免验证码类邮件出现批量收件人泄露。
         SingleSendMailRequest aliyunRequest = new SingleSendMailRequest()
                 .setAccountName(accountName.getAddress())
                 .setAddressType(aliyunMailProperties.getAddressType())
@@ -92,6 +94,7 @@ public class AliyunDirectMailService implements MailService {
     }
 
     private void applyOptionalFields(SingleSendMailRequest aliyunRequest) {
+        // 可选字段仅在配置存在时写入，避免空字符串覆盖阿里云控制台默认设置。
         if (StringUtils.hasText(aliyunMailProperties.getFromAlias())) {
             aliyunRequest.setFromAlias(aliyunMailProperties.getFromAlias().trim());
         }

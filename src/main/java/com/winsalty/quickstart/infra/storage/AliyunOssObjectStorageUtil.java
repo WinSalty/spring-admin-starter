@@ -8,6 +8,8 @@ import com.aliyun.oss.model.ObjectMetadata;
 import com.aliyun.oss.model.OSSObject;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -25,7 +27,11 @@ import java.util.Date;
 @Component
 public class AliyunOssObjectStorageUtil implements DisposableBean {
 
+    private static final Logger log = LoggerFactory.getLogger(AliyunOssObjectStorageUtil.class);
     private static final String STORAGE_TYPE_ALIYUN_OSS = "aliyun-oss";
+    private static final String DEFAULT_BUCKET_TYPE = "private";
+    private static final String PRIVATE_READ_POLICY = "private_read";
+    private static final long MILLIS_PER_SECOND = 1000L;
 
     private final AliyunOssStorageProperties properties;
     private volatile OSS ossClient;
@@ -65,19 +71,23 @@ public class AliyunOssObjectStorageUtil implements DisposableBean {
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(sizeBytes);
             if (StringUtils.hasText(contentType)) {
+                // 保留 MIME 类型，后续代理预览或下载时可按原始类型响应。
                 metadata.setContentType(contentType);
             }
             getOssClient().putObject(bucketName, objectKey, inputStream, metadata);
             ObjectStorageUploadResult result = new ObjectStorageUploadResult();
             result.setStorageType(STORAGE_TYPE_ALIYUN_OSS);
-            result.setBucketType(StringUtils.hasText(bucketType) ? bucketType : "private");
+            result.setBucketType(StringUtils.hasText(bucketType) ? bucketType : DEFAULT_BUCKET_TYPE);
             result.setBucketName(bucketName);
-            result.setAccessPolicy("private_read");
+            result.setAccessPolicy(PRIVATE_READ_POLICY);
             result.setObjectKey(objectKey);
             result.setFilePath(objectKey);
             result.setFileUrl("");
+            log.info("aliyun oss private object uploaded, bucketName={}, objectKey={}, sizeBytes={}",
+                    bucketName, objectKey, sizeBytes);
             return result;
         } catch (OSSException | ClientException exception) {
+            log.error("aliyun oss private object upload failed, bucketName={}, objectKey={}", bucketName, objectKey, exception);
             throw new BusinessException(ErrorCode.OBJECT_STORAGE_UPLOAD_FAILED, "阿里云 OSS 上传失败");
         }
     }
@@ -98,10 +108,14 @@ public class AliyunOssObjectStorageUtil implements DisposableBean {
             throw new BusinessException(ErrorCode.OBJECT_STORAGE_CONFIG_INVALID);
         }
         try {
-            Date expiration = new Date(System.currentTimeMillis() + expireSeconds * 1000L);
+            // 私有文件不暴露永久地址，所有下载入口都通过短期签名 URL 控制有效期。
+            Date expiration = new Date(System.currentTimeMillis() + expireSeconds * MILLIS_PER_SECOND);
             URL url = getOssClient().generatePresignedUrl(bucketName, objectKey, expiration);
+            log.info("aliyun oss presigned url generated, bucketName={}, objectKey={}, expireSeconds={}",
+                    bucketName, objectKey, expireSeconds);
             return url.toString();
         } catch (OSSException | ClientException exception) {
+            log.error("aliyun oss presigned url generate failed, bucketName={}, objectKey={}", bucketName, objectKey, exception);
             throw new BusinessException(ErrorCode.OBJECT_STORAGE_UPLOAD_FAILED, "阿里云 OSS 签名地址生成失败");
         }
     }
@@ -121,8 +135,12 @@ public class AliyunOssObjectStorageUtil implements DisposableBean {
             throw new BusinessException(ErrorCode.OBJECT_STORAGE_CONFIG_INVALID);
         }
         try {
-            return getOssClient().doesObjectExist(bucketName, objectKey);
+            boolean exists = getOssClient().doesObjectExist(bucketName, objectKey);
+            log.info("aliyun oss object exists checked, bucketName={}, objectKey={}, exists={}",
+                    bucketName, objectKey, exists);
+            return exists;
         } catch (OSSException | ClientException exception) {
+            log.error("aliyun oss object exists check failed, bucketName={}, objectKey={}", bucketName, objectKey, exception);
             return false;
         }
     }
@@ -143,8 +161,10 @@ public class AliyunOssObjectStorageUtil implements DisposableBean {
         }
         try {
             OSSObject ossObject = getOssClient().getObject(bucketName, objectKey);
+            log.info("aliyun oss object stream opened, bucketName={}, objectKey={}", bucketName, objectKey);
             return ossObject.getObjectContent();
         } catch (OSSException | ClientException exception) {
+            log.error("aliyun oss object stream open failed, bucketName={}, objectKey={}", bucketName, objectKey, exception);
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "阿里云 OSS 文件读取失败");
         }
     }
@@ -178,6 +198,7 @@ public class AliyunOssObjectStorageUtil implements DisposableBean {
         synchronized (this) {
             if (ossClient == null) {
                 validateBaseConfig();
+                // OSS Client 复用连接池，避免每次上传或签名都新建客户端。
                 ossClient = new OSSClientBuilder().build(
                         properties.getEndpoint(),
                         properties.getAccessKeyId(),
@@ -192,6 +213,7 @@ public class AliyunOssObjectStorageUtil implements DisposableBean {
     public void destroy() {
         if (ossClient != null) {
             ossClient.shutdown();
+            log.info("aliyun oss client shutdown");
         }
     }
 }

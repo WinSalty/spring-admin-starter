@@ -36,8 +36,10 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         String userDeviceKey = userDeviceKey(userId, normalizedDeviceType);
         Object oldSessionId = redisCacheService.get(userDeviceKey);
         if (oldSessionId instanceof String && StringUtils.hasText((String) oldSessionId)) {
+            // 同一用户同一设备类型只保留一个会话，登录成功后立即踢掉旧会话。
             deleteSession((String) oldSessionId);
         }
+        // session key 存 refresh token，owner key 存用户设备归属，user-device key 存最新 sessionId。
         redisCacheService.set(SESSION_KEY_PREFIX + sessionId, refreshToken, timeoutSeconds);
         redisCacheService.set(SESSION_OWNER_KEY_PREFIX + sessionId, ownerValue(userId, normalizedDeviceType), timeoutSeconds);
         redisCacheService.set(userDeviceKey, sessionId, timeoutSeconds);
@@ -67,6 +69,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         redisCacheService.set(SESSION_KEY_PREFIX + sessionId, refreshToken, timeoutSeconds);
         Object owner = redisCacheService.get(SESSION_OWNER_KEY_PREFIX + sessionId);
         if (owner instanceof String && StringUtils.hasText((String) owner)) {
+            // refresh token 轮换时同步续期 owner 和 user-device 索引，避免会话主体 key 还在但索引过期。
             redisCacheService.set(SESSION_OWNER_KEY_PREFIX + sessionId, owner, timeoutSeconds);
             redisCacheService.set(userDeviceKey((String) owner), sessionId, timeoutSeconds);
         }
@@ -82,6 +85,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             String userDeviceKey = userDeviceKey((String) owner);
             Object currentSessionId = redisCacheService.get(userDeviceKey);
             if (sessionId.equals(currentSessionId)) {
+                // 只删除仍指向当前 session 的索引，避免并发新登录后误删新会话索引。
                 redisCacheService.delete(userDeviceKey);
             }
         }

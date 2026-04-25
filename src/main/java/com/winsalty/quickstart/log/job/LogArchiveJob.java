@@ -30,6 +30,7 @@ public class LogArchiveJob implements Job {
     @Override
     public void execute(JobExecutionContext context) throws JobExecutionException {
         try {
+            // Quartz 禁止同一归档任务并发执行，避免两个调度实例同时迁移同一批日志。
             log.info("log archive job started, fireTime={}", context.getFireTime());
             logArchiveService.archiveExpiredLogs();
             log.info("log archive job finished, nextFireTime={}", context.getNextFireTime());

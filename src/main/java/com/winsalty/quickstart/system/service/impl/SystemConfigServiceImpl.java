@@ -55,6 +55,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         }
         List<SystemConfigEntity> entities = systemConfigMapper.findAll();
         List<SystemConfigVo> records = toVoList(entities);
+        // 缓存中保存已经转换好的 VO，后续读取可以直接返回给前端配置表单。
         redisCacheService.set(cacheKey, records, CONFIG_CACHE_TTL_SECONDS);
         log.info("system config cache refreshed, cacheKey={}, size={}", cacheKey, records.size());
         return records;
@@ -70,6 +71,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         if (entity == null) {
             throw new BusinessException(4042, "系统配置不存在");
         }
+        // valueType 来自数据库配置定义，前端不能通过请求修改类型，只能提交符合类型的值。
         String configValue = normalizeValue(entity.getValueType(), request.getValue());
         systemConfigMapper.updateValue(entity.getId(), configValue);
         entity = systemConfigMapper.findByRecordCode(request.getId());
@@ -86,6 +88,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         if (cached instanceof Number) {
             return ((Number) cached).longValue();
         }
+        // 首次访问初始化版本号，后续缓存 key 才能稳定按版本拼接。
         redisCacheService.set(versionKey, 1L, CONFIG_CACHE_TTL_SECONDS * 24);
         return 1L;
     }
@@ -95,7 +98,12 @@ public class SystemConfigServiceImpl implements SystemConfigService {
      */
     private long nextVersion(String versionKey) {
         Long version = redisCacheService.increment(versionKey);
-        return version == null ? 1L : version.longValue();
+        if (version == null) {
+            // 理论上 increment 不会返回 null；兜底写入 1，避免缓存 key 出现 0 或空版本。
+            redisCacheService.set(versionKey, 1L, CONFIG_CACHE_TTL_SECONDS * 24);
+            return 1L;
+        }
+        return version.longValue();
     }
 
     /**

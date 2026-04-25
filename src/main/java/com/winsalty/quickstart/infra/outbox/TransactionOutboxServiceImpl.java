@@ -42,6 +42,7 @@ public class TransactionOutboxServiceImpl implements TransactionOutboxService {
         entity.setAggregateType(aggregateType);
         entity.setAggregateNo(aggregateNo);
         entity.setEventType(eventType);
+        // payload 为空时仍写入 JSON 对象，保证后续 MQ 适配器按统一格式反序列化。
         entity.setPayload(StringUtils.hasText(payload) ? payload : EMPTY_JSON);
         entity.setStatus(STATUS_PENDING);
         entity.setRetryCount(0);
@@ -53,13 +54,16 @@ public class TransactionOutboxServiceImpl implements TransactionOutboxService {
 
     @Override
     public void processPendingEvents() {
+        // 单次只拉取固定批量，避免 outbox 堆积时长事务占用连接和锁资源。
         List<TransactionOutboxEntity> events = transactionOutboxMapper.findPending(DEFAULT_BATCH_SIZE);
         for (TransactionOutboxEntity event : events) {
             try {
+                // 当前以日志作为投递占位；接入 MQ 时应在此处完成真实发布后再标记成功。
                 log.info("transaction outbox event processed, eventNo={}, eventType={}, aggregateNo={}",
                         event.getEventNo(), event.getEventType(), event.getAggregateNo());
                 transactionOutboxMapper.markSuccess(event.getId());
             } catch (RuntimeException exception) {
+                // 失败事件延迟重试，避免异常事件在同一调度周期内被频繁打满日志。
                 transactionOutboxMapper.markRetry(event.getId(), RETRY_DELAY_SECONDS, exception.getMessage());
                 log.error("transaction outbox event process failed, eventNo={}, message={}", event.getEventNo(), exception.getMessage());
             }

@@ -45,6 +45,7 @@ public class FileUploadRateLimitAspect {
             throw new BusinessException(ErrorCode.AUTH_REQUIRED);
         }
         String clientIp = IpUtils.getClientIp(request);
+        // 限流检查放在上传 Controller 前执行，避免恶意请求先占用文件解析和落盘资源。
         log.info("file upload rate limit check, username={}, clientIp={}", authUser.getUsername(), clientIp);
         authRateLimitService.checkFileUpload(authUser.getUsername(), clientIp);
     }

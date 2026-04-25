@@ -72,6 +72,7 @@ public class SystemServiceImpl implements SystemService {
                 records = (List<SystemRecordVo>) cached;
                 log.info("system dict cache hit, cacheKey={}, size={}", cacheKey, records.size());
             } else {
+                // 字典缓存保存全量旧版字典记录，后续关键字和状态筛选都在内存执行。
                 List<SystemRecordEntity> entities = systemMapper.findPage(request.getModuleKey(), null, null, null, 0, Integer.MAX_VALUE);
                 records = toVoList(entities);
                 redisCacheService.set(cacheKey, records, DICT_CACHE_TTL_SECONDS);
@@ -116,6 +117,7 @@ public class SystemServiceImpl implements SystemService {
                 throw new BusinessException(4042, "系统记录不存在");
             }
             if (!request.getModuleKey().equals(existed.getModuleKey())) {
+                // recordCode 是跨模块唯一展示 ID，编辑时仍要校验模块，防止前端串模块提交。
                 throw new BusinessException(4009, "模块类型不匹配");
             }
             if (duplicated != null && !duplicated.getRecordCode().equals(existed.getRecordCode())) {
@@ -143,6 +145,7 @@ public class SystemServiceImpl implements SystemService {
         SystemRecordEntity entity = new SystemRecordEntity();
         entity.setRecordCode(nextRecordCode(request.getModuleKey()));
         entity.setModuleKey(request.getModuleKey());
+        // 新增路径先写公共字段，再按模块补充用户/角色/字典差异字段。
         applyCommonFields(entity, request);
         applyModuleFields(entity, request);
         insertWritable(entity);
@@ -172,6 +175,7 @@ public class SystemServiceImpl implements SystemService {
             // 日志是审计事实记录，不允许通过系统管理页切状态。
             throw new BusinessException(4011, "日志模块不支持状态变更");
         }
+        // 状态更新按模块路由到真实表，避免通用 DTO 直接修改错误表。
         updateWritableStatus(existed, request.getStatus());
         if ("dicts".equals(existed.getModuleKey())) {
             long version = nextVersion(DICT_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
@@ -214,6 +218,7 @@ public class SystemServiceImpl implements SystemService {
                 throw new BusinessException(4014, "父级菜单不能选择自身");
             }
             existed.setParentId(parentId);
+            // routeCode 从 routePath 自动推导，避免前端同时维护两个容易不一致的字段。
             applyMenuFields(existed, request);
             existed.setRouteCode(resolveRouteCode(request.getRoutePath()));
             systemMapper.updateMenu(existed);
@@ -228,6 +233,7 @@ public class SystemServiceImpl implements SystemService {
         SystemMenuEntity entity = new SystemMenuEntity();
         entity.setRecordCode(nextRecordCode("menus"));
         entity.setParentId(parentId);
+        // 新增菜单默认写入平台技术部 owner，与系统内置菜单数据保持一致。
         applyMenuFields(entity, request);
         entity.setRouteCode(resolveRouteCode(request.getRoutePath()));
         systemMapper.insertMenu(entity);
@@ -277,6 +283,7 @@ public class SystemServiceImpl implements SystemService {
         if (cached instanceof Number) {
             return ((Number) cached).longValue();
         }
+        // 初始化版本号设置较长 TTL，避免短期缓存自然过期后版本号频繁回到 1。
         redisCacheService.set(versionKey, 1L, ttlSeconds * 24);
         return 1L;
     }
@@ -304,6 +311,7 @@ public class SystemServiceImpl implements SystemService {
             }
             if (StringUtils.hasText(keyword)) {
                 String normalizedKeyword = keyword.trim().toLowerCase();
+                // 旧版字典列表支持按名称、编码、负责人和描述模糊搜索，保持与数据库查询体验一致。
                 if (!containsText(record.getName(), normalizedKeyword)
                         && !containsText(record.getCode(), normalizedKeyword)
                         && !containsText(record.getOwner(), normalizedKeyword)
@@ -410,6 +418,7 @@ public class SystemServiceImpl implements SystemService {
             return;
         }
         if ("roles".equals(entity.getModuleKey())) {
+            // 角色记录落到 sys_role，用户数由列表查询实时聚合，不在写入时维护。
             systemMapper.insertRole(entity);
             return;
         }
@@ -478,6 +487,7 @@ public class SystemServiceImpl implements SystemService {
             return;
         }
         if ("roles".equals(request.getModuleKey())) {
+            // extraValue 在角色模块中表示数据权限范围，例如 all、department、self。
             entity.setDataScope(defaultText(request.getExtraValue()));
             if (entity.getUserCount() == null) {
                 entity.setUserCount(0L);
@@ -485,6 +495,7 @@ public class SystemServiceImpl implements SystemService {
             return;
         }
         if ("dicts".equals(request.getModuleKey())) {
+            // extraValue 在旧版字典模块中表示 dictType，code 仍作为展示编码。
             entity.setDictType(defaultText(request.getExtraValue()));
             if (entity.getItemCount() == null) {
                 entity.setItemCount(0L);
@@ -511,6 +522,7 @@ public class SystemServiceImpl implements SystemService {
         } else if ("menus".equals(moduleKey)) {
             prefix = "M";
         }
+        // recordCode 用毫秒时间生成，满足后台管理展示和跨表统一查询，不作为强业务单号。
         return prefix + System.currentTimeMillis();
     }
 
@@ -583,6 +595,7 @@ public class SystemServiceImpl implements SystemService {
                 roots.add(menu);
                 continue;
             }
+            // 追加 children 时保留 mapper 查询顺序，前端渲染时不需要重新排序。
             parent.getChildren().add(menu);
         }
         return roots;
@@ -684,6 +697,7 @@ public class SystemServiceImpl implements SystemService {
                 throw new BusinessException(4043, "角色不存在：" + roleCode);
             }
             if (!roleIds.contains(roleId)) {
+                // 角色关系去重后写入，避免唯一索引或重复菜单聚合出现异常。
                 roleIds.add(roleId);
             }
         }
@@ -695,6 +709,8 @@ public class SystemServiceImpl implements SystemService {
             systemMapper.insertUserRole(userId, roleId);
         }
         // 用户角色变化会影响 bootstrap 中的菜单/路由/按钮，必须刷新版本。
-        nextVersion(BOOTSTRAP_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
+        long version = nextVersion(BOOTSTRAP_VERSION_KEY, DICT_CACHE_TTL_SECONDS);
+        log.info("user role relation rebuilt, userId={}, roleSize={}, bootstrapCacheVersion={}",
+                userId, roleIds.size(), version);
     }
 }

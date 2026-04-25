@@ -39,6 +39,7 @@ public class PointFreezeCompensationJob implements Job {
         }
         try {
             log.info("point freeze compensation job started, fireTime={}", context.getFireTime());
+            // 批量大小由配置控制，防止一次补偿处理过多冻结单影响正常交易。
             int processed = pointCompensationService.cancelExpiredFreezes();
             log.info("point freeze compensation job finished, processed={}, nextFireTime={}",
                     processed, context.getNextFireTime());

@@ -31,6 +31,10 @@ import java.util.List;
 public class NoticeServiceImpl extends BaseService implements NoticeService {
 
     private static final Logger log = LoggerFactory.getLogger(NoticeServiceImpl.class);
+    private static final int DEFAULT_PAGE_NO = 1;
+    private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int DEFAULT_SORT_ORDER = 0;
+    private static final String EMPTY_TEXT = "";
 
     private final NoticeMapper noticeMapper;
 
@@ -43,9 +47,10 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
      */
     @Override
     public PageResponse<NoticeVo> getPage(NoticeListRequest request) {
-        int pageNo = request.getPageNo() == null ? 1 : request.getPageNo();
-        int pageSize = request.getPageSize() == null ? 10 : request.getPageSize();
-        int offset = (pageNo - 1) * pageSize;
+        int pageNo = request.getPageNo() == null ? DEFAULT_PAGE_NO : request.getPageNo();
+        int pageSize = request.getPageSize() == null ? DEFAULT_PAGE_SIZE : request.getPageSize();
+        // offset 使用规范化后的分页参数，避免 mapper 接收 null 或前端默认值漂移。
+        int offset = (pageNo - DEFAULT_PAGE_NO) * pageSize;
         List<NoticeEntity> entities = noticeMapper.findPage(request.getKeyword(), request.getStatus(), request.getNoticeType(), offset, pageSize);
         long total = noticeMapper.countPage(request.getKeyword(), request.getStatus(), request.getNoticeType());
         log.info("notice page loaded, pageNo={}, pageSize={}, total={}", pageNo, pageSize, total);
@@ -118,7 +123,7 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         entity.setExpireTime(request.getExpireTime());
         entity.setStatus(request.getStatus());
         // sortOrder 空值按 0 处理，SQL 可直接按数值排序，不需要额外处理 null。
-        entity.setSortOrder(request.getSortOrder() == null ? 0 : request.getSortOrder());
+        entity.setSortOrder(request.getSortOrder() == null ? DEFAULT_SORT_ORDER : request.getSortOrder());
     }
 
     private NoticeEntity load(Long id) {
@@ -152,7 +157,7 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         vo.setContent(entity.getContent());
         vo.setNoticeType(entity.getNoticeType());
         vo.setPriority(entity.getPriority());
-        vo.setPublisherId(entity.getPublisherId() == null ? "" : String.valueOf(entity.getPublisherId()));
+        vo.setPublisherId(entity.getPublisherId() == null ? EMPTY_TEXT : String.valueOf(entity.getPublisherId()));
         vo.setPublisherName(entity.getPublisherName());
         vo.setPublishTime(entity.getPublishTime());
         vo.setExpireTime(entity.getExpireTime());

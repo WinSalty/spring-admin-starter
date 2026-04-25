@@ -52,6 +52,7 @@ public class PermissionServiceImpl implements PermissionService {
             // token 中的 roleCode 只作为快速载荷，最终以数据库当前角色为准，支持角色调整后立即生效。
             roleCode = actualRoleCode;
         }
+        // 菜单、路由、按钮分开读取，前端分别用于侧边栏、路由守卫和按钮级权限判断。
         List<MenuEntity> menus = permissionMapper.findMenusByRoleCode(roleCode);
         List<String> routes = permissionMapper.findRouteCodesByRoleCode(roleCode);
         List<RoleActionEntity> actions = permissionMapper.findActionsByRoleCode(roleCode);
@@ -79,6 +80,7 @@ public class PermissionServiceImpl implements PermissionService {
         Set<String> routeSet = new LinkedHashSet<String>(routes);
         Set<String> actionSet = new LinkedHashSet<String>();
         for (RoleActionEntity action : actions) {
+            // 先收集角色本身的按钮权限，避免权益权限重复追加。
             actionSet.add(action.getActionCode());
         }
         for (String benefitCode : benefitCodes) {
@@ -86,6 +88,7 @@ public class PermissionServiceImpl implements PermissionService {
                 continue;
             }
             if (benefitCode.contains(":")) {
+                // 约定带冒号的是按钮/动作权限，例如 query:add；不带冒号的是路由权限。
                 if (actionSet.add(benefitCode)) {
                     RoleActionEntity action = new RoleActionEntity();
                     action.setActionCode(benefitCode);
@@ -98,6 +101,8 @@ public class PermissionServiceImpl implements PermissionService {
                 routes.add(benefitCode);
             }
         }
+        log.info("user benefit permissions merged, userId={}, benefitSize={}, routeSize={}, actionSize={}",
+                userId, benefitCodes.size(), routes.size(), actions.size());
     }
 
     /**
@@ -155,6 +160,7 @@ public class PermissionServiceImpl implements PermissionService {
             permissionMapper.insertRoleRoute(roleId, routeCode);
         }
         for (String actionCode : distinctNonBlank(request.getActionCodes())) {
+            // action 表保留 actionName，便于管理端不依赖前端字典也能展示按钮权限名称。
             permissionMapper.insertRoleAction(roleId, actionCode, resolveActionName(actionCode));
         }
         log.info("permission assignment saved, roleCode={}, menuSize={}, routeSize={}, actionSize={}",
@@ -214,6 +220,7 @@ public class PermissionServiceImpl implements PermissionService {
     private List<PermissionActionVo> buildActions(List<RoleActionEntity> actions) {
         List<PermissionActionVo> result = new ArrayList<PermissionActionVo>();
         for (RoleActionEntity action : actions) {
+            // VO 只暴露权限码和展示名，不把角色关联表 ID 泄露给前端。
             result.add(new PermissionActionVo(action.getActionCode(), action.getActionName()));
         }
         return result;
@@ -256,6 +263,7 @@ public class PermissionServiceImpl implements PermissionService {
                 roots.add(menu);
                 continue;
             }
+            // 保持数据库 ORDER BY 结果顺序追加 children，前端无需再次按 orderNo 排序。
             parent.getChildren().add(menu);
         }
         return roots;

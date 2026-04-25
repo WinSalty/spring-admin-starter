@@ -1,5 +1,6 @@
 package com.winsalty.quickstart.department.service.impl;
 
+import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.department.dto.DepartmentSaveRequest;
 import com.winsalty.quickstart.department.dto.DepartmentStatusRequest;
@@ -28,6 +29,8 @@ import java.util.Map;
 public class DepartmentServiceImpl implements DepartmentService {
 
     private static final Logger log = LoggerFactory.getLogger(DepartmentServiceImpl.class);
+    private static final int DEFAULT_SORT_ORDER = 0;
+    private static final String EMPTY_TEXT = "";
 
     private final DepartmentMapper departmentMapper;
 
@@ -57,7 +60,7 @@ public class DepartmentServiceImpl implements DepartmentService {
         DepartmentEntity entity = StringUtils.hasText(request.getId()) ? load(parseId(request.getId())) : new DepartmentEntity();
         if (duplicated != null && (entity.getId() == null || !duplicated.getId().equals(entity.getId()))) {
             // 部门编码用于系统管理页和用户归属查询，必须全局唯一。
-            throw new BusinessException(4047, "部门编码已存在");
+            throw new BusinessException(ErrorCode.DEPARTMENT_CODE_ALREADY_EXISTS);
         }
         applyFields(entity, request, parentId);
         if (entity.getId() == null) {
@@ -92,11 +95,11 @@ public class DepartmentServiceImpl implements DepartmentService {
         }
         DepartmentEntity parent = departmentMapper.findById(parentId);
         if (parent == null) {
-            throw new BusinessException(4046, "父级部门不存在");
+            throw new BusinessException(ErrorCode.DEPARTMENT_PARENT_NOT_FOUND);
         }
         if (StringUtils.hasText(currentId) && parentId.equals(parseId(currentId))) {
             // 当前只拦截直接自引用，避免最常见的树结构错误。
-            throw new BusinessException(4048, "父级部门不能选择自身");
+            throw new BusinessException(ErrorCode.DEPARTMENT_PARENT_SELF);
         }
     }
 
@@ -107,7 +110,8 @@ public class DepartmentServiceImpl implements DepartmentService {
         entity.setName(request.getName());
         entity.setCode(request.getCode());
         entity.setParentId(parentId);
-        entity.setSortOrder(request.getSortOrder() == null ? 0 : request.getSortOrder());
+        // 排序为空时按 0 处理，树构建和 SQL 排序都不需要额外处理 null。
+        entity.setSortOrder(request.getSortOrder() == null ? DEFAULT_SORT_ORDER : request.getSortOrder());
         entity.setLeader(defaultText(request.getLeader()));
         entity.setPhone(defaultText(request.getPhone()));
         entity.setEmail(defaultText(request.getEmail()));
@@ -143,7 +147,7 @@ public class DepartmentServiceImpl implements DepartmentService {
     private DepartmentEntity load(Long id) {
         DepartmentEntity entity = departmentMapper.findById(id);
         if (entity == null) {
-            throw new BusinessException(4045, "部门不存在");
+            throw new BusinessException(ErrorCode.DEPARTMENT_NOT_FOUND);
         }
         return entity;
     }
@@ -152,7 +156,7 @@ public class DepartmentServiceImpl implements DepartmentService {
         try {
             return Long.valueOf(id);
         } catch (Exception exception) {
-            throw new BusinessException(4001, "id 不合法");
+            throw new BusinessException(ErrorCode.INVALID_ID);
         }
     }
 
@@ -168,7 +172,7 @@ public class DepartmentServiceImpl implements DepartmentService {
         vo.setId(String.valueOf(entity.getId()));
         vo.setName(entity.getName());
         vo.setCode(entity.getCode());
-        vo.setParentId(entity.getParentId() == null ? "" : String.valueOf(entity.getParentId()));
+        vo.setParentId(entity.getParentId() == null ? EMPTY_TEXT : String.valueOf(entity.getParentId()));
         vo.setSortOrder(entity.getSortOrder());
         vo.setLeader(entity.getLeader());
         vo.setPhone(entity.getPhone());
@@ -180,6 +184,6 @@ public class DepartmentServiceImpl implements DepartmentService {
     }
 
     private String defaultText(String value) {
-        return StringUtils.hasText(value) ? value.trim() : "";
+        return StringUtils.hasText(value) ? value.trim() : EMPTY_TEXT;
     }
 }

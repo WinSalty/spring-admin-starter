@@ -42,9 +42,11 @@ public class PointBenefitGrantServiceImpl implements BenefitGrantService {
      */
     @Override
     public BenefitGrantResult grant(BenefitGrantCommand command) {
+        // 当前实现只承接 CDK 积分权益，其他权益类型应由独立适配器处理，避免混入不同发放语义。
         if (!CdkConstants.BENEFIT_TYPE_POINTS.equals(command.getBenefitType())) {
             throw new BusinessException(ErrorCode.CDK_BENEFIT_UNSUPPORTED);
         }
+        // benefitConfig 是权益发放合同，积分数量必须从配置解析，不能依赖前端请求值。
         JSONObject config = JSON.parseObject(command.getBenefitConfig());
         long points = config.getLongValue(CONFIG_POINTS);
         if (points <= 0L) {
@@ -59,9 +61,11 @@ public class PointBenefitGrantServiceImpl implements BenefitGrantService {
         changeCommand.setOperatorType(command.getOperatorType());
         changeCommand.setOperatorId(command.getOperatorId());
         changeCommand.setRemark(command.getRemark());
+        // 账务服务按 idempotencyKey 保证重复发放请求只入账一次。
         pointAccountService.credit(changeCommand);
         PointAccountVo account = pointAccountService.getOrCreateAccount(command.getUserId());
         JSONObject snapshot = new JSONObject();
+        // 快照记录发放后的账户余额，便于回查 CDK 兑换结果而不需要重放流水。
         snapshot.put(SNAPSHOT_GRANTED_POINTS, points);
         snapshot.put(SNAPSHOT_AVAILABLE_POINTS, account.getAvailablePoints());
         snapshot.put(SNAPSHOT_FROZEN_POINTS, account.getFrozenPoints());

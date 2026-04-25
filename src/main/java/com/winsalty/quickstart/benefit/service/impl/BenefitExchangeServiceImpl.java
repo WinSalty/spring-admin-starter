@@ -87,6 +87,7 @@ public class BenefitExchangeServiceImpl extends BaseService implements BenefitEx
     @Override
     public PageResponse<BenefitProductVo> listAvailableProducts(BenefitProductListRequest request) {
         BenefitProductListRequest normalized = request == null ? new BenefitProductListRequest() : request;
+        // 前台可兑换列表只允许展示 active 商品，避免客户端传入状态绕过上架控制。
         normalized.setStatus(BenefitConstants.PRODUCT_STATUS_ACTIVE);
         PageResponse<BenefitProductVo> page = listProductPage(normalized);
         log.info("available benefit products loaded, total={}", page.getTotal());
@@ -97,17 +98,20 @@ public class BenefitExchangeServiceImpl extends BaseService implements BenefitEx
     @Transactional(rollbackFor = Exception.class)
     public BenefitExchangeOrderVo exchange(Long productId, Long userId, BenefitExchangeRequest request) {
         validateExchangeRequest(request);
+        // 先按业务幂等键查询兑换单，客户端重试时直接返回原订单，避免重复冻结积分。
         BenefitExchangeOrderEntity existed = benefitExchangeOrderMapper.findByUserIdAndIdempotencyKey(userId, request.getIdempotencyKey());
         if (existed != null) {
             log.info("benefit exchange idempotency hit, userId={}, orderNo={}", userId, existed.getOrderNo());
             return toOrderVo(existed);
         }
+        // 商品行加锁后再扣减库存，保证库存校验、冻结积分和订单落库位于同一串行化窗口。
         BenefitProductEntity product = benefitProductMapper.findByIdForUpdate(productId);
         validateProduct(product);
         if (benefitProductMapper.incrementStockUsed(productId) == 0) {
             throw new BusinessException(ErrorCode.BENEFIT_PRODUCT_STOCK_NOT_ENOUGH);
         }
         String orderNo = createNo(ORDER_NO_PREFIX);
+        // 冻结、确认、取消分别使用不同幂等键，补偿重试时不会互相误判为同一笔账务动作。
         String freezeIdempotencyKey = FREEZE_IDEMPOTENCY_PREFIX + orderNo;
         PointChangeCommand freezeCommand = pointCommand(userId, product.getCostPoints(), orderNo, freezeIdempotencyKey);
         pointAccountService.freeze(freezeCommand);
@@ -115,14 +119,18 @@ public class BenefitExchangeServiceImpl extends BaseService implements BenefitEx
         BenefitExchangeOrderEntity order = buildOrder(orderNo, userId, product, freezeOrder.getFreezeNo(), request.getIdempotencyKey());
         benefitExchangeOrderMapper.insert(order);
         try {
+            // 权益先写入用户资产，再确认冻结积分扣减；任一环节异常都会进入取消冻结补偿。
             grantUserBenefit(userId, product, orderNo);
             PointChangeCommand confirmCommand = pointCommand(userId, product.getCostPoints(), orderNo, CONFIRM_IDEMPOTENCY_PREFIX + orderNo);
             pointAccountService.confirmFreeze(freezeOrder.getFreezeNo(), confirmCommand);
             benefitExchangeOrderMapper.updateStatus(orderNo, BenefitConstants.ORDER_STATUS_SUCCESS, EMPTY_FAILURE_MESSAGE);
+            // 成功事件写入 outbox，由异步任务投递后续通知或审计集成，避免主流程直接依赖外部系统。
             transactionOutboxService.createEvent(OUTBOX_AGGREGATE_TYPE, orderNo, OUTBOX_EVENT_SUCCESS, buildOutboxPayload(userId, product, orderNo));
             log.info("benefit exchanged, userId={}, productNo={}, orderNo={}, costPoints={}",
                     userId, product.getProductNo(), orderNo, product.getCostPoints());
         } catch (RuntimeException exception) {
+            log.info("benefit exchange failed, cancel frozen points, userId={}, orderNo={}, freezeNo={}",
+                    userId, orderNo, freezeOrder.getFreezeNo());
             PointChangeCommand cancelCommand = pointCommand(userId, product.getCostPoints(), orderNo, CANCEL_IDEMPOTENCY_PREFIX + orderNo);
             pointAccountService.cancelFreeze(freezeOrder.getFreezeNo(), cancelCommand);
             benefitExchangeOrderMapper.updateStatus(orderNo, BenefitConstants.ORDER_STATUS_FAILED, exception.getMessage());
@@ -214,6 +222,7 @@ public class BenefitExchangeServiceImpl extends BaseService implements BenefitEx
 
     private BenefitProductEntity buildProduct(BenefitProductEntity entity, BenefitProductSaveRequest request) {
         validateBenefitType(request.getBenefitType());
+        // 未显式传状态时默认上架，管理端保存逻辑仍统一走白名单校验。
         validateProductStatus(StringUtils.hasText(request.getStatus()) ? request.getStatus() : BenefitConstants.PRODUCT_STATUS_ACTIVE);
         if (request.getStockTotal() == null || request.getStockTotal() < BenefitConstants.UNLIMITED_STOCK) {
             throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "库存不能小于 -1");
@@ -222,6 +231,7 @@ public class BenefitExchangeServiceImpl extends BaseService implements BenefitEx
         entity.setBenefitType(request.getBenefitType());
         entity.setBenefitCode(request.getBenefitCode());
         entity.setBenefitName(request.getBenefitName());
+        // 权益配置允许为空但落库保持 JSON 对象格式，便于发放端统一解析。
         entity.setBenefitConfig(StringUtils.hasText(request.getBenefitConfig()) ? request.getBenefitConfig() : EMPTY_JSON);
         entity.setCostPoints(request.getCostPoints());
         entity.setStockTotal(request.getStockTotal());
@@ -260,6 +270,7 @@ public class BenefitExchangeServiceImpl extends BaseService implements BenefitEx
         entity.setSourceType(BenefitConstants.SOURCE_TYPE_POINT_EXCHANGE);
         entity.setSourceNo(orderNo);
         entity.setStatus(BenefitConstants.USER_BENEFIT_STATUS_ACTIVE);
+        // 生效时间使用服务端当前时间，过期时间沿用商品有效期，避免客户端影响权益窗口。
         entity.setEffectiveAt(LocalDateTime.now().format(DATE_TIME_FORMATTER));
         entity.setExpireAt(product.getValidTo());
         entity.setConfigSnapshot(product.getBenefitConfig());
@@ -302,6 +313,7 @@ public class BenefitExchangeServiceImpl extends BaseService implements BenefitEx
             throw new BusinessException(ErrorCode.BENEFIT_PRODUCT_UNAVAILABLE);
         }
         LocalDateTime now = LocalDateTime.now();
+        // 有效期判断使用服务端时间，防止客户端时间差导致提前兑换或过期兑换。
         LocalDateTime validFrom = LocalDateTime.parse(product.getValidFrom(), DATE_TIME_FORMATTER);
         LocalDateTime validTo = LocalDateTime.parse(product.getValidTo(), DATE_TIME_FORMATTER);
         if (now.isBefore(validFrom) || now.isAfter(validTo)) {

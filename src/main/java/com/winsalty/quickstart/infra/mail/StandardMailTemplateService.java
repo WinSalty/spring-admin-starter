@@ -52,6 +52,7 @@ public class StandardMailTemplateService implements MailTemplateService {
 
     private String buildTextContent(StandardMailTemplate template) {
         StringBuilder builder = new StringBuilder();
+        // 纯文本版本与 HTML 内容同步生成，确保安全网关或旧邮箱客户端仍可读取核心信息。
         appendLine(builder, resolveText(template.getTitle(), resolveBrandName()));
         appendBlankLine(builder);
         appendLine(builder, resolveText(template.getGreeting(), DEFAULT_GREETING));
@@ -84,6 +85,7 @@ public class StandardMailTemplateService implements MailTemplateService {
 
     private String buildHtmlContent(StandardMailTemplate template) {
         String brandName = escapeHtml(resolveBrandName());
+        // 模板颜色只接受十六进制值，防止配置注入任意 CSS。
         String primaryColor = resolveCssColor(mailProperties.getTemplate().getPrimaryColor(), DEFAULT_PRIMARY_COLOR);
         String backgroundColor = resolveCssColor(mailProperties.getTemplate().getBackgroundColor(), DEFAULT_BACKGROUND_COLOR);
         String cardBackgroundColor = resolveCssColor(mailProperties.getTemplate().getCardBackgroundColor(), DEFAULT_CARD_BACKGROUND_COLOR);
@@ -167,6 +169,7 @@ public class StandardMailTemplateService implements MailTemplateService {
         }
         String actionUrl = StringUtils.hasText(template.getActionText()) ? resolveSafeActionUrl(template.getActionUrl()) : null;
         if (StringUtils.hasText(template.getActionText()) && StringUtils.hasText(actionUrl)) {
+            // 按钮链接和兜底链接使用同一个安全 URL，避免两处跳转目标不一致。
             builder.append("<div style=\"margin:26px 0 12px;text-align:center;\">")
                     .append("<a href=\"").append(escapeHtmlAttribute(actionUrl))
                     .append("\" style=\"display:inline-block;padding:13px 24px;border-radius:10px;")
@@ -242,6 +245,7 @@ public class StandardMailTemplateService implements MailTemplateService {
         try {
             URI uri = new URI(trimmed);
             String scheme = uri.getScheme();
+            // 邮件动作链接只允许 HTTP/HTTPS，禁止 javascript、file 等高风险协议。
             if (!HTTP_SCHEME.equalsIgnoreCase(scheme) && !HTTPS_SCHEME.equalsIgnoreCase(scheme)) {
                 throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "邮件跳转链接协议不支持");
             }

@@ -111,13 +111,16 @@ public class EmailVerificationCodeServiceImpl implements EmailVerificationCodeSe
         long ttlSeconds = resolveTtlSeconds();
         String code = generateCode(resolveCodeLength());
         String pendingKey = buildPendingKey(scene, email);
+        // Redis 只保存 HMAC 摘要，验证码明文只存在于本次邮件内容中，降低缓存泄露风险。
         redisCacheService.set(pendingKey, hashCode(scene, email, code), ttlSeconds);
+        // 重新发送验证码时清理失败次数和已验证状态，避免旧状态影响新一轮验证。
         redisCacheService.delete(buildFailKey(scene, email));
         redisCacheService.delete(buildVerifiedKey(scene, email));
         try {
             MailTemplateContent content = mailTemplateService.renderStandard(buildTemplate(request, code, ttlSeconds));
             mailService.sendHtml(email, resolveSubject(request), content.getTextContent(), content.getHtmlContent());
         } catch (RuntimeException exception) {
+            // 邮件未成功入队时同步删除验证码，避免用户收到失败提示但缓存中仍有可用验证码。
             redisCacheService.delete(pendingKey);
             throw exception;
         }
@@ -132,6 +135,7 @@ public class EmailVerificationCodeServiceImpl implements EmailVerificationCodeSe
         VerificationContext context = validatePendingCode(request);
         redisCacheService.set(buildVerifiedKey(context.getScene(), context.getEmail()),
                 VERIFIED_CACHE_VALUE, resolveVerifiedTtlSeconds());
+        // 验证通过后删除 pending code，后续业务动作只能消费 verified 状态，验证码本身不可重复使用。
         redisCacheService.delete(context.getPendingKey());
         redisCacheService.delete(context.getFailKey());
         log.info("email verification code verified, scene={}, email={}",
@@ -163,6 +167,7 @@ public class EmailVerificationCodeServiceImpl implements EmailVerificationCodeSe
         if (!VERIFIED_CACHE_VALUE.equals(cached)) {
             throw new BusinessException(ErrorCode.EMAIL_VERIFY_CODE_INVALID, "邮箱验证码未验证或已过期");
         }
+        // verified 状态一次性消费，防止同一验证码验证结果被多个业务请求复用。
         redisCacheService.delete(verifiedKey);
         log.info("email verification status consumed, scene={}, email={}",
                 normalizedScene, maskEmail(normalizedEmail));
@@ -179,6 +184,7 @@ public class EmailVerificationCodeServiceImpl implements EmailVerificationCodeSe
             throw new BusinessException(ErrorCode.EMAIL_VERIFY_CODE_INVALID, "邮箱验证码不存在或已过期");
         }
         String actualHash = hashCode(scene, email, code);
+        // 使用常量时间比较，避免通过响应耗时推测验证码摘要前缀。
         if (!constantTimeEquals(String.valueOf(cached), actualHash)) {
             recordVerifyFailure(scene, email, pendingKey, failKey);
             throw new BusinessException(ErrorCode.EMAIL_VERIFY_CODE_INVALID, "邮箱验证码无效");
@@ -189,9 +195,11 @@ public class EmailVerificationCodeServiceImpl implements EmailVerificationCodeSe
     private void recordVerifyFailure(String scene, String email, String pendingKey, String failKey) {
         Long current = redisCacheService.increment(failKey);
         if (current != null && current == FIRST_FAILURE_COUNT) {
+            // 失败次数与验证码同生命周期，验证码过期后失败计数自动失效。
             redisCacheService.expire(failKey, resolveTtlSeconds());
         }
         if (current != null && current >= resolveFailLimit()) {
+            // 连续错误达到阈值后立即删除验证码，缩小暴力枚举窗口。
             redisCacheService.delete(pendingKey);
             redisCacheService.delete(failKey);
             log.info("email verification code invalidated after repeated failures, scene={}, email={}, failCount={}",
@@ -264,6 +272,7 @@ public class EmailVerificationCodeServiceImpl implements EmailVerificationCodeSe
             SecretKeySpec keySpec = new SecretKeySpec(hashSecret.getBytes(StandardCharsets.UTF_8),
                     HMAC_SHA256_ALGORITHM);
             mac.init(keySpec);
+            // 摘要绑定 scene 和 email，避免不同业务场景或邮箱之间复用同一验证码。
             byte[] digest = mac.doFinal((scene + DIGEST_SEPARATOR + email + DIGEST_SEPARATOR + code)
                     .getBytes(StandardCharsets.UTF_8));
             return Base64.getEncoder().encodeToString(digest);
@@ -279,6 +288,7 @@ public class EmailVerificationCodeServiceImpl implements EmailVerificationCodeSe
     }
 
     private String buildPendingKey(String scene, String email) {
+        // Redis key 使用邮箱指纹而非明文邮箱，避免运维侧直接暴露用户地址。
         return PENDING_KEY_PREFIX + scene + DIGEST_SEPARATOR + fingerprint(email);
     }
 

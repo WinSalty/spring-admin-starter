@@ -75,8 +75,10 @@ public class OnlineRechargeServiceImpl implements OnlineRechargeService {
     @Transactional(rollbackFor = Exception.class)
     public OnlineRechargeVo createOrder(Long userId, OnlineRechargeCreateRequest request) {
         validateAmount(request.getAmount());
+        // 用户侧创建订单先查幂等键，页面重试或网络重发时复用原充值单。
         PointRechargeOrderEntity existed = pointRechargeOrderMapper.findByUserIdAndIdempotencyKey(userId, request.getIdempotencyKey());
         if (existed != null) {
+            log.info("online recharge create idempotency hit, userId={}, rechargeNo={}", userId, existed.getRechargeNo());
             return toVo(existed);
         }
         PointRechargeOrderEntity entity = new PointRechargeOrderEntity();
@@ -92,8 +94,10 @@ public class OnlineRechargeServiceImpl implements OnlineRechargeService {
         try {
             pointRechargeOrderMapper.insert(entity);
         } catch (DuplicateKeyException exception) {
+            // 并发请求可能同时通过前置查询，唯一索引冲突后再查一次保证幂等返回。
             PointRechargeOrderEntity retryExisted = pointRechargeOrderMapper.findByUserIdAndIdempotencyKey(userId, request.getIdempotencyKey());
             if (retryExisted != null) {
+                log.info("online recharge create duplicate recovered, userId={}, rechargeNo={}", userId, retryExisted.getRechargeNo());
                 return toVo(retryExisted);
             }
             throw exception;
@@ -106,11 +110,13 @@ public class OnlineRechargeServiceImpl implements OnlineRechargeService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public OnlineRechargeVo handleCallback(OnlineRechargeCallbackRequest request) {
+        // 回调先验签再加锁查单，拒绝伪造请求占用订单行锁。
         verifyCallback(request);
         PointRechargeOrderEntity order = pointRechargeOrderMapper.findByRechargeNoForUpdate(request.getRechargeNo());
         if (order == null || !PointsConstants.CHANNEL_ONLINE_PAY.equals(order.getChannel())) {
             throw new BusinessException(ErrorCode.TRADE_RECHARGE_ORDER_NOT_FOUND);
         }
+        // 金额必须与本地订单一致，防止渠道回调串单或参数被篡改。
         if (!order.getAmount().equals(request.getAmount())) {
             throw new BusinessException(ErrorCode.POINT_AMOUNT_INVALID);
         }
@@ -124,6 +130,7 @@ public class OnlineRechargeServiceImpl implements OnlineRechargeService {
         }
         String nextStatus = normalizeCallbackStatus(request.getStatus());
         String resultSnapshot = buildCallbackSnapshot(request);
+        // 状态更新限定原状态，避免两个回调并发时把终态订单再次改写。
         int updated = pointRechargeOrderMapper.updateCallbackResult(order.getRechargeNo(), nextStatus, request.getExternalNo(), resultSnapshot,
                 PointsConstants.ORDER_STATUS_CREATED, PointsConstants.ORDER_STATUS_PROCESSING);
         if (updated == 0) {
@@ -139,6 +146,7 @@ public class OnlineRechargeServiceImpl implements OnlineRechargeService {
             command.setOperatorType(PointsConstants.OPERATOR_TYPE_SYSTEM);
             command.setOperatorId(SYSTEM_OPERATOR_ID);
             command.setRemark("在线充值入账");
+            // 积分入账幂等键绑定充值单号，渠道重复成功回调不会重复加积分。
             pointAccountService.credit(command);
         }
         log.info("online recharge callback handled, rechargeNo={}, externalNo={}, status={}",
@@ -165,6 +173,7 @@ public class OnlineRechargeServiceImpl implements OnlineRechargeService {
         validateCallbackSecret();
         long now = System.currentTimeMillis();
         long skewMillis = tradeProperties.getCallbackSkewSeconds() * MILLIS_PER_SECOND;
+        // 时间戳偏移限制用于降低旧回调报文被重放的窗口。
         if (Math.abs(now - request.getTimestamp()) > skewMillis) {
             throw new BusinessException(ErrorCode.TRADE_CALLBACK_SIGNATURE_INVALID);
         }
@@ -209,6 +218,7 @@ public class OnlineRechargeServiceImpl implements OnlineRechargeService {
     }
 
     private String buildSignSource(OnlineRechargeCallbackRequest request) {
+        // 签名原文保持固定字段顺序，必须与支付渠道侧验签约定一致。
         return "amount" + SIGNATURE_EQUALS + request.getAmount()
                 + SIGNATURE_SEPARATOR + "externalNo" + SIGNATURE_EQUALS + request.getExternalNo()
                 + SIGNATURE_SEPARATOR + "nonce" + SIGNATURE_EQUALS + request.getNonce()

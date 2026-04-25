@@ -113,6 +113,7 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
     @Transactional(rollbackFor = Exception.class)
     public PointLedgerVo credit(PointChangeCommand command) {
         validateCommand(command);
+        // 入账只增加可用余额和累计获得，冻结余额不变。
         PointLedgerEntity ledger = applyChange(command, PointsConstants.DIRECTION_EARN,
                 command.getAmount(), 0L, command.getAmount(), 0L);
         log.info("points credited, userId={}, amount={}, bizType={}, bizNo={}",
@@ -124,6 +125,7 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
     @Transactional(rollbackFor = Exception.class)
     public PointLedgerVo debit(PointChangeCommand command) {
         validateCommand(command);
+        // 直接扣减只减少可用余额，适用于无需冻结确认的消费场景。
         PointLedgerEntity ledger = applyChange(command, PointsConstants.DIRECTION_SPEND,
                 -command.getAmount(), 0L, 0L, command.getAmount());
         log.info("points debited, userId={}, amount={}, bizType={}, bizNo={}",
@@ -135,6 +137,7 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
     @Transactional(rollbackFor = Exception.class)
     public PointLedgerVo freeze(PointChangeCommand command) {
         validateCommand(command);
+        // 冻结阶段只把可用积分转入冻结积分，不计入累计消费，等确认冻结时再记消费。
         PointLedgerEntity ledger = applyChange(command, PointsConstants.DIRECTION_FREEZE,
                 -command.getAmount(), command.getAmount(), 0L, 0L);
         PointFreezeOrderEntity order = new PointFreezeOrderEntity();
@@ -156,12 +159,14 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
     public PointLedgerVo confirmFreeze(String freezeNo, PointChangeCommand command) {
         PointFreezeOrderEntity order = loadFreezeOrder(freezeNo);
         if (PointsConstants.FREEZE_STATUS_CONFIRMED.equals(order.getStatus())) {
+            // 确认冻结重复调用按幂等键返回原流水，保证权益发放回调可安全重试。
             return toLedgerVo(pointLedgerMapper.findByUserIdAndIdempotencyKey(order.getUserId(), command.getIdempotencyKey()));
         }
         if (!PointsConstants.FREEZE_STATUS_FROZEN.equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.POINT_FREEZE_ORDER_NOT_FOUND, "冻结单状态不可确认");
         }
         fillCommandFromFreezeOrder(command, order);
+        // 确认冻结时只减少冻结余额，并把金额计入累计消费。
         PointLedgerEntity ledger = applyChange(command, PointsConstants.DIRECTION_SPEND,
                 0L, -order.getAmount(), 0L, order.getAmount());
         pointFreezeOrderMapper.updateStatus(freezeNo, PointsConstants.FREEZE_STATUS_CONFIRMED);
@@ -174,12 +179,14 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
     public PointLedgerVo cancelFreeze(String freezeNo, PointChangeCommand command) {
         PointFreezeOrderEntity order = loadFreezeOrder(freezeNo);
         if (PointsConstants.FREEZE_STATUS_CANCELLED.equals(order.getStatus())) {
+            // 取消冻结重复调用按幂等键返回原流水，支撑补偿任务重复扫描。
             return toLedgerVo(pointLedgerMapper.findByUserIdAndIdempotencyKey(order.getUserId(), command.getIdempotencyKey()));
         }
         if (!PointsConstants.FREEZE_STATUS_FROZEN.equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.POINT_FREEZE_ORDER_NOT_FOUND, "冻结单状态不可取消");
         }
         fillCommandFromFreezeOrder(command, order);
+        // 取消冻结把冻结积分退回可用积分，不影响累计获得或累计消费。
         PointLedgerEntity ledger = applyChange(command, PointsConstants.DIRECTION_UNFREEZE,
                 order.getAmount(), -order.getAmount(), 0L, 0L);
         pointFreezeOrderMapper.updateStatus(freezeNo, PointsConstants.FREEZE_STATUS_CANCELLED);
@@ -294,6 +301,7 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
         }
         if (Boolean.TRUE.equals(request.getApproved())) {
             PointChangeCommand command = new PointChangeCommand();
+            // 审批通过后才真正调用账务服务，调整单创建本身不改变余额。
             command.setUserId(entity.getUserId());
             command.setAmount(entity.getAmount());
             command.setBizType(PointsConstants.BIZ_TYPE_ADMIN_ADJUST);
@@ -305,6 +313,7 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
             if (PointsConstants.DIRECTION_EARN.equals(entity.getDirection())) {
                 credit(command);
             } else {
+                // 扣减类人工调整仍复用 debit 的余额校验，避免管理员扣成负数。
                 debit(command);
             }
         }
@@ -315,6 +324,7 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
     @Override
     public PointReconciliationVo reconcile() {
         PointReconciliationVo vo = new PointReconciliationVo();
+        // 对账按账户表余额与流水汇总结果比较，发现差异只记录，不自动修复。
         Long accountAvailable = pointAccountMapper.sumAvailable();
         Long accountFrozen = pointAccountMapper.sumFrozen();
         Long ledgerAvailable = pointLedgerMapper.sumAvailableByLedger();
@@ -352,21 +362,25 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
                                           Long spentDelta) {
         PointLedgerEntity existed = pointLedgerMapper.findByUserIdAndIdempotencyKey(command.getUserId(), command.getIdempotencyKey());
         if (existed != null) {
+            // 幂等先在加锁前查一次，常见重复请求可以避免不必要的账户行锁。
             log.info("point idempotency hit, userId={}, idempotencyKey={}, ledgerNo={}",
                     command.getUserId(), command.getIdempotencyKey(), existed.getLedgerNo());
             return existed;
         }
+        // 账户行锁保护余额计算和版本更新，避免并发扣减时出现超扣。
         PointAccountEntity account = getOrCreateAccountEntityForUpdate(command.getUserId());
         if (!PointsConstants.ACCOUNT_STATUS_ACTIVE.equals(account.getStatus())) {
             throw new BusinessException(ErrorCode.POINT_ACCOUNT_DISABLED);
         }
         existed = pointLedgerMapper.findByUserIdAndIdempotencyKey(command.getUserId(), command.getIdempotencyKey());
         if (existed != null) {
+            // 加锁后再查一次幂等，处理两个相同请求同时通过第一次幂等检查的并发场景。
             return existed;
         }
         long nextAvailable = account.getAvailablePoints() + availableDelta;
         long nextFrozen = account.getFrozenPoints() + frozenDelta;
         if (nextAvailable < 0L || nextFrozen < 0L) {
+            // 可用或冻结余额任何一个小于 0 都视为账务非法，直接回滚事务。
             throw new BusinessException(ErrorCode.POINT_BALANCE_NOT_ENOUGH);
         }
         PointAccountEntity update = new PointAccountEntity();
@@ -377,6 +391,7 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
         update.setTotalSpentPoints(account.getTotalSpentPoints() + spentDelta);
         update.setVersion(account.getVersion());
         if (pointAccountMapper.updateBalance(update) == 0) {
+            // updateBalance 带 version 条件，返回 0 表示并发修改或余额条件不满足。
             throw new BusinessException(ErrorCode.POINT_BALANCE_NOT_ENOUGH, "积分账户并发更新失败");
         }
         PointLedgerEntity ledger = buildLedger(command, account, direction, nextAvailable, nextFrozen);
@@ -391,6 +406,7 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
                                           long nextFrozen) {
         PointLedgerEntity lastLedger = pointLedgerMapper.findLastByAccountId(account.getId());
         PointLedgerEntity ledger = new PointLedgerEntity();
+        // 流水记录变更前后余额和冻结余额，用于审计和后续对账。
         ledger.setLedgerNo(createNo(LEDGER_NO_PREFIX));
         ledger.setUserId(command.getUserId());
         ledger.setAccountId(account.getId());
@@ -408,6 +424,7 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
         ledger.setTraceId(currentTraceId());
         ledger.setPrevHash(lastLedger == null ? PointsConstants.HASH_GENESIS : lastLedger.getEntryHash());
         ledger.setRemark(command.getRemark());
+        // entryHash 串联上一条流水 hash，形成账户维度哈希链，便于发现历史流水被篡改。
         ledger.setEntryHash(calculateLedgerHash(ledger));
         return ledger;
     }
@@ -418,6 +435,7 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
     }
 
     private PointAccountEntity getOrCreateAccountEntityForUpdate(Long userId) {
+        // insertIgnore 处理首次访问并发创建账户，随后 FOR UPDATE 锁定账户行。
         pointAccountMapper.insertIgnore(userId);
         return pointAccountMapper.findByUserIdForUpdate(userId);
     }
@@ -431,6 +449,7 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
     }
 
     private void fillCommandFromFreezeOrder(PointChangeCommand command, PointFreezeOrderEntity order) {
+        // 冻结单是确认/取消的事实来源，调用方传入的用户、金额、业务单号不参与最终计算。
         command.setUserId(order.getUserId());
         command.setAmount(order.getAmount());
         command.setBizType(order.getBizType());
@@ -454,6 +473,7 @@ public class PointAccountServiceImpl extends BaseService implements PointAccount
     }
 
     private String calculateLedgerHash(PointLedgerEntity ledger) {
+        // hash payload 固定字段顺序，保证不同节点计算结果一致。
         String payload = ledger.getPrevHash() + HASH_SEPARATOR
                 + ledger.getLedgerNo() + HASH_SEPARATOR
                 + ledger.getUserId() + HASH_SEPARATOR

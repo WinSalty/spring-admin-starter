@@ -48,6 +48,7 @@ public class JavaMailService implements MailService {
         String maskedTo = MailSendSupport.maskEmail(request.getTo());
         String subjectFingerprint = MailSendSupport.fingerprint(request.getSubject());
         try {
+            // MimeMessage 在当前线程构建，提前暴露地址或模板错误，实际网络投递交给邮件线程池。
             MimeMessage mimeMessage = buildMimeMessage(request);
             mailTaskExecutor.execute(new Runnable() {
                 @Override
@@ -67,6 +68,7 @@ public class JavaMailService implements MailService {
 
     private MimeMessage buildMimeMessage(MailSendRequest request) throws MessagingException {
         MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+        // 同时存在文本和 HTML 内容时构建 multipart，兼容不支持 HTML 的邮箱客户端。
         boolean multipart = MailSendSupport.hasHtmlContent(request) && MailSendSupport.hasTextContent(request);
         MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, multipart,
                 MailSendSupport.resolveEncoding(mailProperties));
@@ -94,6 +96,7 @@ public class JavaMailService implements MailService {
 
     private void applyContent(MimeMessageHelper helper, MailSendRequest request) throws MessagingException {
         if (MailSendSupport.hasTextContent(request) && MailSendSupport.hasHtmlContent(request)) {
+            // Spring Mail 第二个参数为 HTML 正文，文本正文作为降级内容。
             helper.setText(request.getTextContent().trim(), request.getHtmlContent().trim());
             return;
         }

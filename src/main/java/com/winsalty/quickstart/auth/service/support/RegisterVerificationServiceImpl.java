@@ -82,12 +82,15 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
         String normalizedEmail = normalizeEmail(email);
         String token = generateToken();
         String pendingKey = buildPendingKey(normalizedEmail);
+        // Redis 只保存 token 摘要，不保存邮件里的原始 token，降低 Redis 泄露后的账号激活风险。
         redisCacheService.set(pendingKey, hashVerifyToken(normalizedEmail, token), LINK_TTL_SECONDS);
+        // 新链接生成后清理旧失败计数，避免用户重新发送邮件后仍被旧失败次数影响。
         redisCacheService.delete(buildFailKey(normalizedEmail));
         try {
             registerMailService.sendVerificationLink(normalizedEmail,
                     buildVerificationUrl(verifyLinkBaseUrl, normalizedEmail, token), LINK_TTL_SECONDS);
         } catch (BusinessException exception) {
+            // 邮件发送失败时删除待验证 token，避免用户拿不到邮件但 Redis 中存在可用 token。
             redisCacheService.delete(pendingKey);
             throw exception;
         } catch (RuntimeException exception) {
@@ -114,9 +117,11 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
         String expectedHash = String.valueOf(cached);
         String actualHash = hashVerifyToken(normalizedEmail, token.trim());
         if (!constantTimeEquals(expectedHash, actualHash)) {
+            // token 比对失败记录次数，连续失败后删除 pending token，阻断暴力猜测。
             recordVerifyFailure(normalizedEmail, pendingKey);
             throw new BusinessException(ErrorCode.REGISTER_VERIFY_CODE_INVALID, "邮箱验证链接无效");
         }
+        // 验证成功后立即消费 token，确保激活链接只能使用一次。
         redisCacheService.delete(pendingKey);
         redisCacheService.delete(buildFailKey(normalizedEmail));
         log.info("register activation link verified, email={}", maskEmail(normalizedEmail));
@@ -126,6 +131,7 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
         String failKey = buildFailKey(email);
         Long current = redisCacheService.increment(failKey);
         if (current != null && current == 1L) {
+            // 失败计数生命周期与链接有效期一致，链接过期后失败计数自然清理。
             redisCacheService.expire(failKey, LINK_TTL_SECONDS);
         }
         if (current != null && current >= VERIFY_FAIL_LIMIT) {
@@ -139,6 +145,7 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
     private boolean constantTimeEquals(String expectedHash, String actualHash) {
         byte[] expectedBytes = expectedHash.getBytes(StandardCharsets.UTF_8);
         byte[] actualBytes = actualHash.getBytes(StandardCharsets.UTF_8);
+        // 使用固定时间比较，避免通过响应时间推测 token 摘要的匹配前缀。
         return MessageDigest.isEqual(expectedBytes, actualBytes);
     }
 
@@ -148,6 +155,7 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
             SecretKeySpec keySpec = new SecretKeySpec(verifyTokenHashSecret.getBytes(StandardCharsets.UTF_8),
                     HMAC_SHA256_ALGORITHM);
             mac.init(keySpec);
+            // 摘要内容包含邮箱，防止同一个 token 被换到其他邮箱链接上复用。
             byte[] digest = mac.doFinal((email + VERIFY_TOKEN_SEPARATOR + token).getBytes(StandardCharsets.UTF_8));
             return Base64.getEncoder().encodeToString(digest);
         } catch (GeneralSecurityException exception) {
@@ -163,6 +171,7 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
 
     private String buildVerificationUrl(String verifyLinkBaseUrl, String email, String token) {
         String baseUrl = normalizeVerifyLinkBaseUrl(verifyLinkBaseUrl);
+        // email 和 token 都做 query encode，避免特殊字符破坏激活链接参数结构。
         return baseUrl + REGISTER_VERIFY_EMAIL_PATH
                 + URL_QUERY_PREFIX + EMAIL_QUERY_PARAM + URL_VALUE_SEPARATOR + encodeQueryValue(email)
                 + URL_QUERY_SEPARATOR + TOKEN_QUERY_PARAM + URL_VALUE_SEPARATOR + encodeQueryValue(token);
@@ -175,6 +184,7 @@ public class RegisterVerificationServiceImpl implements RegisterVerificationServ
         String trimmed = value.trim();
         validateHttpUrl(trimmed);
         while (trimmed.charAt(trimmed.length() - SINGLE_CHARACTER_LENGTH) == URL_PATH_SEPARATOR) {
+            // 统一去掉尾部斜杠，后续拼接固定路径时不会产生双斜杠。
             trimmed = trimmed.substring(0, trimmed.length() - SINGLE_CHARACTER_LENGTH);
         }
         return trimmed;

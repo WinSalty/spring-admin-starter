@@ -46,6 +46,7 @@ public class ElasticsearchTemplateServiceImpl implements ElasticsearchTemplateSe
     public boolean createIndex(String indexName) {
         IndexOperations indexOperations = indexOps(indexName);
         if (indexOperations.exists()) {
+            // 索引已存在时按成功返回，方便初始化脚本和应用启动重复执行。
             log.info("elasticsearch index create skipped, indexName={}, reason=exists", indexName);
             return true;
         }
@@ -65,6 +66,7 @@ public class ElasticsearchTemplateServiceImpl implements ElasticsearchTemplateSe
     public String save(String indexName, String id, Object document) {
         IndexQueryBuilder builder = new IndexQueryBuilder().withObject(document);
         if (StringUtils.hasText(id)) {
+            // 外部传入 ID 时用于覆盖写或幂等写入，不传则交给 Elasticsearch 自动生成。
             builder.withId(id);
         }
         String documentId = elasticsearchOperations.index(builder.build(), coordinates(indexName));
@@ -80,6 +82,7 @@ public class ElasticsearchTemplateServiceImpl implements ElasticsearchTemplateSe
         }
         List<IndexQuery> queries = new ArrayList<IndexQuery>();
         for (EsDocument document : documents) {
+            // 批量写入要求业务文档提供稳定 ID，避免重复同步时产生多份索引文档。
             queries.add(new IndexQueryBuilder()
                     .withId(document.getId())
                     .withObject(document)

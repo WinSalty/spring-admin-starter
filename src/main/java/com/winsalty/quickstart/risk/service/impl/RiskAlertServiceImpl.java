@@ -8,6 +8,8 @@ import com.winsalty.quickstart.risk.entity.RiskAlertEntity;
 import com.winsalty.quickstart.risk.mapper.RiskAlertMapper;
 import com.winsalty.quickstart.risk.service.RiskAlertService;
 import com.winsalty.quickstart.risk.vo.RiskAlertVo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -25,6 +27,7 @@ import java.util.UUID;
 @Service
 public class RiskAlertServiceImpl implements RiskAlertService {
 
+    private static final Logger log = LoggerFactory.getLogger(RiskAlertServiceImpl.class);
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final String ALERT_NO_PREFIX = "RA";
     private static final int UUID_FRAGMENT_LENGTH = 12;
@@ -49,18 +52,24 @@ public class RiskAlertServiceImpl implements RiskAlertService {
         entity.setSubjectType(subjectType);
         entity.setSubjectNo(subjectNo);
         entity.setUserId(userId);
+        // 新告警统一处于 open 状态，后续处置动作再更新处理人和处理时间。
         entity.setStatus(CdkConstants.ALERT_STATUS_OPEN);
         entity.setDetailSnapshot(detailSnapshot);
         riskAlertMapper.insert(entity);
+        log.info("risk alert created, alertNo={}, alertType={}, riskLevel={}, subjectNo={}",
+                entity.getAlertNo(), alertType, riskLevel, subjectNo);
     }
 
     @Override
     public PageResponse<RiskAlertVo> listAlerts(RiskAlertListRequest request) {
         int pageNo = normalizePageNo(request.getPageNo());
         int pageSize = normalizePageSize(request.getPageSize());
+        // 告警列表只按类型和状态筛选，详情快照保留给单条记录排查使用。
         List<RiskAlertEntity> entities = riskAlertMapper.findPage(request.getAlertType(), request.getStatus(),
                 (pageNo - 1) * pageSize, pageSize);
         long total = riskAlertMapper.countPage(request.getAlertType(), request.getStatus());
+        log.info("risk alert page loaded, alertType={}, status={}, total={}",
+                request.getAlertType(), request.getStatus(), total);
         return new PageResponse<RiskAlertVo>(toVoList(entities), pageNo, pageSize, total);
     }
 

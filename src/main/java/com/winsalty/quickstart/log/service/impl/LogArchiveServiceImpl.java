@@ -44,6 +44,7 @@ public class LogArchiveServiceImpl implements LogArchiveService {
             return;
         }
         int batchSize = normalizeBatchSize(properties.getBatchSize());
+        // retentionDays 至少按 1 天计算，避免误配置为 0 时归档当天正在写入的日志。
         Date cutoffTime = Date.from(LocalDateTime.now()
                 .minusDays(Math.max(properties.getRetentionDays(), 1))
                 .atZone(ZoneId.systemDefault())
@@ -53,6 +54,7 @@ public class LogArchiveServiceImpl implements LogArchiveService {
                 cutoffTime, pendingCount, batchSize);
         long totalArchived = 0L;
         while (true) {
+            // 每一批独立事务提交，降低归档过程中对在线日志写入和查询的影响。
             ArchiveBatchResult result = transactionTemplate.execute(status -> archiveOneBatch(cutoffTime, batchSize));
             int archived = result == null ? 0 : result.getArchived();
             int deleted = result == null ? 0 : result.getDeleted();
@@ -71,12 +73,14 @@ public class LogArchiveServiceImpl implements LogArchiveService {
 
     private int normalizeBatchSize(int batchSize) {
         if (batchSize < MIN_BATCH_SIZE) {
+            // 批量过小会造成调度周期内频繁提交事务，统一抬到最低批量。
             return MIN_BATCH_SIZE;
         }
         return Math.min(batchSize, MAX_BATCH_SIZE);
     }
 
     private ArchiveBatchResult archiveOneBatch(Date cutoffTime, int batchSize) {
+        // 先插入归档表再删除主表，删除数量用于统计本批真正迁移完成的记录。
         int archived = logMapper.archiveLogs(cutoffTime, batchSize);
         int deleted = logMapper.deleteArchivedLogs(cutoffTime, batchSize);
         return new ArchiveBatchResult(archived, deleted);

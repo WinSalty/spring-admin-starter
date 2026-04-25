@@ -43,6 +43,7 @@ public class PointReconciliationJob implements Job {
         }
         try {
             log.info("points reconciliation job started, fireTime={}", context.getFireTime());
+            // 对账任务只负责发现差异并持久化结果，不做自动调账，避免误修复扩大问题。
             PointReconciliationVo result = pointAccountService.reconcile();
             log.info("points reconciliation job finished, checkedAccounts={}, differentAccounts={}, availableDiff={}, frozenDiff={}, nextFireTime={}",
                     result.getCheckedAccounts(), result.getDifferentAccounts(), result.getTotalAvailableDiff(),

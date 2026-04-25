@@ -45,6 +45,7 @@ public class PointCompensationServiceImpl implements PointCompensationService {
         int processed = 0;
         for (PointFreezeOrderEntity order : orders) {
             PointChangeCommand command = new PointChangeCommand();
+            // 使用冻结单号构造幂等键，补偿任务重复扫描同一冻结单也不会重复返还积分。
             command.setUserId(order.getUserId());
             command.setAmount(order.getAmount());
             command.setBizType(order.getBizType());
@@ -53,6 +54,7 @@ public class PointCompensationServiceImpl implements PointCompensationService {
             command.setOperatorType(PointsConstants.OPERATOR_TYPE_SYSTEM);
             command.setOperatorId(SYSTEM_OPERATOR_ID);
             command.setRemark(EXPIRED_FREEZE_REMARK);
+            // 取消冻结复用账务服务的行锁、余额变更和流水写入，不在补偿服务中直接改余额。
             pointAccountService.cancelFreeze(order.getFreezeNo(), command);
             processed++;
             log.info("expired point freeze cancelled, freezeNo={}, userId={}, amount={}",

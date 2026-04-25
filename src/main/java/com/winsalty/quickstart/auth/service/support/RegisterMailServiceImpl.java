@@ -36,6 +36,7 @@ public class RegisterMailServiceImpl implements RegisterMailService {
 
     @Override
     public void sendVerificationLink(String email, String verificationUrl, long ttlSeconds) {
+        // 注册激活邮件统一走标准模板，文本和 HTML 两份内容同时生成，兼容禁用 HTML 的邮箱客户端。
         MailTemplateContent templateContent = mailTemplateService.renderStandard(buildTemplate(verificationUrl, ttlSeconds));
         mailService.sendHtml(email, resolveSubject(), templateContent.getTextContent(), templateContent.getHtmlContent());
     }
@@ -47,6 +48,7 @@ public class RegisterMailServiceImpl implements RegisterMailService {
     }
 
     private StandardMailTemplate buildTemplate(String verificationUrl, long ttlSeconds) {
+        // 邮件里展示分钟级有效期，比秒级更适合用户阅读；不足一分钟按一分钟提示。
         long ttlMinutes = Math.max(1L, ttlSeconds / 60L);
         StandardMailTemplate template = new StandardMailTemplate();
         template.setTitle("验证邮箱，完成注册");

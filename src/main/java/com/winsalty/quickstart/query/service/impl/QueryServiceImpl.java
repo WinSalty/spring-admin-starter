@@ -1,6 +1,7 @@
 package com.winsalty.quickstart.query.service.impl;
 
 import com.winsalty.quickstart.common.api.PageResponse;
+import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.query.dto.QueryListRequest;
 import com.winsalty.quickstart.query.dto.QuerySaveRequest;
@@ -27,6 +28,10 @@ import java.util.List;
 public class QueryServiceImpl implements QueryService {
 
     private static final Logger log = LoggerFactory.getLogger(QueryServiceImpl.class);
+    private static final int DEFAULT_PAGE_NO = 1;
+    private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final String RECORD_CODE_PREFIX = "Q";
+    private static final long INIT_CALL_COUNT = 0L;
 
     private final QueryMapper queryMapper;
 
@@ -39,9 +44,10 @@ public class QueryServiceImpl implements QueryService {
      */
     @Override
     public PageResponse<QueryRecordVo> getPage(QueryListRequest request) {
-        int pageNo = request.getPageNo() == null ? 1 : request.getPageNo();
-        int pageSize = request.getPageSize() == null ? 10 : request.getPageSize();
-        int offset = (pageNo - 1) * pageSize;
+        int pageNo = request.getPageNo() == null ? DEFAULT_PAGE_NO : request.getPageNo();
+        int pageSize = request.getPageSize() == null ? DEFAULT_PAGE_SIZE : request.getPageSize();
+        // offset 使用规范化后的分页参数，保持 mapper 层只接收数据库分页语义。
+        int offset = (pageNo - DEFAULT_PAGE_NO) * pageSize;
         List<QueryRecordEntity> entities = queryMapper.findPage(request.getKeyword(), request.getStatus(), offset, pageSize);
         long total = queryMapper.countPage(request.getKeyword(), request.getStatus());
         log.info("query page loaded, pageNo={}, pageSize={}, total={}", pageNo, pageSize, total);
@@ -55,7 +61,7 @@ public class QueryServiceImpl implements QueryService {
     public QueryRecordVo getDetail(String id) {
         QueryRecordEntity entity = queryMapper.findByRecordCode(id);
         if (entity == null) {
-            throw new BusinessException(4041, "查询配置不存在");
+            throw new BusinessException(ErrorCode.QUERY_NOT_FOUND);
         }
         log.info("query detail loaded, id={}", id);
         return toVo(entity);
@@ -71,11 +77,11 @@ public class QueryServiceImpl implements QueryService {
         if (StringUtils.hasText(request.getId())) {
             QueryRecordEntity existed = queryMapper.findByRecordCode(request.getId());
             if (existed == null) {
-                throw new BusinessException(4041, "查询配置不存在");
+                throw new BusinessException(ErrorCode.QUERY_NOT_FOUND);
             }
             if (duplicated != null && !duplicated.getId().equals(existed.getId())) {
                 // 编辑时允许保留自己的 code，但不允许改成其他记录已占用的 code。
-                throw new BusinessException(4008, "查询编码已存在");
+                throw new BusinessException(ErrorCode.QUERY_CODE_ALREADY_EXISTS);
             }
             existed.setName(request.getName());
             existed.setCode(request.getCode());
@@ -88,7 +94,7 @@ public class QueryServiceImpl implements QueryService {
         }
 
         if (duplicated != null) {
-            throw new BusinessException(4008, "查询编码已存在");
+            throw new BusinessException(ErrorCode.QUERY_CODE_ALREADY_EXISTS);
         }
         QueryRecordEntity entity = new QueryRecordEntity();
         entity.setRecordCode(nextRecordCode());
@@ -98,7 +104,7 @@ public class QueryServiceImpl implements QueryService {
         entity.setOwner(request.getOwner());
         entity.setDescription(request.getDescription());
         // 新配置尚未被调用，调用次数从 0 开始，后续真实查询执行链路可递增该字段。
-        entity.setCallCount(0L);
+        entity.setCallCount(INIT_CALL_COUNT);
         queryMapper.insert(entity);
         log.info("query record created, id={}, code={}", entity.getRecordCode(), entity.getCode());
         return toVo(queryMapper.findByRecordCode(entity.getRecordCode()));
@@ -108,7 +114,7 @@ public class QueryServiceImpl implements QueryService {
      * 生成前端可见的业务 ID。当前用时间戳满足脚手架本地开发唯一性。
      */
     private String nextRecordCode() {
-        return "Q" + System.currentTimeMillis();
+        return RECORD_CODE_PREFIX + System.currentTimeMillis();
     }
 
     private List<QueryRecordVo> toVoList(List<QueryRecordEntity> entities) {

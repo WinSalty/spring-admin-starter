@@ -25,6 +25,23 @@ import java.util.List;
 public class DashboardServiceImpl implements DashboardService {
 
     private static final Logger log = LoggerFactory.getLogger(DashboardServiceImpl.class);
+    private static final int DASHBOARD_SAMPLE_LIMIT = 200;
+    private static final int TREND_POINT_LIMIT = 7;
+    private static final int CREATED_AT_DATE_MIN_LENGTH = 10;
+    private static final int DATE_MONTH_DAY_START = 5;
+    private static final int DATE_MONTH_DAY_END = 10;
+    private static final String MODULE_USERS = "users";
+    private static final String MODULE_ROLES = "roles";
+    private static final String MODULE_DICTS = "dicts";
+    private static final String MODULE_LOGS = "logs";
+    private static final String STATUS_ACTIVE = "active";
+    private static final String STATUS_DISABLED = "disabled";
+    private static final String RESULT_SUCCESS = "成功";
+    private static final String RESULT_FAILED = "失败";
+    private static final String RESULT_DENIED = "拒绝";
+    private static final String UNKNOWN_DATE = "未知";
+    private static final String EMPTY_DATE = "暂无";
+    private static final long ZERO_COUNT = 0L;
 
     private final SystemMapper systemMapper;
 
@@ -39,11 +56,11 @@ public class DashboardServiceImpl implements DashboardService {
     public DashboardOverviewVo getOverview() {
         log.info("dashboard overview loaded");
         DashboardOverviewVo response = new DashboardOverviewVo();
-        // 工作台只展示概览，限制每类最多 200 条，避免看板接口扫描过大数据集。
-        List<SystemRecordEntity> users = systemMapper.findPage("users", null, null, null, 0, 200);
-        List<SystemRecordEntity> roles = systemMapper.findPage("roles", null, null, null, 0, 200);
-        List<SystemRecordEntity> dicts = systemMapper.findPage("dicts", null, null, null, 0, 200);
-        List<SystemRecordEntity> logs = systemMapper.findPage("logs", null, null, null, 0, 200);
+        // 工作台只展示概览，按固定样本上限读取，避免看板接口扫描过大数据集。
+        List<SystemRecordEntity> users = systemMapper.findPage(MODULE_USERS, null, null, null, 0, DASHBOARD_SAMPLE_LIMIT);
+        List<SystemRecordEntity> roles = systemMapper.findPage(MODULE_ROLES, null, null, null, 0, DASHBOARD_SAMPLE_LIMIT);
+        List<SystemRecordEntity> dicts = systemMapper.findPage(MODULE_DICTS, null, null, null, 0, DASHBOARD_SAMPLE_LIMIT);
+        List<SystemRecordEntity> logs = systemMapper.findPage(MODULE_LOGS, null, null, null, 0, DASHBOARD_SAMPLE_LIMIT);
         response.setMetrics(buildMetrics(users, roles, dicts, logs));
         response.setTrend(buildTrend(logs));
         response.setCategories(buildCategories(users, roles, dicts, logs));
@@ -59,10 +76,10 @@ public class DashboardServiceImpl implements DashboardService {
                                                  List<SystemRecordEntity> dicts,
                                                  List<SystemRecordEntity> logs) {
         List<DashboardMetricVo> metrics = new ArrayList<DashboardMetricVo>();
-        metrics.add(buildMetric("users", "有效用户", (long) users.size(), "人", null, "启用用户", String.valueOf(countByStatus(users, "active")), "up"));
-        metrics.add(buildMetric("roles", "角色数量", (long) roles.size(), "个", null, "启用角色", String.valueOf(countByStatus(roles, "active")), "stable"));
-        metrics.add(buildMetric("dicts", "字典数量", (long) dicts.size(), "个", null, "启用字典", String.valueOf(countByStatus(dicts, "active")), "up"));
-        metrics.add(buildMetric("logs", "审计日志", (long) logs.size(), "条", null, "成功日志", String.valueOf(countSuccessLogs(logs)), countFailureLogs(logs) > 0 ? "down" : "up"));
+        metrics.add(buildMetric(MODULE_USERS, "有效用户", (long) users.size(), "人", null, "启用用户", String.valueOf(countByStatus(users, STATUS_ACTIVE)), "up"));
+        metrics.add(buildMetric(MODULE_ROLES, "角色数量", (long) roles.size(), "个", null, "启用角色", String.valueOf(countByStatus(roles, STATUS_ACTIVE)), "stable"));
+        metrics.add(buildMetric(MODULE_DICTS, "字典数量", (long) dicts.size(), "个", null, "启用字典", String.valueOf(countByStatus(dicts, STATUS_ACTIVE)), "up"));
+        metrics.add(buildMetric(MODULE_LOGS, "审计日志", (long) logs.size(), "条", null, "成功日志", String.valueOf(countSuccessLogs(logs)), countFailureLogs(logs) > ZERO_COUNT ? "down" : "up"));
         return metrics;
     }
 
@@ -88,16 +105,18 @@ public class DashboardServiceImpl implements DashboardService {
 
     private List<DashboardTrendPointVo> buildTrend(List<SystemRecordEntity> logs) {
         List<DashboardTrendPointVo> trend = new ArrayList<DashboardTrendPointVo>();
-        int size = Math.min(logs.size(), 7);
+        int size = Math.min(logs.size(), TREND_POINT_LIMIT);
         for (int index = size - 1; index >= 0; index--) {
             SystemRecordEntity entity = logs.get(index);
-            // 日志按最近记录逆序取 7 条，再倒序插入，前端折线图呈现从旧到新的趋势。
-            String date = entity.getCreatedAt() == null || entity.getCreatedAt().length() < 10 ? "未知" : entity.getCreatedAt().substring(5, 10);
-            trend.add(buildTrendPoint(date, safeLong(entity.getDurationMs()), "成功".equals(entity.getResult()) ? 1L : 0L));
+            // 日志按最近记录逆序取固定数量，再倒序插入，前端折线图呈现从旧到新的趋势。
+            String date = entity.getCreatedAt() == null || entity.getCreatedAt().length() < CREATED_AT_DATE_MIN_LENGTH
+                    ? UNKNOWN_DATE
+                    : entity.getCreatedAt().substring(DATE_MONTH_DAY_START, DATE_MONTH_DAY_END);
+            trend.add(buildTrendPoint(date, safeLong(entity.getDurationMs()), RESULT_SUCCESS.equals(entity.getResult()) ? 1L : ZERO_COUNT));
         }
         if (trend.isEmpty()) {
             // 空数据时给一个零点，避免 ECharts 因空数组出现无坐标轴的空白体验。
-            trend.add(buildTrendPoint("暂无", 0L, 0L));
+            trend.add(buildTrendPoint(EMPTY_DATE, ZERO_COUNT, ZERO_COUNT));
         }
         return trend;
     }
@@ -138,8 +157,8 @@ public class DashboardServiceImpl implements DashboardService {
     private List<DashboardStatusVo> buildStatusDistribution(List<SystemRecordEntity> users,
                                                             List<SystemRecordEntity> logs) {
         List<DashboardStatusVo> statusDistribution = new ArrayList<DashboardStatusVo>();
-        statusDistribution.add(buildStatus("启用", countByStatus(users, "active")));
-        statusDistribution.add(buildStatus("停用", countByStatus(users, "disabled")));
+        statusDistribution.add(buildStatus("启用", countByStatus(users, STATUS_ACTIVE)));
+        statusDistribution.add(buildStatus("停用", countByStatus(users, STATUS_DISABLED)));
         statusDistribution.add(buildStatus("成功日志", countSuccessLogs(logs)));
         statusDistribution.add(buildStatus("失败日志", countFailureLogs(logs)));
         return statusDistribution;
@@ -168,7 +187,7 @@ public class DashboardServiceImpl implements DashboardService {
     private Long countSuccessLogs(List<SystemRecordEntity> logs) {
         long count = 0L;
         for (SystemRecordEntity logRecord : logs) {
-            if ("成功".equals(logRecord.getResult())) {
+            if (RESULT_SUCCESS.equals(logRecord.getResult())) {
                 count++;
             }
         }
@@ -178,7 +197,7 @@ public class DashboardServiceImpl implements DashboardService {
     private Long countFailureLogs(List<SystemRecordEntity> logs) {
         long count = 0L;
         for (SystemRecordEntity logRecord : logs) {
-            if ("失败".equals(logRecord.getResult()) || "拒绝".equals(logRecord.getResult())) {
+            if (RESULT_FAILED.equals(logRecord.getResult()) || RESULT_DENIED.equals(logRecord.getResult())) {
                 count++;
             }
         }
@@ -186,6 +205,6 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private Long safeLong(Long value) {
-        return value == null ? 0L : value;
+        return value == null ? ZERO_COUNT : value;
     }
 }
