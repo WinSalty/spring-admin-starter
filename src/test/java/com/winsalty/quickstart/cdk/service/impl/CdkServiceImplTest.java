@@ -132,6 +132,38 @@ class CdkServiceImplTest {
         assertThrows(BusinessException.class, () -> service.updateCodeStatus(CODE_ID, request));
     }
 
+    @Test
+    void voidBatchShouldDisableActiveCodes() {
+        CdkBatchMapper batchMapper = mock(CdkBatchMapper.class);
+        CdkCodeMapper codeMapper = mock(CdkCodeMapper.class);
+        CdkServiceImpl service = newService(batchMapper, codeMapper, mock(RedisCacheService.class));
+        AuthContext.set(new AuthUser(ADMIN_USER_ID, ADMIN_USERNAME, ROLE_ADMIN, SESSION_ID));
+        when(batchMapper.findByIdForUpdate(BATCH_ID)).thenReturn(activeBatch());
+        when(batchMapper.findById(BATCH_ID)).thenReturn(voidedBatch());
+        when(codeMapper.disableActiveByBatchId(BATCH_ID)).thenReturn(1);
+
+        service.voidBatch(BATCH_ID);
+
+        verify(codeMapper).disableActiveByBatchId(BATCH_ID);
+        verify(batchMapper).updateStatus(BATCH_ID, CdkConstants.BATCH_STATUS_VOIDED);
+    }
+
+    @Test
+    void enableCodeInVoidedBatchShouldBeRejected() {
+        CdkBatchMapper batchMapper = mock(CdkBatchMapper.class);
+        CdkCodeMapper codeMapper = mock(CdkCodeMapper.class);
+        CdkServiceImpl service = newService(batchMapper, codeMapper, mock(RedisCacheService.class));
+        CdkCodeEntity code = activeCode();
+        code.setStatus(CdkConstants.CODE_STATUS_DISABLED);
+        when(codeMapper.findByIdForUpdate(CODE_ID)).thenReturn(code);
+        when(batchMapper.findByIdForUpdate(BATCH_ID)).thenReturn(voidedBatch());
+        CdkCodeStatusRequest request = new CdkCodeStatusRequest();
+        request.setStatus(CdkConstants.CODE_STATUS_ACTIVE);
+
+        assertThrows(BusinessException.class, () -> service.updateCodeStatus(CODE_ID, request));
+        verify(codeMapper, never()).updateStatus(anyLong(), any());
+    }
+
     private CdkCodeEntity generatedCodeFromCreate(CdkServiceImpl service, CdkBatchMapper batchMapper, CdkCodeMapper codeMapper) {
         doAnswer(invocation -> {
             CdkBatchEntity entity = invocation.getArgument(0);
@@ -196,6 +228,12 @@ class CdkServiceImplTest {
         entity.setRiskLevel(CdkConstants.RISK_LEVEL_NORMAL);
         entity.setCreatedBy(ADMIN_USERNAME);
         entity.setExportCount(0);
+        return entity;
+    }
+
+    private CdkBatchEntity voidedBatch() {
+        CdkBatchEntity entity = activeBatch();
+        entity.setStatus(CdkConstants.BATCH_STATUS_VOIDED);
         return entity;
     }
 

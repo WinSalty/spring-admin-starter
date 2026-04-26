@@ -49,6 +49,9 @@ public interface CdkCodeMapper {
     @Update("UPDATE cdk_code SET status = #{status}, version = version + 1 WHERE id = #{id} AND status IN ('active', 'disabled')")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
 
+    @Update("UPDATE cdk_code SET status = 'disabled', version = version + 1 WHERE batch_id = #{batchId} AND status = 'active'")
+    int disableActiveByBatchId(@Param("batchId") Long batchId);
+
     @Select({
             "<script>",
             CODE_BATCH_SELECT,

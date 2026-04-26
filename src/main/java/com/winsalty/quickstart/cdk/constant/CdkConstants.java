@@ -10,7 +10,6 @@ public final class CdkConstants {
 
     public static final String BENEFIT_TYPE_POINTS = "points";
     public static final String BATCH_STATUS_ACTIVE = "active";
-    public static final String BATCH_STATUS_PAUSED = "paused";
     public static final String BATCH_STATUS_VOIDED = "voided";
     public static final String CODE_STATUS_ACTIVE = "active";
     public static final String CODE_STATUS_REDEEMED = "redeemed";

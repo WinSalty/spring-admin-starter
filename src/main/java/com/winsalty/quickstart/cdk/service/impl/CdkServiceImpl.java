@@ -182,11 +182,12 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     @Transactional(rollbackFor = Exception.class)
     public CdkBatchVo voidBatch(Long id) {
         CdkBatchEntity batch = loadBatchForUpdate(id);
-        if (CdkConstants.BATCH_STATUS_VOIDED.equals(batch.getStatus())) {
-            return toBatchVo(batch);
+        int disabledCount = cdkCodeMapper.disableActiveByBatchId(id);
+        if (!CdkConstants.BATCH_STATUS_VOIDED.equals(batch.getStatus())) {
+            cdkBatchMapper.updateStatus(id, CdkConstants.BATCH_STATUS_VOIDED);
         }
-        cdkBatchMapper.updateStatus(id, CdkConstants.BATCH_STATUS_VOIDED);
-        log.info("cdk batch voided, batchNo={}", batch.getBatchNo());
+        log.info("cdk batch voided, batchNo={}, disabledCount={}, operator={}",
+                batch.getBatchNo(), disabledCount, currentUsername());
         return toBatchVo(cdkBatchMapper.findById(id));
     }
 
@@ -303,6 +304,12 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         }
         if (CdkConstants.CODE_STATUS_REDEEMED.equals(code.getStatus())) {
             throw new BusinessException(ErrorCode.CDK_CODE_STATUS_INVALID);
+        }
+        if (CdkConstants.CODE_STATUS_ACTIVE.equals(request.getStatus())) {
+            CdkBatchEntity batch = cdkBatchMapper.findByIdForUpdate(code.getBatchId());
+            if (batch == null || !CdkConstants.BATCH_STATUS_ACTIVE.equals(batch.getStatus())) {
+                throw new BusinessException(ErrorCode.CDK_BATCH_STATUS_INVALID);
+            }
         }
         if (!request.getStatus().equals(code.getStatus())) {
             cdkCodeMapper.updateStatus(id, request.getStatus());

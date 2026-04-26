@@ -120,7 +120,7 @@
 2. 每次积分变更会写入 `point_ledger`，记录变更前后余额、幂等键、业务单号、操作人、traceId 和哈希链。
 3. 支持充值、扣减、冻结、确认冻结、取消冻结、退款等账务入口。
 4. CDK 使用 `HMAC-SHA256(cdkPlainText, CDK_PEPPER)` 写入 `cdk_code.code_hash`，同时将明文码用 AES-GCM 加密保存到 `encrypted_code`，支持管理端重复查看。
-5. CDK 批次由管理员直接生成，不需要提交审批；批次页只保留生成记录、兑换进度、有效期和整批失效，单码查看、复制、启用和失效统一在 CDK 管理页完成。
+5. CDK 批次由管理员直接生成，不需要提交审批；批次页只保留生成记录、兑换进度、有效期和整批失效，整批失效会同步禁用未兑换 CDK。
 6. CDK 兑换按用户、IP、连续失败次数做 Redis 限流，成功兑换在同一事务内完成码状态、兑换记录、充值单、账户余额和账本流水。
 7. 管理员人工调整先创建调整单，审批通过后再调用积分账务服务入账或扣减。
 8. 积分对账已接入 Quartz 日终任务，按 `app.points.reconciliation-cron` 定时执行账户与流水汇总校验，并持久化 `point_reconciliation_record`。
@@ -130,7 +130,7 @@
 12. CDK 兑换成功、权益兑换成功会写入 `transaction_outbox`，当前由定时任务标记处理，后续可平滑替换为 MQ 投递。
 13. 在线充值通过 `trade` 模块创建 `online_pay` 充值单，支付回调使用 `TRADE_CALLBACK_SECRET` 做 HMAC 验签，成功后按充值单号幂等入账。
 14. CDK 管理端默认展示全部 CDK，支持按批次、关键字和状态筛选，展示批次、积分、有效期、兑换状态等完整信息，支持复制、启用和失效单个 CDK，不提供删除已生成 CDK 的接口。
-15. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql`、`V26__enhance_cdk_audit_risk_schema.sql`、`V27__simplify_cdk_generation_and_manage_codes.sql`、`V28__remove_cdk_pause_export_actions.sql` 初始化表结构和权限菜单。
+15. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql`、`V26__enhance_cdk_audit_risk_schema.sql`、`V27__simplify_cdk_generation_and_manage_codes.sql`、`V28__remove_cdk_pause_export_actions.sql`、`V29__void_paused_cdk_batches.sql` 初始化表结构和权限菜单。
 
 ## 配套环境说明
 
