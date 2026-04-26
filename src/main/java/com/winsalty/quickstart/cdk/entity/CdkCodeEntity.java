@@ -4,7 +4,7 @@ import lombok.Data;
 
 /**
  * CDK 码实体。
- * 只保存 HMAC 后码值和运营排查用前缀，不保存明文 CDK。
+ * 保存 HMAC 后码值和加密后的明文 CDK，用于兑换校验和管理端重复查看。
  * 创建日期：2026-04-24
  * author：sunshengxian
  */
@@ -17,6 +17,8 @@ public class CdkCodeEntity {
     private Long batchId;
     /** HMAC 后码值。 */
     private String codeHash;
+    /** 加密后的明文 CDK。 */
+    private String encryptedCode;
     /** 明文前缀。 */
     private String codePrefix;
     /** 校验位。 */

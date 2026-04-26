@@ -39,15 +39,4 @@ public class CdkProperties {
     /** 连续失败锁定阈值。 */
     private long redeemFailureLimit = 5L;
 
-    /** 明文 CDK 一次性导出缓存窗口秒数。 */
-    private long exportWindowSeconds = 1800L;
-
-    /** 是否开启高价值批次双人复核。 */
-    private boolean doubleReviewEnabled = true;
-
-    /** 触发双人复核的批次总积分阈值。 */
-    private long doubleReviewTotalPointsThreshold = 100000L;
-
-    /** CDK 导出加密密钥派生迭代次数。 */
-    private int exportEncryptIterations = 120000;
 }

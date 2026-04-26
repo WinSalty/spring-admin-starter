@@ -3,10 +3,12 @@ package com.winsalty.quickstart.cdk.controller;
 import com.winsalty.quickstart.auth.annotation.AuditLog;
 import com.winsalty.quickstart.cdk.dto.CdkBatchCreateRequest;
 import com.winsalty.quickstart.cdk.dto.CdkBatchListRequest;
-import com.winsalty.quickstart.cdk.dto.CdkExportRequest;
+import com.winsalty.quickstart.cdk.dto.CdkCodeListRequest;
+import com.winsalty.quickstart.cdk.dto.CdkCodeStatusRequest;
 import com.winsalty.quickstart.cdk.dto.CdkRedeemRecordListRequest;
 import com.winsalty.quickstart.cdk.service.CdkService;
 import com.winsalty.quickstart.cdk.vo.CdkBatchVo;
+import com.winsalty.quickstart.cdk.vo.CdkCodeVo;
 import com.winsalty.quickstart.cdk.vo.CdkExportVo;
 import com.winsalty.quickstart.cdk.vo.CdkRedeemRecordVo;
 import com.winsalty.quickstart.common.api.ApiResponse;
@@ -24,7 +26,7 @@ import javax.validation.Valid;
 
 /**
  * 管理端 CDK 控制器。
- * 提供批次创建、审批生成、一次性导出、暂停作废和兑换记录查询接口。
+ * 提供批次生成、CDK 在线查看、状态管理、导出、暂停作废和兑换记录查询接口。
  * 创建日期：2026-04-24
  * author：sunshengxian
  */
@@ -48,25 +50,7 @@ public class AdminCdkController {
     @AuditLog(logType = "operation", code = "cdk_batch_create", name = "创建CDK批次")
     @PostMapping("/batches")
     public ApiResponse<CdkBatchVo> createBatch(@Valid @RequestBody CdkBatchCreateRequest request) {
-        return ApiResponse.success("创建成功", cdkService.createBatch(request));
-    }
-
-    @AuditLog(logType = "operation", code = "cdk_batch_submit", name = "提交CDK批次审批")
-    @PostMapping("/batches/{id}/submit")
-    public ApiResponse<CdkBatchVo> submitBatch(@PathVariable("id") Long id) {
-        return ApiResponse.success("已提交审批", cdkService.submitBatch(id));
-    }
-
-    @AuditLog(logType = "operation", code = "cdk_batch_approve", name = "审批并生成CDK批次")
-    @PostMapping("/batches/{id}/approve")
-    public ApiResponse<CdkBatchVo> approveBatch(@PathVariable("id") Long id) {
-        return ApiResponse.success("审批成功", cdkService.approveBatch(id));
-    }
-
-    @AuditLog(logType = "operation", code = "cdk_batch_second_approve", name = "二次复核CDK批次")
-    @PostMapping("/batches/{id}/second-approve")
-    public ApiResponse<CdkBatchVo> secondApproveBatch(@PathVariable("id") Long id) {
-        return ApiResponse.success("复核通过并已生成", cdkService.secondApproveBatch(id));
+        return ApiResponse.success("生成成功", cdkService.createBatch(request));
     }
 
     @AuditLog(logType = "operation", code = "cdk_batch_pause", name = "暂停CDK批次")
@@ -83,9 +67,20 @@ public class AdminCdkController {
 
     @AuditLog(logType = "operation", code = "cdk_batch_export", name = "导出CDK批次", recordResponse = false)
     @PostMapping("/batches/{id}/export")
-    public ApiResponse<CdkExportVo> exportBatch(@PathVariable("id") Long id,
-                                                @Valid @RequestBody CdkExportRequest request) {
-        return ApiResponse.success("导出成功", cdkService.exportBatch(id, request));
+    public ApiResponse<CdkExportVo> exportBatch(@PathVariable("id") Long id) {
+        return ApiResponse.success("导出成功", cdkService.exportBatch(id));
+    }
+
+    @GetMapping("/codes")
+    public ApiResponse<PageResponse<CdkCodeVo>> codes(@Validated CdkCodeListRequest request) {
+        return ApiResponse.success("获取成功", cdkService.listCodes(request));
+    }
+
+    @AuditLog(logType = "operation", code = "cdk_code_status", name = "变更CDK状态")
+    @PostMapping("/codes/{id}/status")
+    public ApiResponse<CdkCodeVo> updateCodeStatus(@PathVariable("id") Long id,
+                                                   @Valid @RequestBody CdkCodeStatusRequest request) {
+        return ApiResponse.success("状态已更新", cdkService.updateCodeStatus(id, request));
     }
 
     @GetMapping("/redeem-records")

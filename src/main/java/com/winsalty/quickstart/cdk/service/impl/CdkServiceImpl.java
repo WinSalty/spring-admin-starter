@@ -10,7 +10,8 @@ import com.winsalty.quickstart.cdk.config.CdkProperties;
 import com.winsalty.quickstart.cdk.constant.CdkConstants;
 import com.winsalty.quickstart.cdk.dto.CdkBatchCreateRequest;
 import com.winsalty.quickstart.cdk.dto.CdkBatchListRequest;
-import com.winsalty.quickstart.cdk.dto.CdkExportRequest;
+import com.winsalty.quickstart.cdk.dto.CdkCodeListRequest;
+import com.winsalty.quickstart.cdk.dto.CdkCodeStatusRequest;
 import com.winsalty.quickstart.cdk.dto.CdkRedeemRecordListRequest;
 import com.winsalty.quickstart.cdk.dto.CdkRedeemRequest;
 import com.winsalty.quickstart.cdk.entity.CdkBatchEntity;
@@ -23,6 +24,7 @@ import com.winsalty.quickstart.cdk.mapper.CdkExportAuditMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkRedeemRecordMapper;
 import com.winsalty.quickstart.cdk.service.CdkService;
 import com.winsalty.quickstart.cdk.vo.CdkBatchVo;
+import com.winsalty.quickstart.cdk.vo.CdkCodeVo;
 import com.winsalty.quickstart.cdk.vo.CdkExportVo;
 import com.winsalty.quickstart.cdk.vo.CdkRedeemRecordVo;
 import com.winsalty.quickstart.cdk.vo.CdkRedeemResultVo;
@@ -46,35 +48,29 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import javax.crypto.Cipher;
 import javax.crypto.Mac;
-import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.servlet.http.HttpServletRequest;
-import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.security.spec.KeySpec;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 /**
  * CDK 服务实现。
- * 实现批次创建审批、HMAC 存储、一次性导出缓存、兑换限流和积分权益发放。
+ * 实现管理员批次生成、HMAC 校验、加密明文查看、兑换限流和积分权益发放。
  * 创建日期：2026-04-24
  * author：sunshengxian
  */
@@ -100,18 +96,13 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     private static final String EMPTY_FAILURE_REASON = "";
     private static final String OUTBOX_AGGREGATE_TYPE = "cdk_redeem";
     private static final String OUTBOX_EVENT_SUCCESS = "cdk.redeem.success";
-    private static final String EXPORT_FILE_TYPE = "zip";
-    private static final String EXPORT_ENCRYPTION_ALGORITHM = "AES-256-GCM";
-    private static final String EXPORT_KDF_ALGORITHM = "PBKDF2WithHmacSHA256";
-    private static final String EXPORT_CIPHER_ALGORITHM = "AES/GCM/NoPadding";
-    private static final String EXPORT_ZIP_PAYLOAD_NAME = "cdk.enc";
-    private static final String EXPORT_ZIP_MANIFEST_NAME = "manifest.json";
-    private static final String EXPORT_FILE_SUFFIX = "-cdk-export.zip";
-    private static final String EXPORT_SECRET_ALGORITHM = "AES";
-    private static final int EXPORT_KEY_LENGTH_BITS = 256;
-    private static final int EXPORT_SALT_LENGTH = 16;
-    private static final int EXPORT_IV_LENGTH = 12;
-    private static final int EXPORT_GCM_TAG_LENGTH_BITS = 128;
+    private static final String EXPORT_FILE_TYPE = "txt";
+    private static final String EXPORT_FILE_SUFFIX = "-cdk-export.txt";
+    private static final String CODE_ENCRYPTION_ALGORITHM = "AES/GCM/NoPadding";
+    private static final String CODE_SECRET_ALGORITHM = "AES";
+    private static final String CODE_ENCRYPTION_CONTEXT = ":cdk-code:v1";
+    private static final int CODE_IV_LENGTH = 12;
+    private static final int CODE_GCM_TAG_LENGTH_BITS = 128;
     private static final int UUID_FRAGMENT_LENGTH = 12;
     private static final int PEPPER_MIN_LENGTH = 32;
     private static final int HEX_RADIX_SHIFT = 4;
@@ -166,11 +157,12 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CdkBatchVo createBatch(CdkBatchCreateRequest request) {
+        ensurePepperConfigured();
         if (!CdkConstants.BENEFIT_TYPE_POINTS.equals(request.getBenefitType())) {
             throw new BusinessException(ErrorCode.CDK_BENEFIT_UNSUPPORTED);
         }
         if (request.getTotalCount() > cdkProperties.getMaxBatchSize()) {
-            // 批次数量限制放在创建阶段，避免后续审批生成大量码拖垮 Redis 和数据库。
+            // 批次数量限制放在生成入口，避免单次事务写入过大。
             throw new BusinessException(ErrorCode.CDK_BATCH_SIZE_EXCEEDED);
         }
         CdkBatchEntity entity = new CdkBatchEntity();
@@ -183,81 +175,16 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         entity.setRedeemedCount(0);
         entity.setValidFrom(request.getValidFrom());
         entity.setValidTo(request.getValidTo());
-        entity.setStatus(CdkConstants.BATCH_STATUS_DRAFT);
+        entity.setStatus(CdkConstants.BATCH_STATUS_ACTIVE);
         entity.setRiskLevel(StringUtils.hasText(request.getRiskLevel()) ? request.getRiskLevel() : CdkConstants.RISK_LEVEL_NORMAL);
         entity.setCreatedBy(currentUsername());
         entity.setExportCount(0);
         cdkBatchMapper.insert(entity);
-        log.info("cdk batch created, batchNo={}, totalCount={}, benefitType={}",
-                entity.getBatchNo(), entity.getTotalCount(), entity.getBenefitType());
+        List<String> plainCodes = generateCodes(entity);
+        cdkBatchMapper.markGenerated(entity.getId(), plainCodes.size(), CdkConstants.BATCH_STATUS_ACTIVE);
+        log.info("cdk batch generated, batchNo={}, totalCount={}, benefitType={}, operator={}",
+                entity.getBatchNo(), entity.getTotalCount(), entity.getBenefitType(), currentUsername());
         return toBatchVo(cdkBatchMapper.findById(entity.getId()));
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public CdkBatchVo submitBatch(Long id) {
-        CdkBatchEntity batch = loadBatchForUpdate(id);
-        if (!CdkConstants.BATCH_STATUS_DRAFT.equals(batch.getStatus())) {
-            throw new BusinessException(ErrorCode.CDK_BATCH_STATUS_INVALID);
-        }
-        cdkBatchMapper.updateStatus(id, CdkConstants.BATCH_STATUS_PENDING_APPROVAL);
-        log.info("cdk batch submitted, batchNo={}", batch.getBatchNo());
-        return toBatchVo(cdkBatchMapper.findById(id));
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public CdkBatchVo approveBatch(Long id) {
-        ensurePepperConfigured();
-        CdkBatchEntity batch = loadBatchForUpdate(id);
-        if (!CdkConstants.BATCH_STATUS_PENDING_APPROVAL.equals(batch.getStatus())) {
-            throw new BusinessException(ErrorCode.CDK_BATCH_STATUS_INVALID);
-        }
-        if (batch.getTotalCount() > cdkProperties.getMaxBatchSize()) {
-            throw new BusinessException(ErrorCode.CDK_BATCH_SIZE_EXCEEDED);
-        }
-        if (requiresDoubleReview(batch)) {
-            if (StringUtils.hasText(batch.getApprovedBy())) {
-                throw new BusinessException(ErrorCode.CDK_SECOND_APPROVAL_REQUIRED);
-            }
-            // 高风险批次第一次审批只记录审批人并发告警，不生成码，等待另一个管理员复核。
-            cdkBatchMapper.markFirstApproved(batch.getId(), currentUsername());
-            createBatchReviewAlert(batch);
-            log.info("cdk batch first approved and waits second review, batchNo={}, approvedBy={}",
-                    batch.getBatchNo(), currentUsername());
-            return toBatchVo(cdkBatchMapper.findById(id));
-        }
-        List<String> plainCodes = generateCodes(batch);
-        cdkBatchMapper.markApproved(batch.getId(), plainCodes.size(), currentUsername(), CdkConstants.BATCH_STATUS_ACTIVE);
-        // 明文 CDK 只短期保存在 Redis 导出窗口中，数据库仅保存 HMAC hash。
-        redisCacheService.set(CdkConstants.EXPORT_CACHE_PREFIX + batch.getBatchNo(),
-                String.join(EXPORT_LINE_SEPARATOR, plainCodes), cdkProperties.getExportWindowSeconds());
-        log.info("cdk batch approved and generated, batchNo={}, generatedCount={}", batch.getBatchNo(), plainCodes.size());
-        return toBatchVo(cdkBatchMapper.findById(id));
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public CdkBatchVo secondApproveBatch(Long id) {
-        ensurePepperConfigured();
-        CdkBatchEntity batch = loadBatchForUpdate(id);
-        if (!CdkConstants.BATCH_STATUS_PENDING_APPROVAL.equals(batch.getStatus()) || !StringUtils.hasText(batch.getApprovedBy())) {
-            throw new BusinessException(ErrorCode.CDK_BATCH_STATUS_INVALID);
-        }
-        if (currentUsername().equals(batch.getApprovedBy())) {
-            // 二次复核必须换人，避免高价值批次由同一个管理员闭环审批。
-            throw new BusinessException(ErrorCode.CDK_SECOND_APPROVER_INVALID);
-        }
-        if (batch.getTotalCount() > cdkProperties.getMaxBatchSize()) {
-            throw new BusinessException(ErrorCode.CDK_BATCH_SIZE_EXCEEDED);
-        }
-        List<String> plainCodes = generateCodes(batch);
-        cdkBatchMapper.markSecondApproved(batch.getId(), plainCodes.size(), currentUsername(), CdkConstants.BATCH_STATUS_ACTIVE);
-        redisCacheService.set(CdkConstants.EXPORT_CACHE_PREFIX + batch.getBatchNo(),
-                String.join(EXPORT_LINE_SEPARATOR, plainCodes), cdkProperties.getExportWindowSeconds());
-        log.info("cdk batch second approved and generated, batchNo={}, generatedCount={}, secondApprovedBy={}",
-                batch.getBatchNo(), plainCodes.size(), currentUsername());
-        return toBatchVo(cdkBatchMapper.findById(id));
     }
 
     @Override
@@ -286,21 +213,11 @@ public class CdkServiceImpl extends BaseService implements CdkService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public CdkExportVo exportBatch(Long id, CdkExportRequest request) {
-        if (request == null || !StringUtils.hasText(request.getExportPassword())) {
-            throw new BusinessException(ErrorCode.CDK_EXPORT_PASSWORD_REQUIRED);
-        }
+    public CdkExportVo exportBatch(Long id) {
         CdkBatchEntity batch = loadBatchForUpdate(id);
-        Object cached = redisCacheService.get(CdkConstants.EXPORT_CACHE_PREFIX + batch.getBatchNo());
-        if (!(cached instanceof String) || !StringUtils.hasText((String) cached)) {
-            throw new BusinessException(ErrorCode.CDK_EXPORT_EXPIRED);
-        }
-        String content = (String) cached;
-        // 导出是一次性操作，先删除 Redis 明文缓存，后续重复导出会失败。
-        redisCacheService.delete(CdkConstants.EXPORT_CACHE_PREFIX + batch.getBatchNo());
-        List<String> codes = Arrays.asList(content.split(EXPORT_LINE_SEPARATOR));
-        byte[] exportPackage = buildEncryptedExportPackage(batch, content, request.getExportPassword(), codes.size());
-        String fingerprint = sha256(exportPackage);
+        List<CdkCodeEntity> codes = cdkCodeMapper.findByBatchId(batch.getId());
+        String content = buildPlainExportContent(codes);
+        String fingerprint = sha256(content);
         CdkExportAuditEntity audit = new CdkExportAuditEntity();
         audit.setBatchId(batch.getId());
         audit.setBatchNo(batch.getBatchNo());
@@ -315,92 +232,9 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         vo.setFingerprint(fingerprint);
         vo.setFileName(batch.getBatchNo() + EXPORT_FILE_SUFFIX);
         vo.setFileType(EXPORT_FILE_TYPE);
-        vo.setEncryptionAlgorithm(EXPORT_ENCRYPTION_ALGORITHM);
-        vo.setEncryptedPackageBase64(Base64.getEncoder().encodeToString(exportPackage));
-        log.info("cdk batch exported once, batchNo={}, count={}, fingerprint={}", batch.getBatchNo(), codes.size(), fingerprint);
+        vo.setContent(content);
+        log.info("cdk batch exported text, batchNo={}, count={}, fingerprint={}", batch.getBatchNo(), codes.size(), fingerprint);
         return vo;
-    }
-
-    private boolean requiresDoubleReview(CdkBatchEntity batch) {
-        if (!cdkProperties.isDoubleReviewEnabled()) {
-            return false;
-        }
-        if (CdkConstants.RISK_LEVEL_HIGH.equals(batch.getRiskLevel())
-                || CdkConstants.RISK_LEVEL_CRITICAL.equals(batch.getRiskLevel())) {
-            // 风险等级由创建人标记，高风险和严重风险无条件进入双人复核。
-            return true;
-        }
-        // 普通风险批次按总积分金额判断是否需要复核。
-        return calculateTotalPoints(batch) >= cdkProperties.getDoubleReviewTotalPointsThreshold();
-    }
-
-    private long calculateTotalPoints(CdkBatchEntity batch) {
-        if (!CdkConstants.BENEFIT_TYPE_POINTS.equals(batch.getBenefitType())) {
-            return 0L;
-        }
-        long points = JSON.parseObject(batch.getBenefitConfig()).getLongValue(CONFIG_POINTS);
-        return points * batch.getTotalCount();
-    }
-
-    private void createBatchReviewAlert(CdkBatchEntity batch) {
-        Map<String, Object> detail = new HashMap<>();
-        detail.put("batchNo", batch.getBatchNo());
-        detail.put("riskLevel", batch.getRiskLevel());
-        detail.put("totalCount", batch.getTotalCount());
-        detail.put("totalPoints", calculateTotalPoints(batch));
-        riskAlertService.createAlert(CdkConstants.ALERT_TYPE_BATCH_DOUBLE_REVIEW,
-                CdkConstants.RISK_LEVEL_HIGH,
-                CdkConstants.SUBJECT_TYPE_CDK_BATCH,
-                batch.getBatchNo(),
-                null,
-                FastJsonUtils.toJsonString(detail));
-    }
-
-    private byte[] buildEncryptedExportPackage(CdkBatchEntity batch, String content, String exportPassword, int count) {
-        try {
-            byte[] salt = randomBytes(EXPORT_SALT_LENGTH);
-            byte[] iv = randomBytes(EXPORT_IV_LENGTH);
-            byte[] cipherText = encryptExportPayload(content, exportPassword, salt, iv);
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream);
-            // manifest 保存解密所需的非敏感参数；真正的 CDK 明文只存在加密 payload 中。
-            writeZipEntry(zipOutputStream, EXPORT_ZIP_MANIFEST_NAME, buildExportManifest(batch, count, salt, iv).getBytes(StandardCharsets.UTF_8));
-            writeZipEntry(zipOutputStream, EXPORT_ZIP_PAYLOAD_NAME, cipherText);
-            zipOutputStream.close();
-            return outputStream.toByteArray();
-        } catch (GeneralSecurityException exception) {
-            throw new BusinessException(ErrorCode.CDK_EXPORT_ENCRYPT_FAILED);
-        } catch (java.io.IOException exception) {
-            throw new BusinessException(ErrorCode.CDK_EXPORT_ENCRYPT_FAILED, "CDK 导出文件生成失败");
-        }
-    }
-
-    private byte[] encryptExportPayload(String content, String exportPassword, byte[] salt, byte[] iv) throws GeneralSecurityException {
-        SecretKeyFactory factory = SecretKeyFactory.getInstance(EXPORT_KDF_ALGORITHM);
-        // 导出密码不直接作为 AES key，先通过 PBKDF2 加盐派生，提高离线爆破成本。
-        KeySpec spec = new PBEKeySpec(exportPassword.toCharArray(), salt, cdkProperties.getExportEncryptIterations(), EXPORT_KEY_LENGTH_BITS);
-        SecretKeySpec key = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), EXPORT_SECRET_ALGORITHM);
-        javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance(EXPORT_CIPHER_ALGORITHM);
-        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(EXPORT_GCM_TAG_LENGTH_BITS, iv));
-        return cipher.doFinal(content.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private String buildExportManifest(CdkBatchEntity batch, int count, byte[] salt, byte[] iv) {
-        Map<String, Object> manifest = new HashMap<>();
-        manifest.put("batchNo", batch.getBatchNo());
-        manifest.put("count", count);
-        manifest.put("algorithm", EXPORT_ENCRYPTION_ALGORITHM);
-        manifest.put("kdf", EXPORT_KDF_ALGORITHM);
-        manifest.put("iterations", cdkProperties.getExportEncryptIterations());
-        manifest.put("saltBase64", Base64.getEncoder().encodeToString(salt));
-        manifest.put("ivBase64", Base64.getEncoder().encodeToString(iv));
-        return FastJsonUtils.toJsonString(manifest);
-    }
-
-    private void writeZipEntry(ZipOutputStream zipOutputStream, String name, byte[] bytes) throws java.io.IOException {
-        zipOutputStream.putNextEntry(new ZipEntry(name));
-        zipOutputStream.write(bytes);
-        zipOutputStream.closeEntry();
     }
 
     @Override
@@ -490,6 +324,42 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         return new PageResponse<CdkRedeemRecordVo>(toRedeemRecordVoList(entities), pageNo, pageSize, total);
     }
 
+    @Override
+    public PageResponse<CdkCodeVo> listCodes(CdkCodeListRequest request) {
+        CdkBatchEntity batch = cdkBatchMapper.findById(request.getBatchId());
+        if (batch == null) {
+            throw new BusinessException(ErrorCode.CDK_BATCH_NOT_FOUND);
+        }
+        int pageNo = pageNo(request.getPageNo());
+        int pageSize = pageSize(request.getPageSize());
+        List<CdkCodeEntity> entities = cdkCodeMapper.findPage(request.getBatchId(), request.getStatus(),
+                offset(pageNo, pageSize), pageSize);
+        long total = cdkCodeMapper.countPage(request.getBatchId(), request.getStatus());
+        return new PageResponse<CdkCodeVo>(toCodeVoList(entities), pageNo, pageSize, total);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CdkCodeVo updateCodeStatus(Long id, CdkCodeStatusRequest request) {
+        CdkCodeEntity code = cdkCodeMapper.findByIdForUpdate(id);
+        if (code == null) {
+            throw new BusinessException(ErrorCode.CDK_CODE_NOT_FOUND);
+        }
+        if (!CdkConstants.CODE_STATUS_ACTIVE.equals(request.getStatus())
+                && !CdkConstants.CODE_STATUS_DISABLED.equals(request.getStatus())) {
+            throw new BusinessException(ErrorCode.CDK_CODE_STATUS_INVALID);
+        }
+        if (CdkConstants.CODE_STATUS_REDEEMED.equals(code.getStatus())) {
+            throw new BusinessException(ErrorCode.CDK_CODE_STATUS_INVALID);
+        }
+        if (!request.getStatus().equals(code.getStatus())) {
+            cdkCodeMapper.updateStatus(id, request.getStatus());
+            log.info("cdk code status changed, codeId={}, batchId={}, status={}, operator={}",
+                    id, code.getBatchId(), request.getStatus(), currentUsername());
+        }
+        return toCodeVo(cdkCodeMapper.findById(id));
+    }
+
     private List<String> generateCodes(CdkBatchEntity batch) {
         List<String> plainCodes = new ArrayList<String>();
         String yearMonth = LocalDate.now().format(YEAR_MONTH_FORMATTER);
@@ -497,8 +367,9 @@ public class CdkServiceImpl extends BaseService implements CdkService {
             String plainCode = generatePlainCode(yearMonth);
             CdkCodeEntity code = new CdkCodeEntity();
             code.setBatchId(batch.getId());
-            // 明文码不落库，只保存 HMAC，导出窗口结束后后台也无法恢复明文。
             code.setCodeHash(hmacSha256(plainCode));
+            // 明文码以 AES-GCM 加密落库，管理端可重复查看但数据库不可直接读出明文。
+            code.setEncryptedCode(encryptPlainCode(plainCode));
             code.setCodePrefix(CdkConstants.CODE_PREFIX + CODE_SEPARATOR + yearMonth);
             code.setChecksum(resolveChecksum(plainCode));
             code.setStatus(CdkConstants.CODE_STATUS_ACTIVE);
@@ -507,6 +378,14 @@ public class CdkServiceImpl extends BaseService implements CdkService {
             plainCodes.add(plainCode);
         }
         return plainCodes;
+    }
+
+    private String buildPlainExportContent(List<CdkCodeEntity> codes) {
+        List<String> plainCodes = new ArrayList<String>();
+        for (CdkCodeEntity code : codes) {
+            plainCodes.add(decryptPlainCode(code));
+        }
+        return String.join(EXPORT_LINE_SEPARATOR, plainCodes);
     }
 
     private String buildBenefitConfig(CdkBatchCreateRequest request) {
@@ -710,6 +589,47 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         }
     }
 
+    private String encryptPlainCode(String plainCode) {
+        try {
+            byte[] iv = randomBytes(CODE_IV_LENGTH);
+            Cipher cipher = Cipher.getInstance(CODE_ENCRYPTION_ALGORITHM);
+            cipher.init(Cipher.ENCRYPT_MODE, codeSecretKey(), new GCMParameterSpec(CODE_GCM_TAG_LENGTH_BITS, iv));
+            byte[] cipherText = cipher.doFinal(plainCode.getBytes(StandardCharsets.UTF_8));
+            byte[] payload = new byte[iv.length + cipherText.length];
+            System.arraycopy(iv, 0, payload, 0, iv.length);
+            System.arraycopy(cipherText, 0, payload, iv.length, cipherText.length);
+            return Base64.getEncoder().encodeToString(payload);
+        } catch (GeneralSecurityException exception) {
+            throw new BusinessException(ErrorCode.CDK_CODE_DECRYPT_FAILED, "CDK 明文加密失败");
+        }
+    }
+
+    private String decryptPlainCode(CdkCodeEntity code) {
+        if (!StringUtils.hasText(code.getEncryptedCode())) {
+            return "";
+        }
+        try {
+            byte[] payload = Base64.getDecoder().decode(code.getEncryptedCode());
+            if (payload.length <= CODE_IV_LENGTH) {
+                throw new BusinessException(ErrorCode.CDK_CODE_DECRYPT_FAILED);
+            }
+            byte[] iv = new byte[CODE_IV_LENGTH];
+            byte[] cipherText = new byte[payload.length - CODE_IV_LENGTH];
+            System.arraycopy(payload, 0, iv, 0, CODE_IV_LENGTH);
+            System.arraycopy(payload, CODE_IV_LENGTH, cipherText, 0, cipherText.length);
+            Cipher cipher = Cipher.getInstance(CODE_ENCRYPTION_ALGORITHM);
+            cipher.init(Cipher.DECRYPT_MODE, codeSecretKey(), new GCMParameterSpec(CODE_GCM_TAG_LENGTH_BITS, iv));
+            return new String(cipher.doFinal(cipherText), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException | GeneralSecurityException exception) {
+            throw new BusinessException(ErrorCode.CDK_CODE_DECRYPT_FAILED);
+        }
+    }
+
+    private SecretKeySpec codeSecretKey() {
+        byte[] digest = sha256Bytes(cdkProperties.getPepper() + CODE_ENCRYPTION_CONTEXT);
+        return new SecretKeySpec(digest, CODE_SECRET_ALGORITHM);
+    }
+
     private String digestKey(String value) {
         return sha256(defaultText(value));
     }
@@ -725,6 +645,14 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     private String sha256(byte[] value) {
         try {
             return toHex(MessageDigest.getInstance(SHA_256_ALGORITHM).digest(value));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("cdk sha256 failed", exception);
+        }
+    }
+
+    private byte[] sha256Bytes(String value) {
+        try {
+            return MessageDigest.getInstance(SHA_256_ALGORITHM).digest(defaultText(value).getBytes(StandardCharsets.UTF_8));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("cdk sha256 failed", exception);
         }
@@ -846,6 +774,30 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         List<CdkRedeemRecordVo> records = new ArrayList<CdkRedeemRecordVo>();
         for (CdkRedeemRecordEntity entity : entities) {
             records.add(toRedeemRecordVo(entity));
+        }
+        return records;
+    }
+
+    private CdkCodeVo toCodeVo(CdkCodeEntity entity) {
+        CdkCodeVo vo = new CdkCodeVo();
+        vo.setId(String.valueOf(entity.getId()));
+        vo.setBatchId(String.valueOf(entity.getBatchId()));
+        vo.setCdk(decryptPlainCode(entity));
+        vo.setCodePrefix(entity.getCodePrefix());
+        vo.setChecksum(entity.getChecksum());
+        vo.setStatus(entity.getStatus());
+        vo.setRedeemedUserId(entity.getRedeemedUserId() == null ? "" : String.valueOf(entity.getRedeemedUserId()));
+        vo.setRedeemedAt(entity.getRedeemedAt());
+        vo.setRedeemRecordNo(entity.getRedeemRecordNo());
+        vo.setCreatedAt(entity.getCreatedAt());
+        vo.setUpdatedAt(entity.getUpdatedAt());
+        return vo;
+    }
+
+    private List<CdkCodeVo> toCodeVoList(List<CdkCodeEntity> entities) {
+        List<CdkCodeVo> records = new ArrayList<CdkCodeVo>();
+        for (CdkCodeEntity entity : entities) {
+            records.add(toCodeVo(entity));
         }
         return records;
     }

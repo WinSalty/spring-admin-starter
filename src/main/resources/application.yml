@@ -186,14 +186,6 @@ app:
     redeem-lock-seconds: ${CDK_REDEEM_LOCK_SECONDS:900}
     # 触发兑换锁定的连续失败次数。
     redeem-failure-limit: ${CDK_REDEEM_FAILURE_LIMIT:5}
-    # CDK 明文导出缓存窗口，单位秒。
-    export-window-seconds: ${CDK_EXPORT_WINDOW_SECONDS:1800}
-    # 是否启用高价值 CDK 批次双人复核。
-    double-review-enabled: ${CDK_DOUBLE_REVIEW_ENABLED:true}
-    # 触发双人复核的批次总积分阈值。
-    double-review-total-points-threshold: ${CDK_DOUBLE_REVIEW_TOTAL_POINTS_THRESHOLD:100000}
-    # CDK 导出文件加密 PBKDF2 迭代次数。
-    export-encrypt-iterations: ${CDK_EXPORT_ENCRYPT_ITERATIONS:120000}
   # 积分账务配置。
   points:
     # 是否启用积分日终对账任务。

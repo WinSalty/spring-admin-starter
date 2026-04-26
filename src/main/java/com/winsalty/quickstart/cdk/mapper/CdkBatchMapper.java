@@ -39,21 +39,10 @@ public interface CdkBatchMapper {
     @Update("UPDATE cdk_batch SET status = #{status} WHERE id = #{id}")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
 
-    @Update("UPDATE cdk_batch SET status = #{status}, generated_count = #{generatedCount}, approved_by = #{approvedBy}, approved_at = NOW() WHERE id = #{id}")
-    int markApproved(@Param("id") Long id,
-                     @Param("generatedCount") Integer generatedCount,
-                     @Param("approvedBy") String approvedBy,
-                     @Param("status") String status);
-
-    @Update("UPDATE cdk_batch SET approved_by = #{approvedBy}, approved_at = NOW() WHERE id = #{id} AND approved_by IS NULL")
-    int markFirstApproved(@Param("id") Long id,
-                          @Param("approvedBy") String approvedBy);
-
-    @Update("UPDATE cdk_batch SET status = #{status}, generated_count = #{generatedCount}, second_approved_by = #{secondApprovedBy}, second_approved_at = NOW() WHERE id = #{id}")
-    int markSecondApproved(@Param("id") Long id,
-                           @Param("generatedCount") Integer generatedCount,
-                           @Param("secondApprovedBy") String secondApprovedBy,
-                           @Param("status") String status);
+    @Update("UPDATE cdk_batch SET status = #{status}, generated_count = #{generatedCount} WHERE id = #{id}")
+    int markGenerated(@Param("id") Long id,
+                      @Param("generatedCount") Integer generatedCount,
+                      @Param("status") String status);
 
     @Update("UPDATE cdk_batch SET redeemed_count = redeemed_count + 1 WHERE id = #{id}")
     int incrementRedeemed(@Param("id") Long id);

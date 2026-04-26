@@ -5,13 +5,14 @@ import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.benefit.service.BenefitGrantService;
 import com.winsalty.quickstart.cdk.config.CdkProperties;
 import com.winsalty.quickstart.cdk.constant.CdkConstants;
-import com.winsalty.quickstart.cdk.dto.CdkExportRequest;
+import com.winsalty.quickstart.cdk.dto.CdkBatchCreateRequest;
+import com.winsalty.quickstart.cdk.dto.CdkCodeStatusRequest;
 import com.winsalty.quickstart.cdk.entity.CdkBatchEntity;
+import com.winsalty.quickstart.cdk.entity.CdkCodeEntity;
 import com.winsalty.quickstart.cdk.mapper.CdkBatchMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkCodeMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkExportAuditMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkRedeemRecordMapper;
-import com.winsalty.quickstart.cdk.vo.CdkBatchVo;
 import com.winsalty.quickstart.cdk.vo.CdkExportVo;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.infra.cache.RedisCacheService;
@@ -22,46 +23,40 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * CDK 服务测试。
- * 覆盖高价值批次双人复核、二次复核人限制和加密导出审计，防止安全流程回退。
- * 创建日期：2026-04-25
+ * 覆盖管理员直接生成、可重复纯文本导出和已兑换码状态保护。
+ * 创建日期：2026-04-26
  * author：sunshengxian
  */
 class CdkServiceImplTest {
 
     private static final long ADMIN_USER_ID = 1L;
     private static final long BATCH_ID = 10L;
+    private static final long CODE_ID = 20L;
     private static final String ADMIN_USERNAME = "admin";
-    private static final String OTHER_ADMIN_USERNAME = "other-admin";
     private static final String ROLE_ADMIN = "ROLE_ADMIN";
     private static final String SESSION_ID = "session-1";
-    private static final String BATCH_NO = "CB202604250001";
+    private static final String BATCH_NO = "CB202604260001";
     private static final String BENEFIT_CONFIG = "{\"points\":1000}";
-    private static final String PLAIN_CODES = "WSA-202604-AAAA-BBBB-CCCC-DDDD-A\nWSA-202604-EEEE-FFFF-GGGG-HHHH-B";
-    private static final String EXPORT_PASSWORD = "Export@20260425";
-    private static final String ZIP_MANIFEST_NAME = "manifest.json";
-    private static final String ZIP_PAYLOAD_NAME = "cdk.enc";
 
     @AfterEach
     void clearAuthContext() {
@@ -69,80 +64,98 @@ class CdkServiceImplTest {
     }
 
     @Test
-    void approveHighValueBatchShouldWaitForSecondReviewAndCreateRiskAlert() {
+    void createBatchShouldGenerateActiveCodesImmediately() {
         CdkBatchMapper batchMapper = mock(CdkBatchMapper.class);
         CdkCodeMapper codeMapper = mock(CdkCodeMapper.class);
         RedisCacheService redisCacheService = mock(RedisCacheService.class);
-        RiskAlertService riskAlertService = mock(RiskAlertService.class);
-        CdkServiceImpl service = newService(batchMapper, codeMapper, redisCacheService, riskAlertService);
-        CdkBatchEntity pendingBatch = pendingBatch();
-        when(batchMapper.findByIdForUpdate(BATCH_ID)).thenReturn(pendingBatch);
-        when(batchMapper.findById(BATCH_ID)).thenReturn(firstApprovedBatch());
+        CdkServiceImpl service = newService(batchMapper, codeMapper, redisCacheService);
         AuthContext.set(new AuthUser(ADMIN_USER_ID, ADMIN_USERNAME, ROLE_ADMIN, SESSION_ID));
+        doAnswer(invocation -> {
+            CdkBatchEntity entity = invocation.getArgument(0);
+            entity.setId(BATCH_ID);
+            entity.setBatchNo(BATCH_NO);
+            return 1;
+        }).when(batchMapper).insert(any(CdkBatchEntity.class));
+        when(batchMapper.findById(BATCH_ID)).thenReturn(activeBatch());
 
-        CdkBatchVo result = service.approveBatch(BATCH_ID);
+        service.createBatch(batchRequest());
 
-        assertEquals(CdkConstants.BATCH_STATUS_PENDING_APPROVAL, result.getStatus());
-        assertEquals(ADMIN_USERNAME, result.getApprovedBy());
-        verify(batchMapper).markFirstApproved(BATCH_ID, ADMIN_USERNAME);
-        verify(riskAlertService).createAlert(eq(CdkConstants.ALERT_TYPE_BATCH_DOUBLE_REVIEW),
-                eq(CdkConstants.RISK_LEVEL_HIGH), eq(CdkConstants.SUBJECT_TYPE_CDK_BATCH),
-                eq(BATCH_NO), eq(null), anyString());
-        verify(codeMapper, never()).insert(any());
-        verify(redisCacheService, never()).set(anyString(), any(), anyLong());
+        ArgumentCaptor<CdkCodeEntity> codeCaptor = ArgumentCaptor.forClass(CdkCodeEntity.class);
+        verify(codeMapper).insert(codeCaptor.capture());
+        CdkCodeEntity generatedCode = codeCaptor.getValue();
+        assertEquals(CdkConstants.CODE_STATUS_ACTIVE, generatedCode.getStatus());
+        assertNotNull(generatedCode.getEncryptedCode());
+        assertFalse(generatedCode.getEncryptedCode().startsWith(CdkConstants.CODE_PREFIX));
+        verify(batchMapper).markGenerated(BATCH_ID, 1, CdkConstants.BATCH_STATUS_ACTIVE);
+        verify(redisCacheService, never()).set(any(), any(), anyLong());
     }
 
     @Test
-    void secondApproveShouldRejectOriginalApprover() {
+    void exportBatchShouldReturnPlainTextWithoutConsumingCodes() {
         CdkBatchMapper batchMapper = mock(CdkBatchMapper.class);
-        CdkServiceImpl service = newService(batchMapper, mock(CdkCodeMapper.class), mock(RedisCacheService.class), mock(RiskAlertService.class));
-        when(batchMapper.findByIdForUpdate(BATCH_ID)).thenReturn(firstApprovedBatch());
-        AuthContext.set(new AuthUser(ADMIN_USER_ID, ADMIN_USERNAME, ROLE_ADMIN, SESSION_ID));
-
-        assertThrows(BusinessException.class, () -> service.secondApproveBatch(BATCH_ID));
-    }
-
-    @Test
-    void exportBatchShouldReturnEncryptedZipAndConsumePlaintextCache() throws Exception {
-        CdkBatchMapper batchMapper = mock(CdkBatchMapper.class);
-        RedisCacheService redisCacheService = mock(RedisCacheService.class);
+        CdkCodeMapper codeMapper = mock(CdkCodeMapper.class);
         CdkExportAuditMapper exportAuditMapper = mock(CdkExportAuditMapper.class);
-        CdkServiceImpl service = newService(batchMapper, mock(CdkCodeMapper.class), redisCacheService, mock(RiskAlertService.class), exportAuditMapper);
+        CdkServiceImpl service = newService(batchMapper, codeMapper, mock(RedisCacheService.class), exportAuditMapper);
+        AuthContext.set(new AuthUser(ADMIN_USER_ID, ADMIN_USERNAME, ROLE_ADMIN, SESSION_ID));
+        CdkCodeEntity generatedCode = generatedCodeFromCreate(service, batchMapper, codeMapper);
         when(batchMapper.findByIdForUpdate(BATCH_ID)).thenReturn(activeBatch());
-        when(redisCacheService.get(CdkConstants.EXPORT_CACHE_PREFIX + BATCH_NO)).thenReturn(PLAIN_CODES);
-        AuthContext.set(new AuthUser(ADMIN_USER_ID, OTHER_ADMIN_USERNAME, ROLE_ADMIN, SESSION_ID));
+        when(codeMapper.findByBatchId(BATCH_ID)).thenReturn(Collections.singletonList(generatedCode));
 
-        CdkExportVo result = service.exportBatch(BATCH_ID, exportRequest());
+        CdkExportVo first = service.exportBatch(BATCH_ID);
+        CdkExportVo second = service.exportBatch(BATCH_ID);
 
-        assertEquals(BATCH_NO, result.getBatchNo());
-        assertEquals(Integer.valueOf(2), result.getCount());
-        assertEquals("zip", result.getFileType());
-        assertNotNull(result.getFingerprint());
-        assertNotNull(result.getEncryptedPackageBase64());
-        assertFalse(result.getEncryptedPackageBase64().contains("WSA-202604"));
-        assertZipContainsManifestAndEncryptedPayload(result.getEncryptedPackageBase64());
-        verify(redisCacheService).delete(CdkConstants.EXPORT_CACHE_PREFIX + BATCH_NO);
-        verify(exportAuditMapper).insert(any());
-        verify(batchMapper).incrementExport(BATCH_ID);
+        assertEquals("txt", first.getFileType());
+        assertTrue(first.getContent().startsWith(CdkConstants.CODE_PREFIX));
+        assertEquals(first.getContent(), second.getContent());
+        assertNotEquals("", first.getFingerprint());
+        verify(exportAuditMapper, times(2)).insert(any());
+        verify(batchMapper, times(2)).incrementExport(BATCH_ID);
+    }
+
+    @Test
+    void updateRedeemedCodeStatusShouldBeRejected() {
+        CdkBatchMapper batchMapper = mock(CdkBatchMapper.class);
+        CdkCodeMapper codeMapper = mock(CdkCodeMapper.class);
+        CdkServiceImpl service = newService(batchMapper, codeMapper, mock(RedisCacheService.class));
+        CdkCodeEntity code = activeCode();
+        code.setStatus(CdkConstants.CODE_STATUS_REDEEMED);
+        when(codeMapper.findByIdForUpdate(CODE_ID)).thenReturn(code);
+        CdkCodeStatusRequest request = new CdkCodeStatusRequest();
+        request.setStatus(CdkConstants.CODE_STATUS_DISABLED);
+
+        assertThrows(BusinessException.class, () -> service.updateCodeStatus(CODE_ID, request));
+    }
+
+    private CdkCodeEntity generatedCodeFromCreate(CdkServiceImpl service, CdkBatchMapper batchMapper, CdkCodeMapper codeMapper) {
+        doAnswer(invocation -> {
+            CdkBatchEntity entity = invocation.getArgument(0);
+            entity.setId(BATCH_ID);
+            entity.setBatchNo(BATCH_NO);
+            return 1;
+        }).when(batchMapper).insert(any(CdkBatchEntity.class));
+        when(batchMapper.findById(BATCH_ID)).thenReturn(activeBatch());
+        service.createBatch(batchRequest());
+        ArgumentCaptor<CdkCodeEntity> codeCaptor = ArgumentCaptor.forClass(CdkCodeEntity.class);
+        verify(codeMapper).insert(codeCaptor.capture());
+        CdkCodeEntity code = codeCaptor.getValue();
+        code.setId(CODE_ID);
+        code.setCreatedAt("2026-04-26 10:00:00");
+        code.setUpdatedAt("2026-04-26 10:00:00");
+        return code;
+    }
+
+    private CdkServiceImpl newService(CdkBatchMapper batchMapper,
+                                      CdkCodeMapper codeMapper,
+                                      RedisCacheService redisCacheService) {
+        return newService(batchMapper, codeMapper, redisCacheService, mock(CdkExportAuditMapper.class));
     }
 
     private CdkServiceImpl newService(CdkBatchMapper batchMapper,
                                       CdkCodeMapper codeMapper,
                                       RedisCacheService redisCacheService,
-                                      RiskAlertService riskAlertService) {
-        return newService(batchMapper, codeMapper, redisCacheService, riskAlertService, mock(CdkExportAuditMapper.class));
-    }
-
-    private CdkServiceImpl newService(CdkBatchMapper batchMapper,
-                                      CdkCodeMapper codeMapper,
-                                      RedisCacheService redisCacheService,
-                                      RiskAlertService riskAlertService,
                                       CdkExportAuditMapper exportAuditMapper) {
         CdkProperties properties = new CdkProperties();
         properties.setPepper("0123456789abcdef0123456789abcdef");
-        properties.setDoubleReviewEnabled(true);
-        properties.setDoubleReviewTotalPointsThreshold(1000L);
-        properties.setExportEncryptIterations(1000);
         return new CdkServiceImpl(
                 batchMapper,
                 codeMapper,
@@ -152,43 +165,35 @@ class CdkServiceImplTest {
                 mock(BenefitGrantService.class),
                 redisCacheService,
                 mock(TransactionOutboxService.class),
-                riskAlertService,
+                mock(RiskAlertService.class),
                 properties
         );
     }
 
-    private CdkExportRequest exportRequest() {
-        CdkExportRequest request = new CdkExportRequest();
-        request.setExportPassword(EXPORT_PASSWORD);
+    private CdkBatchCreateRequest batchRequest() {
+        CdkBatchCreateRequest request = new CdkBatchCreateRequest();
+        request.setBatchName("运营发放");
+        request.setBenefitType(CdkConstants.BENEFIT_TYPE_POINTS);
+        request.setPoints(1000L);
+        request.setTotalCount(1);
+        request.setRiskLevel(CdkConstants.RISK_LEVEL_NORMAL);
+        request.setValidFrom("2026-04-26 00:00:00");
+        request.setValidTo("2026-05-26 00:00:00");
         return request;
-    }
-
-    private CdkBatchEntity pendingBatch() {
-        CdkBatchEntity entity = activeBatch();
-        entity.setStatus(CdkConstants.BATCH_STATUS_PENDING_APPROVAL);
-        entity.setRiskLevel(CdkConstants.RISK_LEVEL_HIGH);
-        entity.setApprovedBy(null);
-        return entity;
-    }
-
-    private CdkBatchEntity firstApprovedBatch() {
-        CdkBatchEntity entity = pendingBatch();
-        entity.setApprovedBy(ADMIN_USERNAME);
-        return entity;
     }
 
     private CdkBatchEntity activeBatch() {
         CdkBatchEntity entity = new CdkBatchEntity();
         entity.setId(BATCH_ID);
         entity.setBatchNo(BATCH_NO);
-        entity.setBatchName("高价值批次");
+        entity.setBatchName("运营发放");
         entity.setBenefitType(CdkConstants.BENEFIT_TYPE_POINTS);
         entity.setBenefitConfig(BENEFIT_CONFIG);
         entity.setTotalCount(1);
-        entity.setGeneratedCount(0);
+        entity.setGeneratedCount(1);
         entity.setRedeemedCount(0);
-        entity.setValidFrom("2026-04-24 00:00:00");
-        entity.setValidTo("2026-04-26 00:00:00");
+        entity.setValidFrom("2026-04-26 00:00:00");
+        entity.setValidTo("2026-05-26 00:00:00");
         entity.setStatus(CdkConstants.BATCH_STATUS_ACTIVE);
         entity.setRiskLevel(CdkConstants.RISK_LEVEL_NORMAL);
         entity.setCreatedBy(ADMIN_USERNAME);
@@ -196,34 +201,16 @@ class CdkServiceImplTest {
         return entity;
     }
 
-    private void assertZipContainsManifestAndEncryptedPayload(String encryptedPackageBase64) throws Exception {
-        byte[] zipBytes = Base64.getDecoder().decode(encryptedPackageBase64);
-        ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(zipBytes));
-        boolean hasManifest = false;
-        boolean hasPayload = false;
-        ZipEntry entry;
-        while ((entry = zipInputStream.getNextEntry()) != null) {
-            byte[] bytes = readEntry(zipInputStream);
-            if (ZIP_MANIFEST_NAME.equals(entry.getName())) {
-                hasManifest = new String(bytes, StandardCharsets.UTF_8).contains("\"algorithm\":\"AES-256-GCM\"");
-            }
-            if (ZIP_PAYLOAD_NAME.equals(entry.getName())) {
-                hasPayload = bytes.length > 0;
-            }
-            zipInputStream.closeEntry();
-        }
-        zipInputStream.close();
-        assertTrue(hasManifest);
-        assertTrue(hasPayload);
-    }
-
-    private byte[] readEntry(ZipInputStream zipInputStream) throws Exception {
-        java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        int length;
-        while ((length = zipInputStream.read(buffer)) > 0) {
-            outputStream.write(buffer, 0, length);
-        }
-        return outputStream.toByteArray();
+    private CdkCodeEntity activeCode() {
+        CdkCodeEntity entity = new CdkCodeEntity();
+        entity.setId(CODE_ID);
+        entity.setBatchId(BATCH_ID);
+        entity.setCodeHash("hash");
+        entity.setEncryptedCode("encrypted");
+        entity.setCodePrefix("WSA-202604");
+        entity.setChecksum("A");
+        entity.setStatus(CdkConstants.CODE_STATUS_ACTIVE);
+        entity.setVersion(0L);
+        return entity;
     }
 }

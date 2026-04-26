@@ -4,7 +4,6 @@ import com.winsalty.quickstart.auth.security.AuthContext;
 import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.cdk.constant.CdkConstants;
 import com.winsalty.quickstart.cdk.dto.CdkBatchCreateRequest;
-import com.winsalty.quickstart.cdk.dto.CdkExportRequest;
 import com.winsalty.quickstart.cdk.dto.CdkRedeemRequest;
 import com.winsalty.quickstart.cdk.service.CdkService;
 import com.winsalty.quickstart.cdk.vo.CdkBatchVo;
@@ -26,21 +25,10 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
-import javax.crypto.Cipher;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.spec.KeySpec;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -49,12 +37,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -94,15 +79,6 @@ class CdkPointsDevIntegrationTest {
     private static final String SESSION_ID = "integration-session";
     private static final String TEST_CLIENT_IP = "127.0.0.1";
     private static final String TEST_USER_AGENT = "cdk-points-integration-test";
-    private static final String EXPORT_PASSWORD = "Integration@20260424";
-    private static final String EXPORT_MANIFEST_NAME = "manifest.json";
-    private static final String EXPORT_PAYLOAD_NAME = "cdk.enc";
-    private static final String EXPORT_KDF_ALGORITHM = "PBKDF2WithHmacSHA256";
-    private static final String EXPORT_CIPHER_ALGORITHM = "AES/GCM/NoPadding";
-    private static final String EXPORT_SECRET_ALGORITHM = "AES";
-    private static final int EXPORT_KEY_LENGTH_BITS = 256;
-    private static final int EXPORT_GCM_TAG_LENGTH_BITS = 128;
-
     private static final AtomicLong USER_SEQUENCE = new AtomicLong(TEST_USER_BASE);
 
     @Autowired
@@ -232,17 +208,15 @@ class CdkPointsDevIntegrationTest {
     }
 
     /**
-     * 创建可兑换的测试 CDK，并返回一次性导出的明文码。
+     * 创建可兑换的测试 CDK，并返回管理端导出的明文码。
      */
     private String createActiveCode(Long points) {
         AuthContext.set(new AuthUser(ADMIN_USER_ID, ADMIN_USERNAME, ROLE_ADMIN, SESSION_ID));
         CdkBatchVo batch = cdkService.createBatch(batchRequest(points));
         Long batchId = Long.valueOf(batch.getId());
         createdBatchIds.add(batchId);
-        cdkService.submitBatch(batchId);
-        cdkService.approveBatch(batchId);
-        CdkExportVo exportVo = cdkService.exportBatch(batchId, exportRequest());
-        String content = decryptExport(exportVo);
+        CdkExportVo exportVo = cdkService.exportBatch(batchId);
+        String content = exportVo.getContent();
         List<String> codes = new ArrayList<String>();
         for (String code : content.split("\n")) {
             if (code.trim().length() > 0) {
@@ -251,84 +225,6 @@ class CdkPointsDevIntegrationTest {
         }
         assertFalse(codes.isEmpty());
         return codes.get(0);
-    }
-
-    /**
-     * 构建加密导出请求。
-     */
-    private CdkExportRequest exportRequest() {
-        CdkExportRequest request = new CdkExportRequest();
-        request.setExportPassword(EXPORT_PASSWORD);
-        return request;
-    }
-
-    /**
-     * 解密测试导出的 ZIP 包，验证新版加密导出仍可用于开发环境兑换链路。
-     */
-    @SuppressWarnings("unchecked")
-    private String decryptExport(CdkExportVo exportVo) {
-        assertNotNull(exportVo.getEncryptedPackageBase64());
-        try {
-            byte[] zipBytes = Base64.getDecoder().decode(exportVo.getEncryptedPackageBase64());
-            ZipPayload payload = readExportZip(zipBytes);
-            Map<String, Object> manifest = com.alibaba.fastjson2.JSON.parseObject(payload.manifest, Map.class);
-            byte[] salt = Base64.getDecoder().decode(String.valueOf(manifest.get("saltBase64")));
-            byte[] iv = Base64.getDecoder().decode(String.valueOf(manifest.get("ivBase64")));
-            int iterations = Integer.parseInt(String.valueOf(manifest.get("iterations")));
-            SecretKeyFactory factory = SecretKeyFactory.getInstance(EXPORT_KDF_ALGORITHM);
-            KeySpec spec = new PBEKeySpec(EXPORT_PASSWORD.toCharArray(), salt, iterations, EXPORT_KEY_LENGTH_BITS);
-            SecretKeySpec key = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), EXPORT_SECRET_ALGORITHM);
-            Cipher cipher = Cipher.getInstance(EXPORT_CIPHER_ALGORITHM);
-            cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(EXPORT_GCM_TAG_LENGTH_BITS, iv));
-            return new String(cipher.doFinal(payload.cipherText), StandardCharsets.UTF_8);
-        } catch (GeneralSecurityException exception) {
-            throw new IllegalStateException("decrypt cdk export failed", exception);
-        } catch (java.io.IOException exception) {
-            throw new IllegalStateException("read cdk export zip failed", exception);
-        }
-    }
-
-    /**
-     * 读取加密导出 ZIP 的 manifest 和密文载荷。
-     */
-    private ZipPayload readExportZip(byte[] zipBytes) throws java.io.IOException {
-        ZipPayload payload = new ZipPayload();
-        ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(zipBytes));
-        ZipEntry entry;
-        while ((entry = zipInputStream.getNextEntry()) != null) {
-            byte[] bytes = readCurrentZipEntry(zipInputStream);
-            if (EXPORT_MANIFEST_NAME.equals(entry.getName())) {
-                payload.manifest = new String(bytes, StandardCharsets.UTF_8);
-            } else if (EXPORT_PAYLOAD_NAME.equals(entry.getName())) {
-                payload.cipherText = bytes;
-            }
-            zipInputStream.closeEntry();
-        }
-        zipInputStream.close();
-        assertNotNull(payload.manifest);
-        assertNotNull(payload.cipherText);
-        return payload;
-    }
-
-    /**
-     * 读取当前 ZIP 条目字节。
-     */
-    private byte[] readCurrentZipEntry(ZipInputStream zipInputStream) throws java.io.IOException {
-        java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        int length;
-        while ((length = zipInputStream.read(buffer)) > 0) {
-            outputStream.write(buffer, 0, length);
-        }
-        return outputStream.toByteArray();
-    }
-
-    /**
-     * CDK 导出 ZIP 解析结果。
-     */
-    private static class ZipPayload {
-        private String manifest;
-        private byte[] cipherText;
     }
 
     /**

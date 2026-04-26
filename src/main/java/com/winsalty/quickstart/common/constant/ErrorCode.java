@@ -82,7 +82,7 @@ public enum ErrorCode {
     CDK_CODE_UNAVAILABLE(4079, "CDK 不可兑换"),
     CDK_PEPPER_MISSING(4080, "CDK 安全密钥未配置"),
     CDK_BATCH_SIZE_EXCEEDED(4081, "CDK 批次数量超过上限"),
-    CDK_EXPORT_EXPIRED(4082, "CDK 明文导出窗口已失效"),
+    CDK_CODE_NOT_FOUND(4082, "CDK 不存在"),
     CDK_REDEEM_LOCKED(4083, "CDK 兑换失败次数过多，请稍后再试"),
     CDK_BENEFIT_UNSUPPORTED(4084, "CDK 权益类型不支持"),
     BENEFIT_PRODUCT_NOT_FOUND(4085, "权益商品不存在"),
@@ -94,10 +94,8 @@ public enum ErrorCode {
     TRADE_RECHARGE_ORDER_STATUS_INVALID(4091, "在线充值订单状态不允许当前操作"),
     TRADE_CALLBACK_SIGNATURE_INVALID(4092, "支付回调签名无效"),
     TRADE_CALLBACK_SECRET_MISSING(4093, "支付回调密钥未配置"),
-    CDK_SECOND_APPROVAL_REQUIRED(4094, "高价值 CDK 批次需要二次复核"),
-    CDK_SECOND_APPROVER_INVALID(4095, "二次复核人不能与首次审批人相同"),
-    CDK_EXPORT_PASSWORD_REQUIRED(4096, "CDK 导出密码不能为空"),
-    CDK_EXPORT_ENCRYPT_FAILED(4097, "CDK 导出文件加密失败");
+    CDK_CODE_STATUS_INVALID(4094, "CDK 状态不允许当前操作"),
+    CDK_CODE_DECRYPT_FAILED(4095, "CDK 明文解密失败");
 
     private final int code;
     private final String message;

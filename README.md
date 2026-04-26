@@ -107,7 +107,7 @@
 | CDK 兑换 | `/api/points/cdk/redeem`，支持 HMAC 存储、幂等兑换、限流和积分入账 |
 | 在线充值 | `/api/trade/recharge/orders`、`/orders/{rechargeNo}`、`/callback`，支持充值单创建、支付回调 HMAC 验签、重复回调幂等和积分入账 |
 | 权益兑换 | `/api/benefits/products`、`/products/{id}/exchange`、`/orders`、`/mine`，支持积分冻结、权益发放和确认扣减 |
-| 管理端 CDK | `/api/admin/cdk/batches`、`/submit`、`/approve`、`/pause`、`/void`、`/export`、`/api/admin/cdk/redeem-records` |
+| 管理端 CDK | `/api/admin/cdk/batches`、`/pause`、`/void`、`/export`、`/api/admin/cdk/codes`、`/api/admin/cdk/codes/{id}/status`、`/api/admin/cdk/redeem-records` |
 | 积分审计 | `/api/admin/points/accounts`、`/ledger`、`/adjustments`、`/adjustments/{id}/approve`、`/reconciliation` |
 | 权益管理 | `/api/admin/benefits/products`、`/products/{id}`、`/products/{id}/status`、`/orders` |
 | 风控告警 | `/api/admin/risk-alerts`，支持查询异常兑换锁定和高价值批次复核告警 |
@@ -119,8 +119,8 @@
 1. 积分账户通过 `PointAccountService` 统一变更，业务模块不直接更新余额表。
 2. 每次积分变更会写入 `point_ledger`，记录变更前后余额、幂等键、业务单号、操作人、traceId 和哈希链。
 3. 支持充值、扣减、冻结、确认冻结、取消冻结、退款等账务入口。
-4. CDK 明文不落库，`cdk_code.code_hash` 使用 `HMAC-SHA256(cdkPlainText, CDK_PEPPER)`。
-5. CDK 批次审批通过后生成明文码，只写入短期 Redis 导出窗口；导出接口一次性消费缓存并写入导出审计。
+4. CDK 使用 `HMAC-SHA256(cdkPlainText, CDK_PEPPER)` 写入 `cdk_code.code_hash`，同时将明文码用 AES-GCM 加密保存到 `encrypted_code`，支持管理端重复查看。
+5. CDK 批次由管理员直接生成，不需要提交审批；导出接口返回纯文本内容并写入导出审计，不再生成压缩包。
 6. CDK 兑换按用户、IP、连续失败次数做 Redis 限流，成功兑换在同一事务内完成码状态、兑换记录、充值单、账户余额和账本流水。
 7. 管理员人工调整先创建调整单，审批通过后再调用积分账务服务入账或扣减。
 8. 积分对账已接入 Quartz 日终任务，按 `app.points.reconciliation-cron` 定时执行账户与流水汇总校验，并持久化 `point_reconciliation_record`。
@@ -129,9 +129,8 @@
 11. 过期冻结单通过 `PointFreezeCompensationJob` 自动取消，避免权益发放超时后长期占用冻结积分。
 12. CDK 兑换成功、权益兑换成功会写入 `transaction_outbox`，当前由定时任务标记处理，后续可平滑替换为 MQ 投递。
 13. 在线充值通过 `trade` 模块创建 `online_pay` 充值单，支付回调使用 `TRADE_CALLBACK_SECRET` 做 HMAC 验签，成功后按充值单号幂等入账。
-14. 高风险或超过积分阈值的 CDK 批次需要两个不同管理员完成审批和二次复核后才会生成码。
-15. CDK 导出接口要求管理员提供导出密码，返回 AES-256-GCM 加密后的 ZIP 包，不再直接返回明文码列表。
-16. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql`、`V26__enhance_cdk_audit_risk_schema.sql` 初始化表结构和权限菜单。
+14. CDK 管理端支持按批次在线查看、复制、启用和失效单个 CDK，不提供删除已生成 CDK 的接口。
+15. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql`、`V26__enhance_cdk_audit_risk_schema.sql`、`V27__simplify_cdk_generation_and_manage_codes.sql` 初始化表结构和权限菜单。
 
 ## 配套环境说明
 
@@ -206,7 +205,7 @@ Redis 当前承担以下职责：
 4. 系统配置缓存
 5. 匿名接口限流
 6. 通用对象缓存
-7. CDK 兑换风控计数与短期导出窗口
+7. CDK 兑换风控计数
 8. Redisson 分布式锁和分布式对象
 
 #### 3. Redisson
@@ -316,9 +315,6 @@ export CDK_REDEEM_USER_LIMIT=10
 export CDK_REDEEM_IP_WINDOW_SECONDS=60
 export CDK_REDEEM_IP_LIMIT=30
 export CDK_REDEEM_LOCK_SECONDS=900
-export CDK_DOUBLE_REVIEW_ENABLED=true
-export CDK_DOUBLE_REVIEW_TOTAL_POINTS_THRESHOLD=100000
-export CDK_EXPORT_ENCRYPT_ITERATIONS=120000
 export POINTS_RECONCILIATION_ENABLED=true
 export POINTS_RECONCILIATION_CRON='0 10 2 * * ?'
 export POINTS_FREEZE_DEFAULT_EXPIRE_SECONDS=1800
@@ -332,7 +328,7 @@ export TRADE_CALLBACK_SKEW_SECONDS=300
 export TRADE_MAX_RECHARGE_POINTS=100000
 ```
 
-生产环境必须显式配置 `CDK_PEPPER`，且长度不少于 32 字节。未配置时，CDK 批次审批生成和兑换会拒绝执行，避免使用弱密钥生成高价值凭证。
+生产环境必须显式配置 `CDK_PEPPER`，且长度不少于 32 字节。未配置时，CDK 批次生成和兑换会拒绝执行，避免使用弱密钥生成高价值凭证。
 在线充值回调必须显式配置 `TRADE_CALLBACK_SECRET`，且长度不少于 32 字节；回调签名原文按 `amount`、`externalNo`、`nonce`、`rechargeNo`、`status`、`timestamp` 的字典序字段拼接。
 
 开发环境可使用本地 MySQL 和 Redis 执行 CDK/积分集成测试：

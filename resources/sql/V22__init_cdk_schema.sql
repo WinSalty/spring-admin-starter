@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS cdk_code (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
     batch_id BIGINT NOT NULL COMMENT '批次ID',
     code_hash VARCHAR(128) NOT NULL COMMENT 'HMAC 后码值',
+    encrypted_code VARCHAR(512) NOT NULL DEFAULT '' COMMENT '加密后的明文CDK',
     code_prefix VARCHAR(32) NOT NULL COMMENT '明文前缀',
     checksum VARCHAR(16) NOT NULL COMMENT '校验位',
     status VARCHAR(32) NOT NULL COMMENT '状态',
