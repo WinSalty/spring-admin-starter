@@ -56,6 +56,7 @@ class CdkServiceImplTest {
     private static final String SESSION_ID = "session-1";
     private static final String BATCH_NO = "CB202604260001";
     private static final String BENEFIT_CONFIG = "{\"points\":1000}";
+    private static final int SHORT_CDK_PART_COUNT = 6;
 
     @AfterEach
     void clearAuthContext() {
@@ -114,6 +115,7 @@ class CdkServiceImplTest {
 
         assertEquals(1L, page.getTotal());
         assertTrue(code.getCdk().startsWith(CdkConstants.CODE_PREFIX));
+        assertEquals(SHORT_CDK_PART_COUNT, code.getCdk().split("-").length);
         assertEquals(BATCH_NO, code.getBatchNo());
         assertEquals(BENEFIT_CONFIG, code.getBenefitConfig());
     }

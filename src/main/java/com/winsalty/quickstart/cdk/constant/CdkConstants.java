@@ -33,9 +33,9 @@ public final class CdkConstants {
     public static final int DEFAULT_PAGE_NO = 1;
     public static final int DEFAULT_PAGE_SIZE = 10;
     public static final int MAX_PAGE_SIZE = 100;
-    public static final int RANDOM_BYTE_LENGTH = 16;
+    public static final int RANDOM_BYTE_LENGTH = 6;
     public static final int CODE_GROUP_LENGTH = 4;
-    public static final int MIN_CODE_PARTS = 7;
+    public static final int MIN_CODE_PARTS = 6;
     public static final int CHECKSUM_LENGTH = 1;
     public static final int YEAR_MONTH_LENGTH = 6;
 
