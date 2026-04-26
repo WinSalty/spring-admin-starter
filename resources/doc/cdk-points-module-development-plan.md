@@ -112,7 +112,7 @@ CDK 可以兑换重要权益，按高价值凭证处理：
 1. 明文 CDK 只在生成任务内短暂存在，数据库只保存 `code_hash`。
 2. `code_hash` 使用 `HMAC-SHA256(cdkPlainText, CDK_PEPPER)`，`CDK_PEPPER` 通过环境变量或 KMS 注入，不进入仓库。
 3. CDK 明文长度必须具备足够熵，高价值场景建议调大 `CdkConstants.RANDOM_BYTE_LENGTH`，并保留校验位减少无效查库。
-4. CDK 展示格式建议：`XXXX-XXXX-XXXX-C`，随机部分长度由后端 `CdkConstants.RANDOM_BYTE_LENGTH` 控制，其中 `C` 为校验位；真实校验算法用后端常量实现。
+4. CDK 展示格式建议：`XXXX-XXXX-XXXX-XXXX-C`，随机部分长度由后端 `CdkConstants.RANDOM_BYTE_LENGTH` 控制，其中 `C` 为校验位；真实校验算法用后端常量实现。
 5. CDK 兑换接口必须限流：用户维度、IP 维度、设备维度、错误次数维度。
 6. 连续错误达到阈值后临时锁定兑换能力，避免撞库。
 7. CDK 批量导出必须产生审计日志，记录导出人、导出时间、批次号、数量、文件指纹，不记录明文内容。
@@ -331,7 +331,7 @@ SQL 脚本统一放入项目根目录 `resources/sql`，建议按迁移顺序拆
 
 ```json
 {
-  "cdk": "XXXX-XXXX-XXXX-C",
+  "cdk": "XXXX-XXXX-XXXX-XXXX-C",
   "idempotencyKey": "client-generated-uuid"
 }
 ```
