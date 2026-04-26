@@ -4,11 +4,13 @@ import com.winsalty.quickstart.auth.security.AuthContext;
 import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.cdk.constant.CdkConstants;
 import com.winsalty.quickstart.cdk.dto.CdkBatchCreateRequest;
+import com.winsalty.quickstart.cdk.dto.CdkCodeListRequest;
 import com.winsalty.quickstart.cdk.dto.CdkRedeemRequest;
 import com.winsalty.quickstart.cdk.service.CdkService;
 import com.winsalty.quickstart.cdk.vo.CdkBatchVo;
-import com.winsalty.quickstart.cdk.vo.CdkExportVo;
+import com.winsalty.quickstart.cdk.vo.CdkCodeVo;
 import com.winsalty.quickstart.cdk.vo.CdkRedeemResultVo;
+import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.points.constant.PointsConstants;
 import com.winsalty.quickstart.points.dto.PointChangeCommand;
@@ -208,23 +210,20 @@ class CdkPointsDevIntegrationTest {
     }
 
     /**
-     * 创建可兑换的测试 CDK，并返回管理端导出的明文码。
+     * 创建可兑换的测试 CDK，并返回管理端在线查看到的明文码。
      */
     private String createActiveCode(Long points) {
         AuthContext.set(new AuthUser(ADMIN_USER_ID, ADMIN_USERNAME, ROLE_ADMIN, SESSION_ID));
         CdkBatchVo batch = cdkService.createBatch(batchRequest(points));
         Long batchId = Long.valueOf(batch.getId());
         createdBatchIds.add(batchId);
-        CdkExportVo exportVo = cdkService.exportBatch(batchId);
-        String content = exportVo.getContent();
-        List<String> codes = new ArrayList<String>();
-        for (String code : content.split("\n")) {
-            if (code.trim().length() > 0) {
-                codes.add(code.trim());
-            }
-        }
-        assertFalse(codes.isEmpty());
-        return codes.get(0);
+        CdkCodeListRequest request = new CdkCodeListRequest();
+        request.setBatchId(batchId);
+        request.setPageNo(1);
+        request.setPageSize(1);
+        PageResponse<CdkCodeVo> page = cdkService.listCodes(request);
+        assertFalse(page.getRecords().isEmpty());
+        return page.getRecords().get(0).getCdk();
     }
 
     /**

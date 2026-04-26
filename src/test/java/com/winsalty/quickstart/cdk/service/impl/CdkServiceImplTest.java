@@ -6,14 +6,15 @@ import com.winsalty.quickstart.benefit.service.BenefitGrantService;
 import com.winsalty.quickstart.cdk.config.CdkProperties;
 import com.winsalty.quickstart.cdk.constant.CdkConstants;
 import com.winsalty.quickstart.cdk.dto.CdkBatchCreateRequest;
+import com.winsalty.quickstart.cdk.dto.CdkCodeListRequest;
 import com.winsalty.quickstart.cdk.dto.CdkCodeStatusRequest;
 import com.winsalty.quickstart.cdk.entity.CdkBatchEntity;
 import com.winsalty.quickstart.cdk.entity.CdkCodeEntity;
 import com.winsalty.quickstart.cdk.mapper.CdkBatchMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkCodeMapper;
-import com.winsalty.quickstart.cdk.mapper.CdkExportAuditMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkRedeemRecordMapper;
-import com.winsalty.quickstart.cdk.vo.CdkExportVo;
+import com.winsalty.quickstart.cdk.vo.CdkCodeVo;
+import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.common.exception.BusinessException;
 import com.winsalty.quickstart.infra.cache.RedisCacheService;
 import com.winsalty.quickstart.infra.outbox.TransactionOutboxService;
@@ -27,7 +28,6 @@ import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -37,13 +37,12 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * CDK 服务测试。
- * 覆盖管理员直接生成、可重复纯文本导出和已兑换码状态保护。
+ * 覆盖管理员直接生成、在线查看明文和已兑换码状态保护。
  * 创建日期：2026-04-26
  * author：sunshengxian
  */
@@ -91,25 +90,32 @@ class CdkServiceImplTest {
     }
 
     @Test
-    void exportBatchShouldReturnPlainTextWithoutConsumingCodes() {
+    void listCodesShouldReturnPlainTextAndBatchInfo() {
         CdkBatchMapper batchMapper = mock(CdkBatchMapper.class);
         CdkCodeMapper codeMapper = mock(CdkCodeMapper.class);
-        CdkExportAuditMapper exportAuditMapper = mock(CdkExportAuditMapper.class);
-        CdkServiceImpl service = newService(batchMapper, codeMapper, mock(RedisCacheService.class), exportAuditMapper);
+        CdkServiceImpl service = newService(batchMapper, codeMapper, mock(RedisCacheService.class));
         AuthContext.set(new AuthUser(ADMIN_USER_ID, ADMIN_USERNAME, ROLE_ADMIN, SESSION_ID));
         CdkCodeEntity generatedCode = generatedCodeFromCreate(service, batchMapper, codeMapper);
-        when(batchMapper.findByIdForUpdate(BATCH_ID)).thenReturn(activeBatch());
-        when(codeMapper.findByBatchId(BATCH_ID)).thenReturn(Collections.singletonList(generatedCode));
+        generatedCode.setBatchNo(BATCH_NO);
+        generatedCode.setBatchName("运营发放");
+        generatedCode.setBenefitType(CdkConstants.BENEFIT_TYPE_POINTS);
+        generatedCode.setBenefitConfig(BENEFIT_CONFIG);
+        generatedCode.setBatchStatus(CdkConstants.BATCH_STATUS_ACTIVE);
+        generatedCode.setValidFrom("2026-04-26 00:00:00");
+        generatedCode.setValidTo("2026-05-26 00:00:00");
+        when(batchMapper.findById(BATCH_ID)).thenReturn(activeBatch());
+        when(codeMapper.findPage(null, BATCH_ID, null, 0, 10)).thenReturn(Collections.singletonList(generatedCode));
+        when(codeMapper.countPage(null, BATCH_ID, null)).thenReturn(1L);
 
-        CdkExportVo first = service.exportBatch(BATCH_ID);
-        CdkExportVo second = service.exportBatch(BATCH_ID);
+        CdkCodeListRequest request = new CdkCodeListRequest();
+        request.setBatchId(BATCH_ID);
+        PageResponse<CdkCodeVo> page = service.listCodes(request);
+        CdkCodeVo code = page.getRecords().get(0);
 
-        assertEquals("txt", first.getFileType());
-        assertTrue(first.getContent().startsWith(CdkConstants.CODE_PREFIX));
-        assertEquals(first.getContent(), second.getContent());
-        assertNotEquals("", first.getFingerprint());
-        verify(exportAuditMapper, times(2)).insert(any());
-        verify(batchMapper, times(2)).incrementExport(BATCH_ID);
+        assertEquals(1L, page.getTotal());
+        assertTrue(code.getCdk().startsWith(CdkConstants.CODE_PREFIX));
+        assertEquals(BATCH_NO, code.getBatchNo());
+        assertEquals(BENEFIT_CONFIG, code.getBenefitConfig());
     }
 
     @Test
@@ -147,20 +153,12 @@ class CdkServiceImplTest {
     private CdkServiceImpl newService(CdkBatchMapper batchMapper,
                                       CdkCodeMapper codeMapper,
                                       RedisCacheService redisCacheService) {
-        return newService(batchMapper, codeMapper, redisCacheService, mock(CdkExportAuditMapper.class));
-    }
-
-    private CdkServiceImpl newService(CdkBatchMapper batchMapper,
-                                      CdkCodeMapper codeMapper,
-                                      RedisCacheService redisCacheService,
-                                      CdkExportAuditMapper exportAuditMapper) {
         CdkProperties properties = new CdkProperties();
         properties.setPepper("0123456789abcdef0123456789abcdef");
         return new CdkServiceImpl(
                 batchMapper,
                 codeMapper,
                 mock(CdkRedeemRecordMapper.class),
-                exportAuditMapper,
                 mock(PointRechargeOrderMapper.class),
                 mock(BenefitGrantService.class),
                 redisCacheService,

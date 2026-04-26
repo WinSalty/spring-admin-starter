@@ -10,6 +10,9 @@ import lombok.Data;
 @Data
 public class CdkCodeListRequest {
 
+    /** 关键字，支持批次号、批次名称和 CDK 前缀查询。 */
+    private String keyword;
+
     /** 批次ID，不传时查询全部 CDK。 */
     private Long batchId;
 

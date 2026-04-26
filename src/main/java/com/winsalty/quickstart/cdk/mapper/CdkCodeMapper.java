@@ -20,6 +20,13 @@ public interface CdkCodeMapper {
             + "redeemed_user_id AS redeemedUserId, DATE_FORMAT(redeemed_at, '%Y-%m-%d %H:%i:%s') AS redeemedAt, "
             + "redeem_record_no AS redeemRecordNo, version, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, "
             + "DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt FROM cdk_code ";
+    String CODE_BATCH_SELECT = "SELECT c.id, c.batch_id AS batchId, b.batch_no AS batchNo, b.batch_name AS batchName, "
+            + "b.benefit_type AS benefitType, b.benefit_config AS benefitConfig, b.status AS batchStatus, "
+            + "DATE_FORMAT(b.valid_from, '%Y-%m-%d %H:%i:%s') AS validFrom, DATE_FORMAT(b.valid_to, '%Y-%m-%d %H:%i:%s') AS validTo, "
+            + "c.code_hash AS codeHash, c.encrypted_code AS encryptedCode, c.code_prefix AS codePrefix, c.checksum, c.status, "
+            + "c.redeemed_user_id AS redeemedUserId, DATE_FORMAT(c.redeemed_at, '%Y-%m-%d %H:%i:%s') AS redeemedAt, "
+            + "c.redeem_record_no AS redeemRecordNo, c.version, DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, "
+            + "DATE_FORMAT(c.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt FROM cdk_code c INNER JOIN cdk_batch b ON b.id = c.batch_id ";
 
     @Insert("INSERT INTO cdk_code(batch_id, code_hash, encrypted_code, code_prefix, checksum, status, version) VALUES(#{batchId}, #{codeHash}, #{encryptedCode}, #{codePrefix}, #{checksum}, #{status}, #{version})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
@@ -44,27 +51,28 @@ public interface CdkCodeMapper {
 
     @Select({
             "<script>",
-            CODE_SELECT,
+            CODE_BATCH_SELECT,
             "WHERE 1 = 1 ",
-            "<if test='batchId != null'>AND batch_id = #{batchId} </if>",
-            "<if test='status != null and status != \"\"'>AND status = #{status} </if>",
-            "ORDER BY id DESC LIMIT #{offset}, #{pageSize}",
+            "<if test='keyword != null and keyword != \"\"'>AND (LOWER(b.batch_no) LIKE CONCAT('%', LOWER(#{keyword}), '%') OR LOWER(b.batch_name) LIKE CONCAT('%', LOWER(#{keyword}), '%') OR LOWER(c.code_prefix) LIKE CONCAT('%', LOWER(#{keyword}), '%')) </if>",
+            "<if test='batchId != null'>AND c.batch_id = #{batchId} </if>",
+            "<if test='status != null and status != \"\"'>AND c.status = #{status} </if>",
+            "ORDER BY c.id DESC LIMIT #{offset}, #{pageSize}",
             "</script>"
     })
-    java.util.List<CdkCodeEntity> findPage(@Param("batchId") Long batchId,
+    java.util.List<CdkCodeEntity> findPage(@Param("keyword") String keyword,
+                                           @Param("batchId") Long batchId,
                                            @Param("status") String status,
                                            @Param("offset") int offset,
                                            @Param("pageSize") int pageSize);
 
     @Select({
             "<script>",
-            "SELECT COUNT(1) FROM cdk_code WHERE 1 = 1 ",
-            "<if test='batchId != null'>AND batch_id = #{batchId} </if>",
-            "<if test='status != null and status != \"\"'>AND status = #{status} </if>",
+            "SELECT COUNT(1) FROM cdk_code c INNER JOIN cdk_batch b ON b.id = c.batch_id WHERE 1 = 1 ",
+            "<if test='keyword != null and keyword != \"\"'>AND (LOWER(b.batch_no) LIKE CONCAT('%', LOWER(#{keyword}), '%') OR LOWER(b.batch_name) LIKE CONCAT('%', LOWER(#{keyword}), '%') OR LOWER(c.code_prefix) LIKE CONCAT('%', LOWER(#{keyword}), '%')) </if>",
+            "<if test='batchId != null'>AND c.batch_id = #{batchId} </if>",
+            "<if test='status != null and status != \"\"'>AND c.status = #{status} </if>",
             "</script>"
     })
-    long countPage(@Param("batchId") Long batchId, @Param("status") String status);
+    long countPage(@Param("keyword") String keyword, @Param("batchId") Long batchId, @Param("status") String status);
 
-    @Select(CODE_SELECT + "WHERE batch_id = #{batchId} ORDER BY id ASC")
-    java.util.List<CdkCodeEntity> findByBatchId(@Param("batchId") Long batchId);
 }

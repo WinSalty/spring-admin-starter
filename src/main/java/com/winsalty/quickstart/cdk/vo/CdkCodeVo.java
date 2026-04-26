@@ -12,6 +12,13 @@ public class CdkCodeVo {
 
     private String id;
     private String batchId;
+    private String batchNo;
+    private String batchName;
+    private String benefitType;
+    private String benefitConfig;
+    private String batchStatus;
+    private String validFrom;
+    private String validTo;
     private String cdk;
     private String codePrefix;
     private String checksum;

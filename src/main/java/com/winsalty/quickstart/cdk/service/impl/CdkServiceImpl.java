@@ -16,16 +16,13 @@ import com.winsalty.quickstart.cdk.dto.CdkRedeemRecordListRequest;
 import com.winsalty.quickstart.cdk.dto.CdkRedeemRequest;
 import com.winsalty.quickstart.cdk.entity.CdkBatchEntity;
 import com.winsalty.quickstart.cdk.entity.CdkCodeEntity;
-import com.winsalty.quickstart.cdk.entity.CdkExportAuditEntity;
 import com.winsalty.quickstart.cdk.entity.CdkRedeemRecordEntity;
 import com.winsalty.quickstart.cdk.mapper.CdkBatchMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkCodeMapper;
-import com.winsalty.quickstart.cdk.mapper.CdkExportAuditMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkRedeemRecordMapper;
 import com.winsalty.quickstart.cdk.service.CdkService;
 import com.winsalty.quickstart.cdk.vo.CdkBatchVo;
 import com.winsalty.quickstart.cdk.vo.CdkCodeVo;
-import com.winsalty.quickstart.cdk.vo.CdkExportVo;
 import com.winsalty.quickstart.cdk.vo.CdkRedeemRecordVo;
 import com.winsalty.quickstart.cdk.vo.CdkRedeemResultVo;
 import com.winsalty.quickstart.common.api.PageResponse;
@@ -86,7 +83,6 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     private static final String SHA_256_ALGORITHM = "SHA-256";
     private static final String CODE_SEPARATOR = "-";
-    private static final String EXPORT_LINE_SEPARATOR = "\n";
     private static final String CONFIG_POINTS = "points";
     private static final String CONFIG_GRANT_REASON = "grantReason";
     private static final String CONFIG_REMARK = "remark";
@@ -96,8 +92,6 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     private static final String EMPTY_FAILURE_REASON = "";
     private static final String OUTBOX_AGGREGATE_TYPE = "cdk_redeem";
     private static final String OUTBOX_EVENT_SUCCESS = "cdk.redeem.success";
-    private static final String EXPORT_FILE_TYPE = "txt";
-    private static final String EXPORT_FILE_SUFFIX = "-cdk-export.txt";
     private static final String CODE_ENCRYPTION_ALGORITHM = "AES/GCM/NoPadding";
     private static final String CODE_SECRET_ALGORITHM = "AES";
     private static final String CODE_ENCRYPTION_CONTEXT = ":cdk-code:v1";
@@ -114,7 +108,6 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     private final CdkBatchMapper cdkBatchMapper;
     private final CdkCodeMapper cdkCodeMapper;
     private final CdkRedeemRecordMapper cdkRedeemRecordMapper;
-    private final CdkExportAuditMapper cdkExportAuditMapper;
     private final PointRechargeOrderMapper pointRechargeOrderMapper;
     private final BenefitGrantService benefitGrantService;
     private final RedisCacheService redisCacheService;
@@ -125,7 +118,6 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     public CdkServiceImpl(CdkBatchMapper cdkBatchMapper,
                           CdkCodeMapper cdkCodeMapper,
                           CdkRedeemRecordMapper cdkRedeemRecordMapper,
-                          CdkExportAuditMapper cdkExportAuditMapper,
                           PointRechargeOrderMapper pointRechargeOrderMapper,
                           BenefitGrantService benefitGrantService,
                           RedisCacheService redisCacheService,
@@ -135,7 +127,6 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         this.cdkBatchMapper = cdkBatchMapper;
         this.cdkCodeMapper = cdkCodeMapper;
         this.cdkRedeemRecordMapper = cdkRedeemRecordMapper;
-        this.cdkExportAuditMapper = cdkExportAuditMapper;
         this.pointRechargeOrderMapper = pointRechargeOrderMapper;
         this.benefitGrantService = benefitGrantService;
         this.redisCacheService = redisCacheService;
@@ -189,18 +180,6 @@ public class CdkServiceImpl extends BaseService implements CdkService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public CdkBatchVo pauseBatch(Long id) {
-        CdkBatchEntity batch = loadBatchForUpdate(id);
-        if (!CdkConstants.BATCH_STATUS_ACTIVE.equals(batch.getStatus())) {
-            throw new BusinessException(ErrorCode.CDK_BATCH_STATUS_INVALID);
-        }
-        cdkBatchMapper.updateStatus(id, CdkConstants.BATCH_STATUS_PAUSED);
-        log.info("cdk batch paused, batchNo={}", batch.getBatchNo());
-        return toBatchVo(cdkBatchMapper.findById(id));
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
     public CdkBatchVo voidBatch(Long id) {
         CdkBatchEntity batch = loadBatchForUpdate(id);
         if (CdkConstants.BATCH_STATUS_VOIDED.equals(batch.getStatus())) {
@@ -209,32 +188,6 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         cdkBatchMapper.updateStatus(id, CdkConstants.BATCH_STATUS_VOIDED);
         log.info("cdk batch voided, batchNo={}", batch.getBatchNo());
         return toBatchVo(cdkBatchMapper.findById(id));
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public CdkExportVo exportBatch(Long id) {
-        CdkBatchEntity batch = loadBatchForUpdate(id);
-        List<CdkCodeEntity> codes = cdkCodeMapper.findByBatchId(batch.getId());
-        String content = buildPlainExportContent(codes);
-        String fingerprint = sha256(content);
-        CdkExportAuditEntity audit = new CdkExportAuditEntity();
-        audit.setBatchId(batch.getId());
-        audit.setBatchNo(batch.getBatchNo());
-        audit.setExportedBy(currentUsername());
-        audit.setExportCount(codes.size());
-        audit.setFileFingerprint(fingerprint);
-        cdkExportAuditMapper.insert(audit);
-        cdkBatchMapper.incrementExport(batch.getId());
-        CdkExportVo vo = new CdkExportVo();
-        vo.setBatchNo(batch.getBatchNo());
-        vo.setCount(codes.size());
-        vo.setFingerprint(fingerprint);
-        vo.setFileName(batch.getBatchNo() + EXPORT_FILE_SUFFIX);
-        vo.setFileType(EXPORT_FILE_TYPE);
-        vo.setContent(content);
-        log.info("cdk batch exported text, batchNo={}, count={}, fingerprint={}", batch.getBatchNo(), codes.size(), fingerprint);
-        return vo;
     }
 
     @Override
@@ -331,9 +284,9 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         }
         int pageNo = pageNo(request.getPageNo());
         int pageSize = pageSize(request.getPageSize());
-        List<CdkCodeEntity> entities = cdkCodeMapper.findPage(request.getBatchId(), request.getStatus(),
+        List<CdkCodeEntity> entities = cdkCodeMapper.findPage(request.getKeyword(), request.getBatchId(), request.getStatus(),
                 offset(pageNo, pageSize), pageSize);
-        long total = cdkCodeMapper.countPage(request.getBatchId(), request.getStatus());
+        long total = cdkCodeMapper.countPage(request.getKeyword(), request.getBatchId(), request.getStatus());
         return new PageResponse<CdkCodeVo>(toCodeVoList(entities), pageNo, pageSize, total);
     }
 
@@ -377,14 +330,6 @@ public class CdkServiceImpl extends BaseService implements CdkService {
             plainCodes.add(plainCode);
         }
         return plainCodes;
-    }
-
-    private String buildPlainExportContent(List<CdkCodeEntity> codes) {
-        List<String> plainCodes = new ArrayList<String>();
-        for (CdkCodeEntity code : codes) {
-            plainCodes.add(decryptPlainCode(code));
-        }
-        return String.join(EXPORT_LINE_SEPARATOR, plainCodes);
     }
 
     private String buildBenefitConfig(CdkBatchCreateRequest request) {
@@ -781,6 +726,13 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         CdkCodeVo vo = new CdkCodeVo();
         vo.setId(String.valueOf(entity.getId()));
         vo.setBatchId(String.valueOf(entity.getBatchId()));
+        vo.setBatchNo(entity.getBatchNo());
+        vo.setBatchName(entity.getBatchName());
+        vo.setBenefitType(entity.getBenefitType());
+        vo.setBenefitConfig(entity.getBenefitConfig());
+        vo.setBatchStatus(entity.getBatchStatus());
+        vo.setValidFrom(entity.getValidFrom());
+        vo.setValidTo(entity.getValidTo());
         vo.setCdk(decryptPlainCode(entity));
         vo.setCodePrefix(entity.getCodePrefix());
         vo.setChecksum(entity.getChecksum());

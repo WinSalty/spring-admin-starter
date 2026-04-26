@@ -20,7 +20,7 @@ WHERE status IN ('draft', 'pending_approval')
   AND generated_count > 0;
 
 INSERT INTO sys_menu (record_code, parent_id, title, code, path, icon, order_no, menu_type, route_code, permission_code, hidden_in_menu, redirect, keep_alive, external_link, badge, disabled, status, owner, description)
-SELECT 'M2008', 5, 'CDK管理', 'cdk_code', '/system/cdk/codes', 'KeyOutlined', 85, 'menu', 'cdk_code', 'cdk:code:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '按批次查看、复制和失效CDK'
+SELECT 'M2008', 5, 'CDK管理', 'cdk_code', '/system/cdk/codes', 'KeyOutlined', 85, 'menu', 'cdk_code', 'cdk:code:view', 0, NULL, 1, NULL, NULL, 0, 'active', '平台技术部', '默认展示全部CDK，支持筛选、复制和失效'
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE code = 'cdk_code');
 
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)

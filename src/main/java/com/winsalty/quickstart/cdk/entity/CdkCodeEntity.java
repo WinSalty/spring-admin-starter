@@ -15,6 +15,20 @@ public class CdkCodeEntity {
     private Long id;
     /** 批次ID。 */
     private Long batchId;
+    /** 批次号。 */
+    private String batchNo;
+    /** 批次名称。 */
+    private String batchName;
+    /** 批次权益类型。 */
+    private String benefitType;
+    /** 批次权益配置 JSON。 */
+    private String benefitConfig;
+    /** 批次状态。 */
+    private String batchStatus;
+    /** 批次生效时间。 */
+    private String validFrom;
+    /** 批次失效时间。 */
+    private String validTo;
     /** HMAC 后码值。 */
     private String codeHash;
     /** 加密后的明文 CDK。 */
