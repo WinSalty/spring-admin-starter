@@ -27,7 +27,6 @@ import org.mockito.ArgumentCaptor;
 import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -56,7 +55,7 @@ class CdkServiceImplTest {
     private static final String SESSION_ID = "session-1";
     private static final String BATCH_NO = "CB202604260001";
     private static final String BENEFIT_CONFIG = "{\"points\":1000}";
-    private static final int SHORT_CDK_PART_COUNT = 6;
+    private static final String EMPTY_CODE_PREFIX = "";
 
     @AfterEach
     void clearAuthContext() {
@@ -85,7 +84,7 @@ class CdkServiceImplTest {
         CdkCodeEntity generatedCode = codeCaptor.getValue();
         assertEquals(CdkConstants.CODE_STATUS_ACTIVE, generatedCode.getStatus());
         assertNotNull(generatedCode.getEncryptedCode());
-        assertFalse(generatedCode.getEncryptedCode().startsWith(CdkConstants.CODE_PREFIX));
+        assertEquals(EMPTY_CODE_PREFIX, generatedCode.getCodePrefix());
         verify(batchMapper).markGenerated(BATCH_ID, 1, CdkConstants.BATCH_STATUS_ACTIVE);
         verify(redisCacheService, never()).set(any(), any(), anyLong());
     }
@@ -114,8 +113,7 @@ class CdkServiceImplTest {
         CdkCodeVo code = page.getRecords().get(0);
 
         assertEquals(1L, page.getTotal());
-        assertTrue(code.getCdk().startsWith(CdkConstants.CODE_PREFIX));
-        assertEquals(SHORT_CDK_PART_COUNT, code.getCdk().split("-").length);
+        assertEquals(CdkConstants.CODE_PART_COUNT, code.getCdk().split("-").length);
         assertEquals(BATCH_NO, code.getBatchNo());
         assertEquals(BENEFIT_CONFIG, code.getBenefitConfig());
     }
@@ -245,7 +243,7 @@ class CdkServiceImplTest {
         entity.setBatchId(BATCH_ID);
         entity.setCodeHash("hash");
         entity.setEncryptedCode("encrypted");
-        entity.setCodePrefix("WSA-202604");
+        entity.setCodePrefix(EMPTY_CODE_PREFIX);
         entity.setChecksum("A");
         entity.setStatus(CdkConstants.CODE_STATUS_ACTIVE);
         entity.setVersion(0L);

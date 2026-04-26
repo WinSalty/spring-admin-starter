@@ -55,7 +55,6 @@ import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -76,7 +75,6 @@ public class CdkServiceImpl extends BaseService implements CdkService {
 
     private static final Logger log = LoggerFactory.getLogger(CdkServiceImpl.class);
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final DateTimeFormatter YEAR_MONTH_FORMATTER = DateTimeFormatter.ofPattern("yyyyMM");
     private static final String BATCH_NO_PREFIX = "CB";
     private static final String REDEEM_NO_PREFIX = "CR";
     private static final String RECHARGE_NO_PREFIX = "PR";
@@ -90,6 +88,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
     private static final String UA_HEADER = "User-Agent";
     private static final String UNKNOWN_TARGET = "unknown";
     private static final String EMPTY_FAILURE_REASON = "";
+    private static final String EMPTY_CODE_PREFIX = "";
     private static final String OUTBOX_AGGREGATE_TYPE = "cdk_redeem";
     private static final String OUTBOX_EVENT_SUCCESS = "cdk.redeem.success";
     private static final String CODE_ENCRYPTION_ALGORITHM = "AES/GCM/NoPadding";
@@ -321,15 +320,14 @@ public class CdkServiceImpl extends BaseService implements CdkService {
 
     private List<String> generateCodes(CdkBatchEntity batch) {
         List<String> plainCodes = new ArrayList<String>();
-        String yearMonth = LocalDate.now().format(YEAR_MONTH_FORMATTER);
         for (int index = 0; index < batch.getTotalCount(); index++) {
-            String plainCode = generatePlainCode(yearMonth);
+            String plainCode = generatePlainCode();
             CdkCodeEntity code = new CdkCodeEntity();
             code.setBatchId(batch.getId());
             code.setCodeHash(hmacSha256(plainCode));
             // 明文码以 AES-GCM 加密落库，管理端可重复查看但数据库不可直接读出明文。
             code.setEncryptedCode(encryptPlainCode(plainCode));
-            code.setCodePrefix(CdkConstants.CODE_PREFIX + CODE_SEPARATOR + yearMonth);
+            code.setCodePrefix(EMPTY_CODE_PREFIX);
             code.setChecksum(resolveChecksum(plainCode));
             code.setStatus(CdkConstants.CODE_STATUS_ACTIVE);
             code.setVersion(0L);
@@ -476,17 +474,14 @@ public class CdkServiceImpl extends BaseService implements CdkService {
 
     private boolean isCodeFormatValid(String code) {
         String[] parts = code.split(CODE_SEPARATOR);
-        if (parts.length < CdkConstants.MIN_CODE_PARTS) {
-            return false;
-        }
-        if (!CdkConstants.CODE_PREFIX.equals(parts[0]) || parts[1].length() != CdkConstants.YEAR_MONTH_LENGTH) {
+        if (parts.length != CdkConstants.CODE_PART_COUNT) {
             return false;
         }
         String checksum = parts[parts.length - 1];
         if (checksum.length() != CdkConstants.CHECKSUM_LENGTH) {
             return false;
         }
-        for (int index = 2; index < parts.length - 1; index++) {
+        for (int index = 0; index < parts.length - CdkConstants.CHECKSUM_PART_COUNT; index++) {
             if (parts[index].length() != CdkConstants.CODE_GROUP_LENGTH) {
                 return false;
             }
@@ -495,15 +490,16 @@ public class CdkServiceImpl extends BaseService implements CdkService {
         return checksum.equals(calculateChecksum(resolveCodeBody(code)));
     }
 
-    private String generatePlainCode(String yearMonth) {
+    private String generatePlainCode() {
         byte[] randomBytes = new byte[CdkConstants.RANDOM_BYTE_LENGTH];
         secureRandom.nextBytes(randomBytes);
         String randomPart = toHex(randomBytes).toUpperCase();
         StringBuilder builder = new StringBuilder();
-        builder.append(CdkConstants.CODE_PREFIX).append(CODE_SEPARATOR).append(yearMonth);
         for (int index = 0; index < randomPart.length(); index += CdkConstants.CODE_GROUP_LENGTH) {
-            builder.append(CODE_SEPARATOR)
-                    .append(randomPart, index, index + CdkConstants.CODE_GROUP_LENGTH);
+            if (builder.length() > 0) {
+                builder.append(CODE_SEPARATOR);
+            }
+            builder.append(randomPart, index, index + CdkConstants.CODE_GROUP_LENGTH);
         }
         String body = builder.toString();
         // 校验位追加在末尾，兑换时可先验格式再查 HMAC，减少数据库压力。
