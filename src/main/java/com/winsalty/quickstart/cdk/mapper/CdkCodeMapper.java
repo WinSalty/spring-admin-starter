@@ -45,7 +45,8 @@ public interface CdkCodeMapper {
     @Select({
             "<script>",
             CODE_SELECT,
-            "WHERE batch_id = #{batchId} ",
+            "WHERE 1 = 1 ",
+            "<if test='batchId != null'>AND batch_id = #{batchId} </if>",
             "<if test='status != null and status != \"\"'>AND status = #{status} </if>",
             "ORDER BY id DESC LIMIT #{offset}, #{pageSize}",
             "</script>"
@@ -57,7 +58,8 @@ public interface CdkCodeMapper {
 
     @Select({
             "<script>",
-            "SELECT COUNT(1) FROM cdk_code WHERE batch_id = #{batchId} ",
+            "SELECT COUNT(1) FROM cdk_code WHERE 1 = 1 ",
+            "<if test='batchId != null'>AND batch_id = #{batchId} </if>",
             "<if test='status != null and status != \"\"'>AND status = #{status} </if>",
             "</script>"
     })

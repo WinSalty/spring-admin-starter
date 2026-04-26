@@ -2,8 +2,6 @@ package com.winsalty.quickstart.cdk.dto;
 
 import lombok.Data;
 
-import javax.validation.constraints.NotNull;
-
 /**
  * CDK 明细列表查询请求。
  * 创建日期：2026-04-26
@@ -12,8 +10,7 @@ import javax.validation.constraints.NotNull;
 @Data
 public class CdkCodeListRequest {
 
-    /** 批次ID。 */
-    @NotNull(message = "批次ID不能为空")
+    /** 批次ID，不传时查询全部 CDK。 */
     private Long batchId;
 
     /** CDK 状态。 */

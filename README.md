@@ -129,7 +129,7 @@
 11. 过期冻结单通过 `PointFreezeCompensationJob` 自动取消，避免权益发放超时后长期占用冻结积分。
 12. CDK 兑换成功、权益兑换成功会写入 `transaction_outbox`，当前由定时任务标记处理，后续可平滑替换为 MQ 投递。
 13. 在线充值通过 `trade` 模块创建 `online_pay` 充值单，支付回调使用 `TRADE_CALLBACK_SECRET` 做 HMAC 验签，成功后按充值单号幂等入账。
-14. CDK 管理端支持按批次在线查看、复制、启用和失效单个 CDK，不提供删除已生成 CDK 的接口。
+14. CDK 管理端默认展示全部 CDK，支持按批次筛选、复制、启用和失效单个 CDK，不提供删除已生成 CDK 的接口。
 15. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql`、`V26__enhance_cdk_audit_risk_schema.sql`、`V27__simplify_cdk_generation_and_manage_codes.sql` 初始化表结构和权限菜单。
 
 ## 配套环境说明

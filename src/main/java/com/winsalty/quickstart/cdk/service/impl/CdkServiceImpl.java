@@ -326,8 +326,7 @@ public class CdkServiceImpl extends BaseService implements CdkService {
 
     @Override
     public PageResponse<CdkCodeVo> listCodes(CdkCodeListRequest request) {
-        CdkBatchEntity batch = cdkBatchMapper.findById(request.getBatchId());
-        if (batch == null) {
+        if (request.getBatchId() != null && cdkBatchMapper.findById(request.getBatchId()) == null) {
             throw new BusinessException(ErrorCode.CDK_BATCH_NOT_FOUND);
         }
         int pageNo = pageNo(request.getPageNo());
