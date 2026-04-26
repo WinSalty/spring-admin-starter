@@ -15,6 +15,7 @@ public class NoticeVo {
     private String content;
     private String noticeType;
     private String priority;
+    private Boolean required;
     private String publisherId;
     private String publisherName;
     private String publishTime;

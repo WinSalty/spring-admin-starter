@@ -111,6 +111,31 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
     }
 
     /**
+     * 查询当前登录用户未读的必读公告，供前端首次进入后台时强制确认。
+     */
+    @Override
+    public List<NoticeVo> getUnreadRequiredNotices() {
+        Long userId = currentUserId();
+        List<NoticeEntity> entities = noticeMapper.findUnreadRequired(userId);
+        log.info("unread required notices loaded, userId={}, size={}", userId, entities.size());
+        return toVoList(entities);
+    }
+
+    /**
+     * 标记当前登录用户已读指定公告。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public NoticeVo markRead(String id) {
+        Long noticeId = parseId(id);
+        NoticeEntity entity = load(noticeId);
+        Long userId = currentUserId();
+        noticeMapper.insertRead(noticeId, userId);
+        log.info("notice read marked, noticeId={}, userId={}", noticeId, userId);
+        return toVo(entity);
+    }
+
+    /**
      * 保存公告实体字段，排序为空时默认 0。
      */
     private void applyFields(NoticeEntity entity, NoticeSaveRequest request) {
@@ -118,8 +143,8 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         entity.setContent(request.getContent());
         entity.setNoticeType(request.getNoticeType());
         entity.setPriority(request.getPriority());
+        entity.setRequired(Boolean.TRUE.equals(request.getRequired()));
         entity.setPublisherId(request.getPublisherId());
-        entity.setPublishTime(request.getPublishTime());
         entity.setExpireTime(request.getExpireTime());
         entity.setStatus(request.getStatus());
         // sortOrder 空值按 0 处理，SQL 可直接按数值排序，不需要额外处理 null。
@@ -157,6 +182,7 @@ public class NoticeServiceImpl extends BaseService implements NoticeService {
         vo.setContent(entity.getContent());
         vo.setNoticeType(entity.getNoticeType());
         vo.setPriority(entity.getPriority());
+        vo.setRequired(Boolean.TRUE.equals(entity.getRequired()));
         vo.setPublisherId(entity.getPublisherId() == null ? EMPTY_TEXT : String.valueOf(entity.getPublisherId()));
         vo.setPublisherName(entity.getPublisherName());
         vo.setPublishTime(entity.getPublishTime());

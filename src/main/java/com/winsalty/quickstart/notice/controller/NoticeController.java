@@ -74,4 +74,20 @@ public class NoticeController {
     public ApiResponse<List<NoticeVo>> active() {
         return ApiResponse.success("获取成功", noticeService.getActiveNotices());
     }
+
+    /**
+     * 当前登录用户未读必读公告，登录进入后台后用于强制弹窗。
+     */
+    @GetMapping("/required-unread")
+    public ApiResponse<List<NoticeVo>> requiredUnread() {
+        return ApiResponse.success("获取成功", noticeService.getUnreadRequiredNotices());
+    }
+
+    /**
+     * 标记当前登录用户已阅读指定公告。
+     */
+    @PostMapping("/read")
+    public ApiResponse<NoticeVo> read(@RequestParam("id") String id) {
+        return ApiResponse.success("已阅读", noticeService.markRead(id));
+    }
 }

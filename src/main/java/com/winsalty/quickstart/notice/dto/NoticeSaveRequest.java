@@ -30,13 +30,12 @@ public class NoticeSaveRequest {
     private String noticeType;
 
     @NotBlank(message = "优先级不能为空")
-    @Pattern(regexp = "low|normal|high|urgent", message = "优先级不合法")
+    @Pattern(regexp = "low|medium|normal|high|urgent", message = "优先级不合法")
     private String priority;
 
-    private Long publisherId;
+    private Boolean required = Boolean.FALSE;
 
-    @Size(max = 19, message = "发布时间长度不能超过 19")
-    private String publishTime;
+    private Long publisherId;
 
     @Size(max = 19, message = "过期时间长度不能超过 19")
     private String expireTime;

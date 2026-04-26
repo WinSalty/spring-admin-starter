@@ -18,7 +18,7 @@ import java.util.List;
 @Mapper
 public interface NoticeMapper {
 
-    String NOTICE_SELECT = "SELECT n.id, n.title, n.content, n.notice_type AS noticeType, n.priority, n.publisher_id AS publisherId, "
+    String NOTICE_SELECT = "SELECT n.id, n.title, n.content, n.notice_type AS noticeType, n.priority, n.is_required AS required, n.publisher_id AS publisherId, "
             + "IFNULL(u.nickname, u.username) AS publisherName, DATE_FORMAT(n.publish_time, '%Y-%m-%d %H:%i:%s') AS publishTime, "
             + "DATE_FORMAT(n.expire_time, '%Y-%m-%d %H:%i:%s') AS expireTime, n.status, n.sort_order AS sortOrder, n.deleted, "
             + "DATE_FORMAT(n.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(n.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "
@@ -59,16 +59,22 @@ public interface NoticeMapper {
     @Select(NOTICE_SELECT + "WHERE n.id = #{id} AND n.deleted = 0 LIMIT 1")
     NoticeEntity findById(@Param("id") Long id);
 
-    @Select(NOTICE_SELECT + "WHERE n.deleted = 0 AND n.status = 'active' AND n.publish_time <= NOW() AND (n.expire_time IS NULL OR n.expire_time >= NOW()) ORDER BY n.sort_order ASC, n.publish_time DESC, n.id DESC")
+    @Select(NOTICE_SELECT + "WHERE n.deleted = 0 AND n.status = 'active' AND (n.expire_time IS NULL OR n.expire_time >= NOW()) ORDER BY n.sort_order ASC, n.publish_time DESC, n.id DESC")
     List<NoticeEntity> findActive();
 
-    @Insert("INSERT INTO sys_notice(title, content, notice_type, priority, publisher_id, publish_time, expire_time, status, sort_order, deleted) VALUES(#{title}, #{content}, #{noticeType}, #{priority}, #{publisherId}, IFNULL(STR_TO_DATE(#{publishTime}, '%Y-%m-%d %H:%i:%s'), NOW()), STR_TO_DATE(#{expireTime}, '%Y-%m-%d %H:%i:%s'), #{status}, #{sortOrder}, 0)")
+    @Select(NOTICE_SELECT + "LEFT JOIN sys_notice_read r ON r.notice_id = n.id AND r.user_id = #{userId} WHERE n.deleted = 0 AND n.status = 'active' AND n.is_required = 1 AND (n.expire_time IS NULL OR n.expire_time >= NOW()) AND r.id IS NULL ORDER BY n.sort_order ASC, n.publish_time DESC, n.id DESC")
+    List<NoticeEntity> findUnreadRequired(@Param("userId") Long userId);
+
+    @Insert("INSERT INTO sys_notice(title, content, notice_type, priority, is_required, publisher_id, publish_time, expire_time, status, sort_order, deleted) VALUES(#{title}, #{content}, #{noticeType}, #{priority}, #{required}, #{publisherId}, NOW(), STR_TO_DATE(#{expireTime}, '%Y-%m-%d %H:%i:%s'), #{status}, #{sortOrder}, 0)")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(NoticeEntity entity);
 
-    @Update("UPDATE sys_notice SET title = #{title}, content = #{content}, notice_type = #{noticeType}, priority = #{priority}, publisher_id = #{publisherId}, publish_time = IFNULL(STR_TO_DATE(#{publishTime}, '%Y-%m-%d %H:%i:%s'), publish_time), expire_time = STR_TO_DATE(#{expireTime}, '%Y-%m-%d %H:%i:%s'), status = #{status}, sort_order = #{sortOrder} WHERE id = #{id} AND deleted = 0")
+    @Update("UPDATE sys_notice SET title = #{title}, content = #{content}, notice_type = #{noticeType}, priority = #{priority}, is_required = #{required}, publisher_id = #{publisherId}, expire_time = STR_TO_DATE(#{expireTime}, '%Y-%m-%d %H:%i:%s'), status = #{status}, sort_order = #{sortOrder} WHERE id = #{id} AND deleted = 0")
     int update(NoticeEntity entity);
 
     @Update("UPDATE sys_notice SET status = #{status} WHERE id = #{id} AND deleted = 0")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
+
+    @Insert("INSERT IGNORE INTO sys_notice_read(notice_id, user_id) VALUES(#{noticeId}, #{userId})")
+    int insertRead(@Param("noticeId") Long noticeId, @Param("userId") Long userId);
 }

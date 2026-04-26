@@ -374,6 +374,7 @@ CREATE TABLE IF NOT EXISTS sys_notice (
     content TEXT NOT NULL COMMENT '公告内容',
     notice_type VARCHAR(32) NOT NULL COMMENT '公告类型',
     priority VARCHAR(16) NOT NULL DEFAULT 'normal' COMMENT '优先级',
+    is_required TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否必读公告',
     publisher_id BIGINT DEFAULT NULL COMMENT '发布人ID',
     publish_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发布时间',
     expire_time DATETIME DEFAULT NULL COMMENT '过期时间',
@@ -383,8 +384,19 @@ CREATE TABLE IF NOT EXISTS sys_notice (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     KEY idx_sys_notice_status_type (status, notice_type),
+    KEY idx_sys_notice_required_status (is_required, status),
     KEY idx_sys_notice_time (publish_time, expire_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='公告通知表';
+
+CREATE TABLE IF NOT EXISTS sys_notice_read (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    notice_id BIGINT NOT NULL COMMENT '公告ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    read_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '阅读时间',
+    UNIQUE KEY uk_sys_notice_read_user_notice (user_id, notice_id),
+    KEY idx_sys_notice_read_notice (notice_id),
+    KEY idx_sys_notice_read_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='公告阅读记录表';
 
 CREATE TABLE IF NOT EXISTS sys_department (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',

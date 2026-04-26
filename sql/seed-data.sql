@@ -91,9 +91,9 @@ INSERT INTO sys_role_action (role_id, action_code, action_name) VALUES
 (1, 'account_settings:view', '查看个人设置'),
 (2, 'account_settings:view', '查看个人设置');
 
-INSERT INTO sys_notice (id, title, content, notice_type, priority, publisher_id, publish_time, expire_time, status, sort_order, created_at, updated_at) VALUES
-(1, '系统初始化完成', '后台基础权限、字典、配置和文件模块已经完成初始化。', 'system', 'normal', 1, '2026-04-18 09:30:00', NULL, 'active', 1, '2026-04-18 09:30:00', '2026-04-18 09:30:00'),
-(2, '权限联调提醒', '调整角色权限后请重新拉取 permission bootstrap 验证菜单和按钮权限。', 'security', 'high', 1, '2026-04-18 09:40:00', NULL, 'active', 2, '2026-04-18 09:40:00', '2026-04-18 09:40:00');
+INSERT INTO sys_notice (id, title, content, notice_type, priority, is_required, publisher_id, publish_time, expire_time, status, sort_order, created_at, updated_at) VALUES
+(1, '系统初始化完成', '后台基础权限、字典、配置和文件模块已经完成初始化。', 'system', 'normal', 0, 1, '2026-04-18 09:30:00', NULL, 'active', 1, '2026-04-18 09:30:00', '2026-04-18 09:30:00'),
+(2, '权限联调提醒', '调整角色权限后请重新拉取 permission bootstrap 验证菜单和按钮权限。', 'security', 'high', 1, 1, '2026-04-18 09:40:00', NULL, 'active', 2, '2026-04-18 09:40:00', '2026-04-18 09:40:00');
 
 -- resources/sql/V4__seed_query_data.sql
 DELETE FROM biz_query_record;

@@ -24,4 +24,8 @@ public interface NoticeService {
     NoticeVo updateStatus(NoticeStatusRequest request);
 
     List<NoticeVo> getActiveNotices();
+
+    List<NoticeVo> getUnreadRequiredNotices();
+
+    NoticeVo markRead(String id);
 }

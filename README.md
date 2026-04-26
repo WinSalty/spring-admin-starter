@@ -99,7 +99,7 @@
 | 字典管理 | `/api/system/dicts/list` 等 |
 | 日志管理 | `/api/system/logs/list` 等 |
 | 系统配置 | `/api/system/configs`、`/configs/save` |
-| 公告通知 | `/api/system/notices/list`、`/detail`、`/save`、`/status`、`/active` |
+| 公告通知 | `/api/system/notices/list`、`/detail`、`/save`、`/status`、`/active`、`/required-unread`、`/read` |
 | 部门管理 | `/api/system/departments/tree`、`/save`、`/status` |
 | 参数配置 | `/api/system/params/list`、`/detail`、`/save`、`/status`、`/cache/refresh` |
 | 文件管理 | `/api/file/upload`、`/avatar/upload`、`/biz/upload`、`/biz/{id}/download-url`、`/biz/{id}/download`、`/public/**`、`/private/upload`、`/private/{id}/download-url`、`/private/{id}/download`、`/avatar/{id}`、`/object-storage/status`、`/list`、`/{id}/download`、`/{id}/delete`、`/{id}/status` |

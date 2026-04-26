@@ -20,6 +20,8 @@ public class NoticeEntity {
     private String noticeType;
     /** 公告优先级。 */
     private String priority;
+    /** 是否必读公告。 */
+    private Boolean required;
     /** 发布人用户ID。 */
     private Long publisherId;
     /** 发布人名称。 */
