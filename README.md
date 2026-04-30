@@ -44,7 +44,7 @@
 | `com.winsalty.quickstart.file` | 本地/阿里云 OSS 文件上传、下载、状态管理 |
 | `com.winsalty.quickstart.log` | 登录日志、操作日志、接口日志与归档 |
 | `com.winsalty.quickstart.points` | 积分账户、积分流水、充值/消费/冻结单据、人工调整和对账 |
-| `com.winsalty.quickstart.cdk` | CDK 批次、码池、兑换、风控和管理审计 |
+| `com.winsalty.quickstart.cdk` | CDK 批次、码池、兑换、临时提取链接、风控和管理审计 |
 | `com.winsalty.quickstart.benefit` | 权益商品、积分兑换、用户权益和权限类权益合并 |
 | `com.winsalty.quickstart.trade` | 在线充值单、支付回调验签和积分入账 |
 | `com.winsalty.quickstart.common` | 统一响应、异常、常量、基础父类、工具类 |
@@ -107,7 +107,8 @@
 | CDK 兑换 | `/api/points/cdk/redeem`，支持 HMAC 存储、幂等兑换、限流和积分入账 |
 | 在线充值 | `/api/trade/recharge/orders`、`/orders/{rechargeNo}`、`/callback`，支持充值单创建、支付回调 HMAC 验签、重复回调幂等和积分入账 |
 | 权益兑换 | `/api/benefits/products`、`/products/{id}/exchange`、`/orders`、`/mine`，支持积分冻结、权益发放和确认扣减 |
-| 管理端 CDK | `/api/admin/cdk/batches`、`/void`、`/api/admin/cdk/codes`、`/api/admin/cdk/codes/{id}/status`、`/api/admin/cdk/redeem-records` |
+| 管理端 CDK | `/api/admin/cdk/batches`、`/void`、`/api/admin/cdk/codes`、`/api/admin/cdk/codes/{id}/status`、`/api/admin/cdk/codes/{id}/extract-links`、`/api/admin/cdk/extract-links/{id}/access-records`、`/api/admin/cdk/redeem-records` |
+| CDK 公开提取 | `/api/public/cdk/extract/{token}`，支持临时 URL 次数控制、设备指纹审计和一键复制页面 |
 | 积分审计 | `/api/admin/points/accounts`、`/ledger`、`/adjustments`、`/adjustments/{id}/approve`、`/reconciliation` |
 | 权益管理 | `/api/admin/benefits/products`、`/products/{id}`、`/products/{id}/status`、`/orders` |
 | 风控告警 | `/api/admin/risk-alerts`，支持查询异常兑换锁定和高价值批次复核告警 |
@@ -130,7 +131,8 @@
 12. CDK 兑换成功、权益兑换成功会写入 `transaction_outbox`，当前由定时任务标记处理，后续可平滑替换为 MQ 投递。
 13. 在线充值通过 `trade` 模块创建 `online_pay` 充值单，支付回调使用 `TRADE_CALLBACK_SECRET` 做 HMAC 验签，成功后按充值单号幂等入账。
 14. CDK 管理端默认展示全部 CDK，支持按批次、关键字和状态筛选，展示批次、积分、有效期、兑换状态等完整信息，支持复制、启用和失效单个 CDK，不提供删除已生成 CDK 的接口。
-15. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql`、`V26__enhance_cdk_audit_risk_schema.sql`、`V27__simplify_cdk_generation_and_manage_codes.sql`、`V28__remove_cdk_pause_export_actions.sql`、`V29__void_paused_cdk_batches.sql` 初始化表结构和权限菜单。
+15. CDK 明细支持生成临时提取 URL，管理员可自定义访问次数和过期时间；公开访问页会在成功返回 CDK 前原子扣减次数，并记录 IP、UA 摘要、浏览器指纹、设备快照和 traceId。
+16. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql`、`V26__enhance_cdk_audit_risk_schema.sql`、`V27__simplify_cdk_generation_and_manage_codes.sql`、`V28__remove_cdk_pause_export_actions.sql`、`V29__void_paused_cdk_batches.sql`、`V31__add_cdk_extract_link_schema.sql` 初始化表结构和权限菜单。
 
 ## 配套环境说明
 
@@ -315,6 +317,10 @@ export CDK_REDEEM_USER_LIMIT=10
 export CDK_REDEEM_IP_WINDOW_SECONDS=60
 export CDK_REDEEM_IP_LIMIT=30
 export CDK_REDEEM_LOCK_SECONDS=900
+export CDK_EXTRACT_PUBLIC_BASE_URL='http://localhost:5173'
+export CDK_EXTRACT_TOKEN_SECRET='replace-with-at-least-32-bytes-random-secret'
+export CDK_EXTRACT_MAX_ACCESS_COUNT=100
+export CDK_EXTRACT_MAX_EXPIRE_DAYS=30
 export POINTS_RECONCILIATION_ENABLED=true
 export POINTS_RECONCILIATION_CRON='0 10 2 * * ?'
 export POINTS_FREEZE_DEFAULT_EXPIRE_SECONDS=1800
@@ -328,7 +334,7 @@ export TRADE_CALLBACK_SKEW_SECONDS=300
 export TRADE_MAX_RECHARGE_POINTS=100000
 ```
 
-生产环境必须显式配置 `CDK_PEPPER`，且长度不少于 32 字节。未配置时，CDK 批次生成和兑换会拒绝执行，避免使用弱密钥生成高价值凭证。
+生产环境必须显式配置 `CDK_PEPPER` 和 `CDK_EXTRACT_TOKEN_SECRET`，且长度均不少于 32 字节。未配置时，CDK 批次生成、兑换或临时提取链接生成会拒绝执行，避免使用弱密钥生成高价值凭证。
 在线充值回调必须显式配置 `TRADE_CALLBACK_SECRET`，且长度不少于 32 字节；回调签名原文按 `amount`、`externalNo`、`nonce`、`rechargeNo`、`status`、`timestamp` 的字典序字段拼接。
 
 开发环境可使用本地 MySQL 和 Redis 执行 CDK/积分集成测试：

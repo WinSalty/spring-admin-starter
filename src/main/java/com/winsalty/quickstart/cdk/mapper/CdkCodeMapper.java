@@ -38,6 +38,9 @@ public interface CdkCodeMapper {
     @Select(CODE_SELECT + "WHERE id = #{id} LIMIT 1")
     CdkCodeEntity findById(@Param("id") Long id);
 
+    @Select(CODE_BATCH_SELECT + "WHERE c.id = #{id} LIMIT 1")
+    CdkCodeEntity findWithBatchById(@Param("id") Long id);
+
     @Select(CODE_SELECT + "WHERE id = #{id} LIMIT 1 FOR UPDATE")
     CdkCodeEntity findByIdForUpdate(@Param("id") Long id);
 

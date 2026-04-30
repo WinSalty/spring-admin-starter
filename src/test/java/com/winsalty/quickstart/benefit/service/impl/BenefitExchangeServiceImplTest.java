@@ -18,6 +18,9 @@ import com.winsalty.quickstart.points.service.PointAccountService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,6 +44,7 @@ class BenefitExchangeServiceImplTest {
     private static final long COST_POINTS = 300L;
     private static final String IDEMPOTENCY_KEY = "benefit-idem-001";
     private static final String FREEZE_NO = "PF202604250001";
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Test
     void exchangeShouldFreezeGrantConfirmAndCreateOutboxEvent() {
@@ -116,8 +120,8 @@ class BenefitExchangeServiceImplTest {
         entity.setCostPoints(COST_POINTS);
         entity.setStockTotal(10);
         entity.setStockUsed(0);
-        entity.setValidFrom("2026-04-24 00:00:00");
-        entity.setValidTo("2026-04-26 00:00:00");
+        entity.setValidFrom(LocalDateTime.now().minusDays(1).format(DATE_TIME_FORMATTER));
+        entity.setValidTo(LocalDateTime.now().plusDays(30).format(DATE_TIME_FORMATTER));
         entity.setStatus(BenefitConstants.PRODUCT_STATUS_ACTIVE);
         return entity;
     }

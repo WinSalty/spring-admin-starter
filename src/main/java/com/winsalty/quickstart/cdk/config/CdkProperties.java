@@ -39,4 +39,27 @@ public class CdkProperties {
     /** 连续失败锁定阈值。 */
     private long redeemFailureLimit = 5L;
 
+    /** CDK 临时提取链接配置。 */
+    private Extract extract = new Extract();
+
+    /**
+     * CDK 临时提取链接配置。
+     * 创建日期：2026-04-30
+     * author：sunshengxian
+     */
+    @Data
+    public static class Extract {
+
+        /** 公开提取页面基础 URL。 */
+        private String publicBaseUrl = "http://localhost:5173";
+
+        /** 提取 token 摘要密钥，不进入仓库。 */
+        private String tokenSecret = "";
+
+        /** 单链接最大访问次数上限。 */
+        private int maxAccessCount = 100;
+
+        /** 单链接最长有效天数。 */
+        private int maxExpireDays = 30;
+    }
 }

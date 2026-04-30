@@ -186,6 +186,16 @@ app:
     redeem-lock-seconds: ${CDK_REDEEM_LOCK_SECONDS:900}
     # 触发兑换锁定的连续失败次数。
     redeem-failure-limit: ${CDK_REDEEM_FAILURE_LIMIT:5}
+    # CDK 临时提取链接配置。
+    extract:
+      # 公开提取页面基础 URL，管理端生成完整提取链接时使用。
+      public-base-url: ${CDK_EXTRACT_PUBLIC_BASE_URL:http://localhost:5173}
+      # 提取 token 摘要密钥，生产环境必须外部注入。
+      token-secret: ${CDK_EXTRACT_TOKEN_SECRET:}
+      # 单个提取链接最大访问次数。
+      max-access-count: ${CDK_EXTRACT_MAX_ACCESS_COUNT:100}
+      # 单个提取链接最长有效天数。
+      max-expire-days: ${CDK_EXTRACT_MAX_EXPIRE_DAYS:30}
   # 积分账务配置。
   points:
     # 是否启用积分日终对账任务。

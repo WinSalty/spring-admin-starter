@@ -95,7 +95,13 @@ public enum ErrorCode {
     TRADE_CALLBACK_SIGNATURE_INVALID(4092, "支付回调签名无效"),
     TRADE_CALLBACK_SECRET_MISSING(4093, "支付回调密钥未配置"),
     CDK_CODE_STATUS_INVALID(4094, "CDK 状态不允许当前操作"),
-    CDK_CODE_DECRYPT_FAILED(4095, "CDK 明文解密失败");
+    CDK_CODE_DECRYPT_FAILED(4095, "CDK 明文解密失败"),
+    CDK_EXTRACT_LINK_NOT_FOUND(4096, "CDK 提取链接不存在"),
+    CDK_EXTRACT_LINK_EXPIRED(4097, "CDK 提取链接已过期"),
+    CDK_EXTRACT_LINK_EXHAUSTED(4098, "CDK 提取链接访问次数已用完"),
+    CDK_EXTRACT_LINK_DISABLED(4099, "CDK 提取链接已停用"),
+    CDK_EXTRACT_LINK_LIMIT_INVALID(4100, "CDK 提取链接访问次数不合法"),
+    CDK_EXTRACT_SECRET_MISSING(4101, "CDK 提取链接安全密钥未配置");
 
     private final int code;
     private final String message;
