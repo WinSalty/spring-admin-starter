@@ -17,6 +17,7 @@ public class CdkBatchExtractLinkVo {
     private String batchNo;
     private String batchName;
     private Integer generatedCount;
+    private Integer codeCount;
     private Integer skippedCount;
     private List<CdkExtractLinkVo> links;
 }

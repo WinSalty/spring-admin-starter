@@ -21,6 +21,11 @@ public class CdkExtractLinkCreateRequest {
     @Max(value = 100, message = "访问次数不能超过 100")
     private Integer maxAccessCount;
 
+    /** 每个链接包含的 CDK 数量，批次生成时生效。 */
+    @Min(value = 1, message = "每个链接至少包含 1 个 CDK")
+    @Max(value = 100, message = "每个链接最多包含 100 个 CDK")
+    private Integer codesPerLink = 1;
+
     /** 过期时间，格式 yyyy-MM-dd HH:mm:ss。 */
     @NotBlank(message = "过期时间不能为空")
     private String expireAt;

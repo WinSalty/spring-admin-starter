@@ -2,6 +2,8 @@ package com.winsalty.quickstart.cdk.vo;
 
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * CDK 公开提取页展示对象。
  * 向匿名访问者返回可复制 CDK、权益文案、有效期和剩余访问次数。
@@ -12,6 +14,8 @@ import lombok.Data;
 public class CdkExtractViewVo {
 
     private String cdk;
+    private List<String> cdks;
+    private Integer cdkCount;
     private String batchName;
     private String benefitType;
     private String benefitText;

@@ -11,10 +11,12 @@ import com.winsalty.quickstart.cdk.dto.CdkExtractLinkDisableRequest;
 import com.winsalty.quickstart.cdk.entity.CdkBatchEntity;
 import com.winsalty.quickstart.cdk.entity.CdkCodeEntity;
 import com.winsalty.quickstart.cdk.entity.CdkExtractAccessRecordEntity;
+import com.winsalty.quickstart.cdk.entity.CdkExtractLinkCodeEntity;
 import com.winsalty.quickstart.cdk.entity.CdkExtractLinkEntity;
 import com.winsalty.quickstart.cdk.mapper.CdkBatchMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkCodeMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkExtractAccessRecordMapper;
+import com.winsalty.quickstart.cdk.mapper.CdkExtractLinkCodeMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkExtractLinkMapper;
 import com.winsalty.quickstart.cdk.service.CdkExtractService;
 import com.winsalty.quickstart.cdk.vo.CdkBatchExtractLinkVo;
@@ -95,6 +97,7 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
     private final CdkBatchMapper cdkBatchMapper;
     private final CdkCodeMapper cdkCodeMapper;
     private final CdkExtractLinkMapper cdkExtractLinkMapper;
+    private final CdkExtractLinkCodeMapper cdkExtractLinkCodeMapper;
     private final CdkExtractAccessRecordMapper cdkExtractAccessRecordMapper;
     private final CdkProperties cdkProperties;
 
@@ -106,11 +109,13 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
     public CdkExtractServiceImpl(CdkBatchMapper cdkBatchMapper,
                                  CdkCodeMapper cdkCodeMapper,
                                  CdkExtractLinkMapper cdkExtractLinkMapper,
+                                 CdkExtractLinkCodeMapper cdkExtractLinkCodeMapper,
                                  CdkExtractAccessRecordMapper cdkExtractAccessRecordMapper,
                                  CdkProperties cdkProperties) {
         this.cdkBatchMapper = cdkBatchMapper;
         this.cdkCodeMapper = cdkCodeMapper;
         this.cdkExtractLinkMapper = cdkExtractLinkMapper;
+        this.cdkExtractLinkCodeMapper = cdkExtractLinkCodeMapper;
         this.cdkExtractAccessRecordMapper = cdkExtractAccessRecordMapper;
         this.cdkProperties = cdkProperties;
     }
@@ -128,7 +133,9 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
         LocalDateTime expireAt = parseExpireAt(request.getExpireAt());
         validateExpireAt(expireAt);
         int maxAccessCount = validateMaxAccessCount(request.getMaxAccessCount());
-        return createLinkForCode(code, expireAt, maxAccessCount, request.getRemark());
+        List<CdkCodeEntity> codes = new ArrayList<CdkCodeEntity>();
+        codes.add(code);
+        return createLinkForCodes(codes, expireAt, maxAccessCount, request.getRemark());
     }
 
     /**
@@ -145,21 +152,24 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
         LocalDateTime expireAt = parseExpireAt(request.getExpireAt());
         validateExpireAt(expireAt);
         int maxAccessCount = validateMaxAccessCount(request.getMaxAccessCount());
+        int codesPerLink = validateCodesPerLink(request.getCodesPerLink());
         List<CdkCodeEntity> codes = cdkCodeMapper.findActiveWithBatchByBatchId(batchId);
         List<CdkExtractLinkVo> links = new ArrayList<CdkExtractLinkVo>();
-        for (CdkCodeEntity code : codes) {
-            // 批量生成只为当前仍可提取的 active CDK 创建链接，已兑换或已失效 CDK 自动跳过。
-            links.add(createLinkForCode(code, expireAt, maxAccessCount, request.getRemark()));
+        for (int index = 0; index < codes.size(); index += codesPerLink) {
+            int endIndex = Math.min(index + codesPerLink, codes.size());
+            // 按运营配置把多个 CDK 合并到同一个提取链接，减少分发链接数量。
+            links.add(createLinkForCodes(codes.subList(index, endIndex), expireAt, maxAccessCount, request.getRemark()));
         }
         CdkBatchExtractLinkVo vo = new CdkBatchExtractLinkVo();
         vo.setBatchId(String.valueOf(batch.getId()));
         vo.setBatchNo(batch.getBatchNo());
         vo.setBatchName(batch.getBatchName());
         vo.setGeneratedCount(links.size());
-        vo.setSkippedCount(Math.max(0, batch.getTotalCount() - links.size()));
+        vo.setCodeCount(codes.size());
+        vo.setSkippedCount(Math.max(0, batch.getTotalCount() - codes.size()));
         vo.setLinks(links);
-        log.info("cdk batch extract links created, batchNo={}, batchId={}, generatedCount={}, skippedCount={}, operator={}",
-                batch.getBatchNo(), batch.getId(), vo.getGeneratedCount(), vo.getSkippedCount(), currentUsername());
+        log.info("cdk batch extract links created, batchNo={}, batchId={}, generatedCount={}, codeCount={}, skippedCount={}, codesPerLink={}, operator={}",
+                batch.getBatchNo(), batch.getId(), vo.getGeneratedCount(), vo.getCodeCount(), vo.getSkippedCount(), codesPerLink, currentUsername());
         return vo;
     }
 
@@ -242,9 +252,9 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
             throw new BusinessException(ErrorCode.CDK_EXTRACT_LINK_NOT_FOUND, "链接无效或已过期");
         }
         validateLinkUsable(link, request, servletRequest);
-        CdkCodeEntity code;
+        List<CdkCodeEntity> codes;
         try {
-            code = loadExtractableCode(link.getCodeId());
+            codes = loadExtractableCodes(link);
         } catch (BusinessException exception) {
             recordAccess(link, link.getCodeId(), link.getBatchId(), ACCESS_RESULT_FAILED, "code_unavailable",
                     exception.getMessage(), request, servletRequest);
@@ -259,17 +269,20 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
         CdkExtractLinkEntity updatedLink = cdkExtractLinkMapper.findById(link.getId());
         recordAccess(updatedLink, updatedLink.getCodeId(), updatedLink.getBatchId(), ACCESS_RESULT_SUCCESS,
                 EMPTY_TEXT, EMPTY_TEXT, request, servletRequest);
-        String plainCode = decryptPlainCode(code);
+        List<String> plainCodes = decryptPlainCodes(codes);
         CdkExtractViewVo vo = new CdkExtractViewVo();
-        vo.setCdk(plainCode);
-        vo.setBatchName(code.getBatchName());
-        vo.setBenefitType(code.getBenefitType());
-        vo.setBenefitText(resolveBenefitText(code.getBenefitConfig()));
-        vo.setValidTo(code.getValidTo());
+        vo.setCdk(plainCodes.isEmpty() ? EMPTY_TEXT : plainCodes.get(0));
+        vo.setCdks(plainCodes);
+        vo.setCdkCount(plainCodes.size());
+        CdkCodeEntity firstCode = codes.get(0);
+        vo.setBatchName(firstCode.getBatchName());
+        vo.setBenefitType(firstCode.getBenefitType());
+        vo.setBenefitText(resolveBenefitText(firstCode.getBenefitConfig()));
+        vo.setValidTo(firstCode.getValidTo());
         vo.setRemainingAccessCount(Math.max(0, updatedLink.getMaxAccessCount() - updatedLink.getAccessedCount()));
         vo.setStatus(STATUS_ACTIVE);
-        log.info("cdk extracted, linkNo={}, codeId={}, batchId={}, remainingAccessCount={}",
-                updatedLink.getLinkNo(), code.getId(), code.getBatchId(), vo.getRemainingAccessCount());
+        log.info("cdk extracted, linkNo={}, codeCount={}, batchId={}, remainingAccessCount={}",
+                updatedLink.getLinkNo(), plainCodes.size(), firstCode.getBatchId(), vo.getRemainingAccessCount());
         return vo;
     }
 
@@ -291,6 +304,29 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
         }
         validateBatchValidPeriod(code);
         return code;
+    }
+
+    /**
+     * 加载并校验提取链接下的全部 CDK。
+     * 创建日期：2026-05-01
+     * author：sunshengxian
+     */
+    private List<CdkCodeEntity> loadExtractableCodes(CdkExtractLinkEntity link) {
+        List<CdkCodeEntity> codes = cdkExtractLinkCodeMapper.findCodesByLinkId(link.getId());
+        if (codes.isEmpty()) {
+            codes.add(loadExtractableCode(link.getCodeId()));
+            return codes;
+        }
+        for (CdkCodeEntity code : codes) {
+            if (!CdkConstants.CODE_STATUS_ACTIVE.equals(code.getStatus())) {
+                throw new BusinessException(ErrorCode.CDK_CODE_UNAVAILABLE);
+            }
+            if (!CdkConstants.BATCH_STATUS_ACTIVE.equals(code.getBatchStatus())) {
+                throw new BusinessException(ErrorCode.CDK_BATCH_STATUS_INVALID);
+            }
+            validateBatchValidPeriod(code);
+        }
+        return codes;
     }
 
     /**
@@ -318,15 +354,19 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
      * 创建日期：2026-05-01
      * author：sunshengxian
      */
-    private CdkExtractLinkVo createLinkForCode(CdkCodeEntity code,
-                                               LocalDateTime expireAt,
-                                               int maxAccessCount,
-                                               String remark) {
+    private CdkExtractLinkVo createLinkForCodes(List<CdkCodeEntity> codes,
+                                                LocalDateTime expireAt,
+                                                int maxAccessCount,
+                                                String remark) {
+        if (codes == null || codes.isEmpty()) {
+            throw new BusinessException(ErrorCode.CDK_CODE_NOT_FOUND);
+        }
+        CdkCodeEntity firstCode = codes.get(0);
         String token = createToken();
         CdkExtractLinkEntity entity = new CdkExtractLinkEntity();
         entity.setLinkNo(createNo(LINK_NO_PREFIX));
-        entity.setCodeId(code.getId());
-        entity.setBatchId(code.getBatchId());
+        entity.setCodeId(firstCode.getId());
+        entity.setBatchId(firstCode.getBatchId());
         entity.setTokenHash(tokenHash(token));
         entity.setMaxAccessCount(maxAccessCount);
         entity.setAccessedCount(0);
@@ -335,8 +375,17 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
         entity.setCreatedBy(currentUsername());
         entity.setRemark(defaultEmpty(remark));
         cdkExtractLinkMapper.insert(entity);
-        log.info("cdk extract link created, linkNo={}, codeId={}, batchId={}, maxAccessCount={}, operator={}",
-                entity.getLinkNo(), code.getId(), code.getBatchId(), maxAccessCount, currentUsername());
+        for (int index = 0; index < codes.size(); index++) {
+            CdkCodeEntity code = codes.get(index);
+            CdkExtractLinkCodeEntity linkCode = new CdkExtractLinkCodeEntity();
+            linkCode.setLinkId(entity.getId());
+            linkCode.setCodeId(code.getId());
+            linkCode.setBatchId(code.getBatchId());
+            linkCode.setSortNo(index + 1);
+            cdkExtractLinkCodeMapper.insert(linkCode);
+        }
+        log.info("cdk extract link created, linkNo={}, codeCount={}, batchId={}, maxAccessCount={}, operator={}",
+                entity.getLinkNo(), codes.size(), firstCode.getBatchId(), maxAccessCount, currentUsername());
         CdkExtractLinkVo vo = toLinkVo(cdkExtractLinkMapper.findById(entity.getId()));
         vo.setUrl(buildPublicUrl(token));
         return vo;
@@ -446,6 +495,21 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
     }
 
     /**
+     * 校验批次链接中每个 URL 包含的 CDK 数量。
+     * 创建日期：2026-05-01
+     * author：sunshengxian
+     */
+    private int validateCodesPerLink(Integer codesPerLink) {
+        if (codesPerLink == null) {
+            return 1;
+        }
+        if (codesPerLink < 1 || codesPerLink > 100) {
+            throw new BusinessException(ErrorCode.CDK_EXTRACT_LINK_LIMIT_INVALID);
+        }
+        return codesPerLink;
+    }
+
+    /**
      * 校验提取链接过期时间。
      * 创建日期：2026-04-30
      * author：sunshengxian
@@ -542,6 +606,19 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
             log.error("cdk extract plain code decrypt failed, codeId={}", code.getId(), exception);
             throw new BusinessException(ErrorCode.CDK_CODE_DECRYPT_FAILED);
         }
+    }
+
+    /**
+     * 解密多个 CDK 明文。
+     * 创建日期：2026-05-01
+     * author：sunshengxian
+     */
+    private List<String> decryptPlainCodes(List<CdkCodeEntity> codes) {
+        List<String> plainCodes = new ArrayList<String>();
+        for (CdkCodeEntity code : codes) {
+            plainCodes.add(decryptPlainCode(code));
+        }
+        return plainCodes;
     }
 
     /**
