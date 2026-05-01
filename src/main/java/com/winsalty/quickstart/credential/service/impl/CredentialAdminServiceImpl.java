@@ -83,8 +83,7 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
     private static final String TAB_DELIMITER = "\\t";
     private static final String DEFAULT_POINTS_BATCH_NAME_PREFIX = "积分CDK批次-";
     private static final String DEFAULT_TEXT_SECRET_BATCH_NAME_PREFIX = "卡密批次-";
-    private static final int DEFAULT_VALID_DAYS = 30;
-    private static final int DEFAULT_EXTRACT_EXPIRE_DAYS = 7;
+    private static final String DEFAULT_PERMANENT_EXPIRE_AT = "2099-12-31 23:59:59";
     private static final int DEFAULT_PAGE_NO = 1;
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
@@ -262,7 +261,7 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
             CredentialExtractLinkCreateRequest linkRequest = new CredentialExtractLinkCreateRequest();
             linkRequest.setItemsPerLink(request.getItemsPerLink());
             linkRequest.setMaxAccessCount(request.getMaxAccessCount());
-            linkRequest.setExpireAt(defaultDateTime(request.getExpireAt(), DEFAULT_EXTRACT_EXPIRE_DAYS));
+            linkRequest.setExpireAt(defaultExpireDateTime(request.getExpireAt()));
             linkRequest.setRemark(request.getRemark());
             credentialExtractLinkService.createBatchLinks(batch.getId(), linkRequest);
         }
@@ -399,8 +398,8 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
         batch.setAvailableCount(totalCount);
         batch.setConsumedCount(0);
         batch.setLinkedCount(0);
-        batch.setValidFrom(defaultDateTime(validFrom, 0));
-        batch.setValidTo(defaultDateTime(validTo, DEFAULT_VALID_DAYS));
+        batch.setValidFrom(defaultStartDateTime(validFrom));
+        batch.setValidTo(defaultExpireDateTime(validTo));
         batch.setStatus(CredentialConstants.STATUS_ACTIVE);
         batch.setCreatedBy(currentUserId());
         return batch;
@@ -541,10 +540,21 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
         return item;
     }
 
-    private String defaultDateTime(String value, int plusDays) {
+    private String defaultStartDateTime(String value) {
         if (!StringUtils.hasText(value)) {
-            return LocalDateTime.now().plusDays(plusDays).format(DATE_TIME_FORMATTER);
+            return LocalDateTime.now().format(DATE_TIME_FORMATTER);
         }
+        return validateDateTime(value);
+    }
+
+    private String defaultExpireDateTime(String value) {
+        if (!StringUtils.hasText(value)) {
+            return DEFAULT_PERMANENT_EXPIRE_AT;
+        }
+        return validateDateTime(value);
+    }
+
+    private String validateDateTime(String value) {
         try {
             LocalDateTime.parse(value, DATE_TIME_FORMATTER);
             return value;
