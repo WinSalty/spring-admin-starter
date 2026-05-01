@@ -99,10 +99,13 @@ public class CredentialPublicExtractServiceImpl extends BaseService implements C
         credentialExtractLinkMapper.increaseAccess(link.getId());
         String accessNo = createNo(ACCESS_NO_PREFIX);
         if (CredentialConstants.FULFILLMENT_TYPE_TEXT_SECRET.equals(batch.getFulfillmentType())) {
+            int firstExtractCount = 0;
             for (CredentialItemEntity item : items) {
-                credentialItemMapper.markExtracted(item.getId(), accessNo);
+                firstExtractCount += credentialItemMapper.markExtracted(item.getId(), accessNo);
             }
-            credentialBatchMapper.increaseConsumed(batch.getId(), items.size(), 0);
+            if (firstExtractCount > 0) {
+                credentialBatchMapper.increaseConsumed(batch.getId(), firstExtractCount, 0);
+            }
         }
         writeAccess(link, items.size(), true, "", request, servletRequest);
         log.info("credential public extract success, linkNo={}, itemCount={}", link.getLinkNo(), items.size());
