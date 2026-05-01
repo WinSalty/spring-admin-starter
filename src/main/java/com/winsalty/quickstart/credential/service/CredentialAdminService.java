@@ -45,6 +45,9 @@ public interface CredentialAdminService {
     /** 查询凭证批次详情。 */
     CredentialBatchVo getBatch(Long id);
 
+    /** 查询批次下全部凭证明细。 */
+    List<CredentialItemVo> listBatchItems(Long batchId);
+
     /** 创建系统生成凭证批次。 */
     CredentialBatchVo createGeneratedBatch(CredentialGeneratedBatchCreateRequest request);
 

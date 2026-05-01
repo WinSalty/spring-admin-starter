@@ -17,6 +17,7 @@ import com.winsalty.quickstart.credential.service.CredentialExtractLinkService;
 import com.winsalty.quickstart.credential.vo.CredentialBatchVo;
 import com.winsalty.quickstart.credential.vo.CredentialCategoryVo;
 import com.winsalty.quickstart.credential.vo.CredentialExtractLinkCreateResultVo;
+import com.winsalty.quickstart.credential.vo.CredentialExtractLinkVo;
 import com.winsalty.quickstart.credential.vo.CredentialImportPreviewVo;
 import com.winsalty.quickstart.credential.vo.CredentialImportTaskVo;
 import com.winsalty.quickstart.credential.vo.CredentialItemVo;
@@ -115,6 +116,12 @@ public class AdminCredentialController {
         return ApiResponse.success("获取成功", credentialAdminService.getBatch(id));
     }
 
+    /** 查询批次下全部凭证明细。 */
+    @GetMapping("/batches/{id}/items")
+    public ApiResponse<List<CredentialItemVo>> batchItems(@PathVariable("id") Long id) {
+        return ApiResponse.success("获取成功", credentialAdminService.listBatchItems(id));
+    }
+
     /** 停用凭证批次。 */
     @AuditLog(logType = "operation", code = "credential_batch_disable", name = "停用凭证批次")
     @PostMapping("/batches/{id}/disable")
@@ -142,6 +149,12 @@ public class AdminCredentialController {
     public ApiResponse<CredentialExtractLinkCreateResultVo> createItemLink(@PathVariable("id") Long id,
                                                                            @Valid @RequestBody CredentialExtractLinkCreateRequest request) {
         return ApiResponse.success("生成成功", credentialExtractLinkService.createItemLink(id, request));
+    }
+
+    /** 查询凭证明细关联的提取链接。 */
+    @GetMapping("/items/{id}/extract-links")
+    public ApiResponse<List<CredentialExtractLinkVo>> itemExtractLinks(@PathVariable("id") Long id) {
+        return ApiResponse.success("获取成功", credentialExtractLinkService.listLinksByItem(id));
     }
 
     /** 停用凭证明细。 */

@@ -150,6 +150,20 @@ public class CredentialExtractLinkServiceImpl extends BaseService implements Cre
     }
 
     /**
+     * 查询凭证明细关联的提取链接。
+     */
+    @Override
+    public List<CredentialExtractLinkVo> listLinksByItem(Long itemId) {
+        CredentialItemEntity item = credentialItemMapper.findById(itemId);
+        if (item == null) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_ITEM_NOT_FOUND);
+        }
+        List<CredentialExtractLinkEntity> entities = credentialExtractLinkMapper.findByItemId(itemId);
+        log.info("credential extract links loaded by item, itemId={}, linkSize={}", itemId, entities.size());
+        return toLinkVoList(entities);
+    }
+
+    /**
      * 查询提取链接访问记录。
      */
     @Override
@@ -247,6 +261,9 @@ public class CredentialExtractLinkServiceImpl extends BaseService implements Cre
         }
         if (!CredentialConstants.STATUS_ACTIVE.equals(batch.getStatus())) {
             throw new BusinessException(ErrorCode.CREDENTIAL_BATCH_STATUS_INVALID);
+        }
+        if (defaultInt(batch.getLinkedCount()) > 0) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_BATCH_STATUS_INVALID, "该批次已生成过提取链接");
         }
         CredentialExtractLinkCreateRequest command = normalizeCreateRequest(request);
         List<CredentialItemEntity> items = credentialItemMapper.findActiveByBatchForUpdate(batchId, credentialProperties.getMaxBatchSize());
@@ -564,6 +581,7 @@ public class CredentialExtractLinkServiceImpl extends BaseService implements Cre
             vo.setBatchId(entity.getBatchId() == null ? null : String.valueOf(entity.getBatchId()));
             vo.setCategoryId(entity.getCategoryId() == null ? null : String.valueOf(entity.getCategoryId()));
             vo.setItemNo(entity.getItemNo());
+            vo.setSecretText(StringUtils.hasText(entity.getEncryptedSecret()) ? credentialCryptoService.decryptSecret(entity.getEncryptedSecret()) : "");
             vo.setSecretMask(entity.getSecretMask());
             vo.setChecksum(entity.getChecksum());
             vo.setSourceType(entity.getSourceType());

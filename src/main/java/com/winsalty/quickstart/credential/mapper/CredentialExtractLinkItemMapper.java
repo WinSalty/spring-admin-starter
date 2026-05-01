@@ -17,7 +17,7 @@ import java.util.List;
 @Mapper
 public interface CredentialExtractLinkItemMapper {
 
-    @Select("SELECT i.id, i.batch_id AS batchId, i.category_id AS categoryId, i.item_no AS itemNo, i.secret_mask AS secretMask, "
+    @Select("SELECT i.id, i.batch_id AS batchId, i.category_id AS categoryId, i.item_no AS itemNo, i.encrypted_secret AS encryptedSecret, i.secret_mask AS secretMask, "
             + "i.checksum, i.source_type AS sourceType, i.status, i.consumed_user_id AS consumedUserId, "
             + "DATE_FORMAT(i.consumed_at, '%Y-%m-%d %H:%i:%s') AS consumedAt, i.consume_biz_no AS consumeBizNo, "
             + "DATE_FORMAT(i.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt, DATE_FORMAT(i.updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt "

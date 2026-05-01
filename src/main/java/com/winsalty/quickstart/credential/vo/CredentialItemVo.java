@@ -4,7 +4,7 @@ import lombok.Data;
 
 /**
  * 凭证明细展示对象。
- * 链接详情中默认只展示脱敏值和状态，不暴露明文凭证。
+ * 管理端凭证明细展示明文和状态，便于批次内复制与排查。
  * 创建日期：2026-05-01
  * author：sunshengxian
  */
@@ -15,6 +15,7 @@ public class CredentialItemVo {
     private String batchId;
     private String categoryId;
     private String itemNo;
+    private String secretText;
     private String secretMask;
     private String checksum;
     private String sourceType;

@@ -92,6 +92,9 @@ public interface CredentialExtractLinkMapper {
     @Select(LINK_SELECT + "WHERE l.token_hash = #{tokenHash} LIMIT 1 FOR UPDATE")
     CredentialExtractLinkEntity findByTokenHashForUpdate(@Param("tokenHash") String tokenHash);
 
+    @Select(LINK_SELECT + "INNER JOIN credential_extract_link_item li ON li.link_id = l.id WHERE li.item_id = #{itemId} ORDER BY l.id DESC")
+    List<CredentialExtractLinkEntity> findByItemId(@Param("itemId") Long itemId);
+
     @Insert("INSERT INTO credential_extract_link(link_no, category_id, batch_id, token_hash, encrypted_token, token_key_id, item_count, max_access_count, accessed_count, expire_at, status, created_by, remark) "
             + "VALUES(#{linkNo}, #{categoryId}, #{batchId}, #{tokenHash}, #{encryptedToken}, #{tokenKeyId}, #{itemCount}, #{maxAccessCount}, #{accessedCount}, STR_TO_DATE(#{expireAt}, '%Y-%m-%d %H:%i:%s'), #{status}, #{createdBy}, #{remark})")
     @Options(useGeneratedKeys = true, keyProperty = "id")

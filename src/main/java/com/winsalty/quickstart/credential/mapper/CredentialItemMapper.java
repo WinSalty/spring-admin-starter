@@ -77,6 +77,9 @@ public interface CredentialItemMapper {
     @Select(ITEM_SELECT + "WHERE i.batch_id = #{batchId} AND i.status = 'active' ORDER BY i.id ASC LIMIT #{limit} FOR UPDATE")
     List<CredentialItemEntity> findActiveByBatchForUpdate(@Param("batchId") Long batchId, @Param("limit") int limit);
 
+    @Select(ITEM_SELECT + "WHERE i.batch_id = #{batchId} ORDER BY i.id ASC")
+    List<CredentialItemEntity> findByBatchId(@Param("batchId") Long batchId);
+
     @Select(ITEM_SELECT + "WHERE i.id IN (${ids}) ORDER BY i.id ASC")
     List<CredentialItemEntity> findByUnsafeIds(@Param("ids") String ids);
 

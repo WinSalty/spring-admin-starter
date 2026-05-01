@@ -191,6 +191,17 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
     }
 
     /**
+     * 查询批次下全部凭证明细。
+     */
+    @Override
+    public List<CredentialItemVo> listBatchItems(Long batchId) {
+        loadBatch(batchId);
+        List<CredentialItemEntity> entities = credentialItemMapper.findByBatchId(batchId);
+        log.info("credential batch items loaded, batchId={}, itemSize={}", batchId, entities.size());
+        return toItemVos(entities);
+    }
+
+    /**
      * 创建系统生成凭证批次。
      */
     @Override
@@ -507,7 +518,9 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
     }
 
     private String createGeneratedSecret() {
-        return "CDK-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
+        String value = UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
+        return value.substring(0, 4) + "-" + value.substring(4, 8) + "-"
+                + value.substring(8, 12) + "-" + value.substring(12, 16);
     }
 
     private CredentialCategoryEntity resolveCategory(Long id, String defaultCategoryCode) {
@@ -654,6 +667,7 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
         vo.setBatchId(entity.getBatchId() == null ? null : String.valueOf(entity.getBatchId()));
         vo.setCategoryId(entity.getCategoryId() == null ? null : String.valueOf(entity.getCategoryId()));
         vo.setItemNo(entity.getItemNo());
+        vo.setSecretText(StringUtils.hasText(entity.getEncryptedSecret()) ? credentialCryptoService.decryptSecret(entity.getEncryptedSecret()) : "");
         vo.setSecretMask(entity.getSecretMask());
         vo.setChecksum(entity.getChecksum());
         vo.setSourceType(entity.getSourceType());

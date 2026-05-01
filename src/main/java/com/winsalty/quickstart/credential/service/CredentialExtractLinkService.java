@@ -32,6 +32,9 @@ public interface CredentialExtractLinkService {
     /** 查询提取链接包含的凭证明细。 */
     List<CredentialItemVo> listItems(Long id);
 
+    /** 查询凭证明细关联的提取链接。 */
+    List<CredentialExtractLinkVo> listLinksByItem(Long itemId);
+
     /** 查询提取链接访问记录。 */
     PageResponse<CredentialExtractAccessRecordVo> listAccessRecords(Long id, CredentialExtractAccessRecordListRequest request);
 

@@ -19,11 +19,14 @@ import com.winsalty.quickstart.credential.mapper.CredentialRedeemRecordMapper;
 import com.winsalty.quickstart.credential.service.CredentialExtractLinkService;
 import com.winsalty.quickstart.credential.service.support.CredentialCryptoService;
 import com.winsalty.quickstart.credential.vo.CredentialExtractLinkCreateResultVo;
+import com.winsalty.quickstart.credential.vo.CredentialGeneratedSecretVo;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -118,6 +121,51 @@ class CredentialAdminServiceImplTest {
     }
 
     /**
+     * 验证系统生成积分 CDK 使用四段式格式，便于复制和人工核对。
+     */
+    @Test
+    void createGeneratedBatchShouldReturnSegmentedCdkSecret() {
+        AuthContext.set(new AuthUser(USER_ID, USERNAME, ROLE_CODE, SESSION_ID));
+        CredentialCategoryMapper categoryMapper = mock(CredentialCategoryMapper.class);
+        CredentialBatchMapper batchMapper = mock(CredentialBatchMapper.class);
+        CredentialItemMapper itemMapper = mock(CredentialItemMapper.class);
+        CredentialImportTaskMapper importTaskMapper = mock(CredentialImportTaskMapper.class);
+        CredentialRedeemRecordMapper redeemRecordMapper = mock(CredentialRedeemRecordMapper.class);
+        CredentialOperationAuditMapper operationAuditMapper = mock(CredentialOperationAuditMapper.class);
+        CredentialExtractLinkService extractLinkService = mock(CredentialExtractLinkService.class);
+        CredentialCryptoService cryptoService = mock(CredentialCryptoService.class);
+        CredentialProperties properties = new CredentialProperties();
+        CredentialAdminServiceImpl service = new CredentialAdminServiceImpl(categoryMapper, batchMapper, itemMapper,
+                importTaskMapper, redeemRecordMapper, operationAuditMapper, extractLinkService, cryptoService, properties);
+        CredentialCategoryEntity category = pointsCategory();
+        CredentialBatchEntity persistedBatch = generatedBatch();
+        when(categoryMapper.findByCode(CredentialConstants.CATEGORY_POINTS_CDK)).thenReturn(category);
+        when(cryptoService.hmacSecret(anyString())).thenReturn(SECRET_HASH);
+        when(cryptoService.encryptSecret(anyString())).thenReturn(SECRET_CIPHER);
+        when(cryptoService.mask(anyString())).thenReturn(SECRET_MASK);
+        when(cryptoService.checksum(anyString())).thenReturn(SECRET_CHECKSUM);
+        when(batchMapper.findById(BATCH_ID)).thenReturn(persistedBatch);
+        doAnswer(invocation -> {
+            CredentialBatchEntity batch = invocation.getArgument(0);
+            batch.setId(BATCH_ID);
+            return 1;
+        }).when(batchMapper).insert(any(CredentialBatchEntity.class));
+        doAnswer(invocation -> {
+            CredentialItemEntity item = invocation.getArgument(0);
+            item.setId(ITEM_ID);
+            return 1;
+        }).when(itemMapper).insert(any(CredentialItemEntity.class));
+        com.winsalty.quickstart.credential.dto.CredentialGeneratedBatchCreateRequest request =
+                new com.winsalty.quickstart.credential.dto.CredentialGeneratedBatchCreateRequest();
+        request.setTotalCount(1);
+        request.setPoints(100L);
+
+        CredentialGeneratedSecretVo secret = service.createGeneratedBatch(request).getGeneratedSecrets().get(0);
+
+        assertTrue(secret.getSecretText().matches("[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}"));
+    }
+
+    /**
      * 构造启用文本导入的卡密分类。
      */
     private CredentialCategoryEntity textSecretCategory() {
@@ -127,6 +175,20 @@ class CredentialAdminServiceImplTest {
         entity.setCategoryName(CATEGORY_NAME);
         entity.setFulfillmentType(CredentialConstants.FULFILLMENT_TYPE_TEXT_SECRET);
         entity.setGenerationMode(CredentialConstants.GENERATION_MODE_TEXT_IMPORTED);
+        entity.setStatus(CredentialConstants.STATUS_ACTIVE);
+        return entity;
+    }
+
+    /**
+     * 构造启用系统生成的积分 CDK 分类。
+     */
+    private CredentialCategoryEntity pointsCategory() {
+        CredentialCategoryEntity entity = new CredentialCategoryEntity();
+        entity.setId(CATEGORY_ID);
+        entity.setCategoryCode(CredentialConstants.CATEGORY_POINTS_CDK);
+        entity.setCategoryName("积分 CDK");
+        entity.setFulfillmentType(CredentialConstants.FULFILLMENT_TYPE_POINTS_REDEEM);
+        entity.setGenerationMode(CredentialConstants.GENERATION_MODE_SYSTEM_GENERATED);
         entity.setStatus(CredentialConstants.STATUS_ACTIVE);
         return entity;
     }
@@ -153,6 +215,19 @@ class CredentialAdminServiceImplTest {
         entity.setValidTo("2099-12-31 23:59:59");
         entity.setStatus(CredentialConstants.STATUS_ACTIVE);
         entity.setCreatedBy(USER_ID);
+        return entity;
+    }
+
+    /**
+     * 构造系统生成后可被查询回填的积分 CDK 批次实体。
+     */
+    private CredentialBatchEntity generatedBatch() {
+        CredentialBatchEntity entity = persistedBatch();
+        entity.setCategoryCode(CredentialConstants.CATEGORY_POINTS_CDK);
+        entity.setCategoryName("积分 CDK");
+        entity.setFulfillmentType(CredentialConstants.FULFILLMENT_TYPE_POINTS_REDEEM);
+        entity.setGenerationMode(CredentialConstants.GENERATION_MODE_SYSTEM_GENERATED);
+        entity.setPayloadConfig("{\"points\":100}");
         return entity;
     }
 
