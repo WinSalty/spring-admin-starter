@@ -42,8 +42,9 @@ public interface CdkExtractLinkMapper {
     @Select(LINK_SELECT + "WHERE code_id = #{codeId} ORDER BY id DESC")
     List<CdkExtractLinkEntity> findByCodeId(@Param("codeId") Long codeId);
 
-    @Update("UPDATE cdk_extract_link SET accessed_count = accessed_count + 1, last_accessed_at = NOW(), "
-            + "status = CASE WHEN accessed_count + 1 >= max_access_count THEN 'exhausted' ELSE status END "
+    @Update("UPDATE cdk_extract_link SET "
+            + "status = CASE WHEN accessed_count + 1 >= max_access_count THEN 'exhausted' ELSE status END, "
+            + "accessed_count = accessed_count + 1, last_accessed_at = NOW() "
             + "WHERE id = #{id} AND status = 'active' AND accessed_count < max_access_count")
     int incrementAccessed(@Param("id") Long id);
 
