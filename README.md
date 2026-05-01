@@ -107,7 +107,7 @@
 | CDK 兑换 | `/api/points/cdk/redeem`，支持 HMAC 存储、幂等兑换、限流和积分入账 |
 | 在线充值 | `/api/trade/recharge/orders`、`/orders/{rechargeNo}`、`/callback`，支持充值单创建、支付回调 HMAC 验签、重复回调幂等和积分入账 |
 | 权益兑换 | `/api/benefits/products`、`/products/{id}/exchange`、`/orders`、`/mine`，支持积分冻结、权益发放和确认扣减 |
-| 管理端 CDK | `/api/admin/cdk/batches`、`/void`、`/api/admin/cdk/codes`、`/api/admin/cdk/codes/{id}/status`、`/api/admin/cdk/codes/{id}/extract-links`、`/api/admin/cdk/extract-links/{id}/access-records`、`/api/admin/cdk/redeem-records` |
+| 管理端 CDK | `/api/admin/cdk/batches`、`/void`、`/api/admin/cdk/batches/{id}/extract-links`、`/api/admin/cdk/codes`、`/api/admin/cdk/codes/{id}/status`、`/api/admin/cdk/codes/{id}/extract-links`、`/api/admin/cdk/extract-links/{id}/access-records`、`/api/admin/cdk/redeem-records` |
 | CDK 公开提取 | `/api/public/cdk/extract/{token}`，支持临时 URL 次数控制、设备指纹审计和一键复制页面 |
 | 积分审计 | `/api/admin/points/accounts`、`/ledger`、`/adjustments`、`/adjustments/{id}/approve`、`/reconciliation` |
 | 权益管理 | `/api/admin/benefits/products`、`/products/{id}`、`/products/{id}/status`、`/orders` |
@@ -131,7 +131,7 @@
 12. CDK 兑换成功、权益兑换成功会写入 `transaction_outbox`，当前由定时任务标记处理，后续可平滑替换为 MQ 投递。
 13. 在线充值通过 `trade` 模块创建 `online_pay` 充值单，支付回调使用 `TRADE_CALLBACK_SECRET` 做 HMAC 验签，成功后按充值单号幂等入账。
 14. CDK 管理端默认展示全部 CDK，支持按批次、关键字和状态筛选，展示批次、积分、有效期、兑换状态等完整信息，支持复制、启用和失效单个 CDK，不提供删除已生成 CDK 的接口。
-15. CDK 明细支持生成临时提取 URL，管理员可自定义访问次数和过期时间；公开访问页会在成功返回 CDK 前原子扣减次数，并记录 IP、UA 摘要、浏览器指纹、设备快照和 traceId。
+15. CDK 明细和批次详情支持生成临时提取 URL，管理员可自定义访问次数和过期时间；公开访问页会在成功返回 CDK 前原子扣减次数，并记录 IP、UA 摘要、浏览器指纹、设备快照和 traceId。
 16. `V21__init_points_schema.sql`、`V22__init_cdk_schema.sql`、`V23__seed_points_cdk_permissions.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql`、`V26__enhance_cdk_audit_risk_schema.sql`、`V27__simplify_cdk_generation_and_manage_codes.sql`、`V28__remove_cdk_pause_export_actions.sql`、`V29__void_paused_cdk_batches.sql`、`V31__add_cdk_extract_link_schema.sql` 初始化表结构和权限菜单。
 
 ## 配套环境说明

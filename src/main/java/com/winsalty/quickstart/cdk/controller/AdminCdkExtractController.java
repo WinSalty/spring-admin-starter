@@ -5,6 +5,7 @@ import com.winsalty.quickstart.cdk.dto.CdkExtractAccessRecordListRequest;
 import com.winsalty.quickstart.cdk.dto.CdkExtractLinkCreateRequest;
 import com.winsalty.quickstart.cdk.dto.CdkExtractLinkDisableRequest;
 import com.winsalty.quickstart.cdk.service.CdkExtractService;
+import com.winsalty.quickstart.cdk.vo.CdkBatchExtractLinkVo;
 import com.winsalty.quickstart.cdk.vo.CdkExtractAccessRecordVo;
 import com.winsalty.quickstart.cdk.vo.CdkExtractLinkVo;
 import com.winsalty.quickstart.common.api.ApiResponse;
@@ -44,6 +45,13 @@ public class AdminCdkExtractController {
     public ApiResponse<CdkExtractLinkVo> createLink(@PathVariable("id") Long id,
                                                     @Valid @RequestBody CdkExtractLinkCreateRequest request) {
         return ApiResponse.success("生成成功", cdkExtractService.createLink(id, request));
+    }
+
+    @AuditLog(logType = "operation", code = "cdk_batch_extract_link_create", name = "批量生成CDK提取链接")
+    @PostMapping("/batches/{id}/extract-links")
+    public ApiResponse<CdkBatchExtractLinkVo> createBatchLinks(@PathVariable("id") Long id,
+                                                               @Valid @RequestBody CdkExtractLinkCreateRequest request) {
+        return ApiResponse.success("生成成功", cdkExtractService.createBatchLinks(id, request));
     }
 
     @GetMapping("/codes/{id}/extract-links")

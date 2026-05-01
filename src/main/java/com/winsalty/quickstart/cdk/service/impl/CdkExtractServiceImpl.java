@@ -8,13 +8,16 @@ import com.winsalty.quickstart.cdk.dto.CdkExtractAccessRecordListRequest;
 import com.winsalty.quickstart.cdk.dto.CdkExtractAccessRequest;
 import com.winsalty.quickstart.cdk.dto.CdkExtractLinkCreateRequest;
 import com.winsalty.quickstart.cdk.dto.CdkExtractLinkDisableRequest;
+import com.winsalty.quickstart.cdk.entity.CdkBatchEntity;
 import com.winsalty.quickstart.cdk.entity.CdkCodeEntity;
 import com.winsalty.quickstart.cdk.entity.CdkExtractAccessRecordEntity;
 import com.winsalty.quickstart.cdk.entity.CdkExtractLinkEntity;
+import com.winsalty.quickstart.cdk.mapper.CdkBatchMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkCodeMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkExtractAccessRecordMapper;
 import com.winsalty.quickstart.cdk.mapper.CdkExtractLinkMapper;
 import com.winsalty.quickstart.cdk.service.CdkExtractService;
+import com.winsalty.quickstart.cdk.vo.CdkBatchExtractLinkVo;
 import com.winsalty.quickstart.cdk.vo.CdkExtractAccessRecordVo;
 import com.winsalty.quickstart.cdk.vo.CdkExtractLinkVo;
 import com.winsalty.quickstart.cdk.vo.CdkExtractViewVo;
@@ -89,6 +92,7 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
     private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 
     private final SecureRandom secureRandom = new SecureRandom();
+    private final CdkBatchMapper cdkBatchMapper;
     private final CdkCodeMapper cdkCodeMapper;
     private final CdkExtractLinkMapper cdkExtractLinkMapper;
     private final CdkExtractAccessRecordMapper cdkExtractAccessRecordMapper;
@@ -99,10 +103,12 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
      * 创建日期：2026-04-30
      * author：sunshengxian
      */
-    public CdkExtractServiceImpl(CdkCodeMapper cdkCodeMapper,
+    public CdkExtractServiceImpl(CdkBatchMapper cdkBatchMapper,
+                                 CdkCodeMapper cdkCodeMapper,
                                  CdkExtractLinkMapper cdkExtractLinkMapper,
                                  CdkExtractAccessRecordMapper cdkExtractAccessRecordMapper,
                                  CdkProperties cdkProperties) {
+        this.cdkBatchMapper = cdkBatchMapper;
         this.cdkCodeMapper = cdkCodeMapper;
         this.cdkExtractLinkMapper = cdkExtractLinkMapper;
         this.cdkExtractAccessRecordMapper = cdkExtractAccessRecordMapper;
@@ -122,23 +128,38 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
         LocalDateTime expireAt = parseExpireAt(request.getExpireAt());
         validateExpireAt(expireAt);
         int maxAccessCount = validateMaxAccessCount(request.getMaxAccessCount());
-        String token = createToken();
-        CdkExtractLinkEntity entity = new CdkExtractLinkEntity();
-        entity.setLinkNo(createNo(LINK_NO_PREFIX));
-        entity.setCodeId(code.getId());
-        entity.setBatchId(code.getBatchId());
-        entity.setTokenHash(tokenHash(token));
-        entity.setMaxAccessCount(maxAccessCount);
-        entity.setAccessedCount(0);
-        entity.setExpireAt(expireAt.format(DATE_TIME_FORMATTER));
-        entity.setStatus(STATUS_ACTIVE);
-        entity.setCreatedBy(currentUsername());
-        entity.setRemark(defaultEmpty(request.getRemark()));
-        cdkExtractLinkMapper.insert(entity);
-        log.info("cdk extract link created, linkNo={}, codeId={}, batchId={}, maxAccessCount={}, operator={}",
-                entity.getLinkNo(), code.getId(), code.getBatchId(), maxAccessCount, currentUsername());
-        CdkExtractLinkVo vo = toLinkVo(cdkExtractLinkMapper.findById(entity.getId()));
-        vo.setUrl(buildPublicUrl(token));
+        return createLinkForCode(code, expireAt, maxAccessCount, request.getRemark());
+    }
+
+    /**
+     * 一次性创建批次内所有可提取 CDK 的临时提取链接。
+     * 创建日期：2026-05-01
+     * author：sunshengxian
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CdkBatchExtractLinkVo createBatchLinks(Long batchId, CdkExtractLinkCreateRequest request) {
+        ensureExtractSecretConfigured();
+        CdkBatchEntity batch = cdkBatchMapper.findById(batchId);
+        validateExtractableBatch(batch);
+        LocalDateTime expireAt = parseExpireAt(request.getExpireAt());
+        validateExpireAt(expireAt);
+        int maxAccessCount = validateMaxAccessCount(request.getMaxAccessCount());
+        List<CdkCodeEntity> codes = cdkCodeMapper.findActiveWithBatchByBatchId(batchId);
+        List<CdkExtractLinkVo> links = new ArrayList<CdkExtractLinkVo>();
+        for (CdkCodeEntity code : codes) {
+            // 批量生成只为当前仍可提取的 active CDK 创建链接，已兑换或已失效 CDK 自动跳过。
+            links.add(createLinkForCode(code, expireAt, maxAccessCount, request.getRemark()));
+        }
+        CdkBatchExtractLinkVo vo = new CdkBatchExtractLinkVo();
+        vo.setBatchId(String.valueOf(batch.getId()));
+        vo.setBatchNo(batch.getBatchNo());
+        vo.setBatchName(batch.getBatchName());
+        vo.setGeneratedCount(links.size());
+        vo.setSkippedCount(Math.max(0, batch.getTotalCount() - links.size()));
+        vo.setLinks(links);
+        log.info("cdk batch extract links created, batchNo={}, batchId={}, generatedCount={}, skippedCount={}, operator={}",
+                batch.getBatchNo(), batch.getId(), vo.getGeneratedCount(), vo.getSkippedCount(), currentUsername());
         return vo;
     }
 
@@ -270,6 +291,55 @@ public class CdkExtractServiceImpl extends BaseService implements CdkExtractServ
         }
         validateBatchValidPeriod(code);
         return code;
+    }
+
+    /**
+     * 校验批次是否允许批量生成提取链接。
+     * 创建日期：2026-05-01
+     * author：sunshengxian
+     */
+    private void validateExtractableBatch(CdkBatchEntity batch) {
+        if (batch == null) {
+            throw new BusinessException(ErrorCode.CDK_BATCH_NOT_FOUND);
+        }
+        if (!CdkConstants.BATCH_STATUS_ACTIVE.equals(batch.getStatus())) {
+            throw new BusinessException(ErrorCode.CDK_BATCH_STATUS_INVALID);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime validFrom = parseDateTime(batch.getValidFrom(), ErrorCode.CDK_BATCH_STATUS_INVALID);
+        LocalDateTime validTo = parseDateTime(batch.getValidTo(), ErrorCode.CDK_BATCH_STATUS_INVALID);
+        if (now.isBefore(validFrom) || now.isAfter(validTo)) {
+            throw new BusinessException(ErrorCode.CDK_BATCH_STATUS_INVALID);
+        }
+    }
+
+    /**
+     * 为单个已校验 CDK 创建提取链接。
+     * 创建日期：2026-05-01
+     * author：sunshengxian
+     */
+    private CdkExtractLinkVo createLinkForCode(CdkCodeEntity code,
+                                               LocalDateTime expireAt,
+                                               int maxAccessCount,
+                                               String remark) {
+        String token = createToken();
+        CdkExtractLinkEntity entity = new CdkExtractLinkEntity();
+        entity.setLinkNo(createNo(LINK_NO_PREFIX));
+        entity.setCodeId(code.getId());
+        entity.setBatchId(code.getBatchId());
+        entity.setTokenHash(tokenHash(token));
+        entity.setMaxAccessCount(maxAccessCount);
+        entity.setAccessedCount(0);
+        entity.setExpireAt(expireAt.format(DATE_TIME_FORMATTER));
+        entity.setStatus(STATUS_ACTIVE);
+        entity.setCreatedBy(currentUsername());
+        entity.setRemark(defaultEmpty(remark));
+        cdkExtractLinkMapper.insert(entity);
+        log.info("cdk extract link created, linkNo={}, codeId={}, batchId={}, maxAccessCount={}, operator={}",
+                entity.getLinkNo(), code.getId(), code.getBatchId(), maxAccessCount, currentUsername());
+        CdkExtractLinkVo vo = toLinkVo(cdkExtractLinkMapper.findById(entity.getId()));
+        vo.setUrl(buildPublicUrl(token));
+        return vo;
     }
 
     /**

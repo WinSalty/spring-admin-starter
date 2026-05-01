@@ -4,6 +4,7 @@ import com.winsalty.quickstart.cdk.dto.CdkExtractAccessRecordListRequest;
 import com.winsalty.quickstart.cdk.dto.CdkExtractAccessRequest;
 import com.winsalty.quickstart.cdk.dto.CdkExtractLinkCreateRequest;
 import com.winsalty.quickstart.cdk.dto.CdkExtractLinkDisableRequest;
+import com.winsalty.quickstart.cdk.vo.CdkBatchExtractLinkVo;
 import com.winsalty.quickstart.cdk.vo.CdkExtractAccessRecordVo;
 import com.winsalty.quickstart.cdk.vo.CdkExtractLinkVo;
 import com.winsalty.quickstart.cdk.vo.CdkExtractViewVo;
@@ -21,6 +22,8 @@ import java.util.List;
 public interface CdkExtractService {
 
     CdkExtractLinkVo createLink(Long codeId, CdkExtractLinkCreateRequest request);
+
+    CdkBatchExtractLinkVo createBatchLinks(Long batchId, CdkExtractLinkCreateRequest request);
 
     List<CdkExtractLinkVo> listLinks(Long codeId);
 
