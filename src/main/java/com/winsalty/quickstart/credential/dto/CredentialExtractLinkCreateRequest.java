@@ -3,7 +3,6 @@ package com.winsalty.quickstart.credential.dto;
 import lombok.Data;
 
 import javax.validation.constraints.Min;
-import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
 
@@ -24,7 +23,6 @@ public class CredentialExtractLinkCreateRequest {
     @Min(value = 1, message = "最大访问次数至少为 1")
     private Integer maxAccessCount = 3;
 
-    @NotBlank(message = "过期时间不能为空")
     private String expireAt;
 
     private String itemScope = "UNLINKED_ACTIVE";

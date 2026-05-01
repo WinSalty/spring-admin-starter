@@ -79,6 +79,7 @@ public class CredentialExtractLinkServiceImpl extends BaseService implements Cre
     private static final int UUID_FRAGMENT_LENGTH = 12;
     private static final int TOKEN_UUID_COUNT = 2;
     private static final int FIRST_SORT_NO = 1;
+    private static final int DEFAULT_EXTRACT_EXPIRE_DAYS = 7;
 
     private final CredentialBatchMapper credentialBatchMapper;
     private final CredentialItemMapper credentialItemMapper;
@@ -372,6 +373,9 @@ public class CredentialExtractLinkServiceImpl extends BaseService implements Cre
         if (command.getMaxAccessCount() == null || command.getMaxAccessCount() <= 0
                 || command.getMaxAccessCount() > credentialProperties.getExtract().getMaxAccessCount()) {
             throw new BusinessException(ErrorCode.CREDENTIAL_EXTRACT_LINK_LIMIT_INVALID);
+        }
+        if (!StringUtils.hasText(command.getExpireAt())) {
+            command.setExpireAt(LocalDateTime.now().plusDays(DEFAULT_EXTRACT_EXPIRE_DAYS).format(DATE_TIME_FORMATTER));
         }
         LocalDateTime expireAt = parseDateTime(command.getExpireAt());
         LocalDateTime maxExpireAt = LocalDateTime.now().plusDays(credentialProperties.getExtract().getMaxExpireDays());

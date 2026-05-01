@@ -33,6 +33,9 @@ public interface CredentialCategoryMapper {
     @Select(CATEGORY_SELECT + "WHERE id = #{id} LIMIT 1")
     CredentialCategoryEntity findById(@Param("id") Long id);
 
+    @Select(CATEGORY_SELECT + "WHERE category_code = #{categoryCode} LIMIT 1")
+    CredentialCategoryEntity findByCode(@Param("categoryCode") String categoryCode);
+
     @Insert("INSERT INTO credential_category(category_code, category_name, fulfillment_type, generation_mode, payload_schema, import_config, extract_policy, status) "
             + "VALUES(#{categoryCode}, #{categoryName}, #{fulfillmentType}, #{generationMode}, #{payloadSchema}, #{importConfig}, #{extractPolicy}, #{status})")
     @Options(useGeneratedKeys = true, keyProperty = "id")

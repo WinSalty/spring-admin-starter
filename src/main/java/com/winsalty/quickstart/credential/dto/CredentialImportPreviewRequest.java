@@ -3,7 +3,6 @@ package com.winsalty.quickstart.credential.dto;
 import lombok.Data;
 
 import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
 
 /**
  * 文本卡密导入预览请求。
@@ -14,7 +13,6 @@ import javax.validation.constraints.NotNull;
 @Data
 public class CredentialImportPreviewRequest {
 
-    @NotNull(message = "分类不能为空")
     private Long categoryId;
 
     @NotBlank(message = "卡密文本不能为空")

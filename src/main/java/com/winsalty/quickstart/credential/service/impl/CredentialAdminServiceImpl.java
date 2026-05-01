@@ -81,6 +81,10 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
     private static final String PREVIEW_STATUS_INVALID = "invalid";
     private static final String NEWLINE_DELIMITER = "\\n";
     private static final String TAB_DELIMITER = "\\t";
+    private static final String DEFAULT_POINTS_BATCH_NAME_PREFIX = "积分CDK批次-";
+    private static final String DEFAULT_TEXT_SECRET_BATCH_NAME_PREFIX = "卡密批次-";
+    private static final int DEFAULT_VALID_DAYS = 30;
+    private static final int DEFAULT_EXTRACT_EXPIRE_DAYS = 7;
     private static final int DEFAULT_PAGE_NO = 1;
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
@@ -194,7 +198,7 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
         if (request.getTotalCount() > credentialProperties.getMaxBatchSize()) {
             throw new BusinessException(ErrorCode.CREDENTIAL_BATCH_SIZE_EXCEEDED);
         }
-        CredentialCategoryEntity category = loadCategory(request.getCategoryId());
+        CredentialCategoryEntity category = resolveCategory(request.getCategoryId(), CredentialConstants.CATEGORY_POINTS_CDK);
         if (!CredentialConstants.GENERATION_MODE_SYSTEM_GENERATED.equals(category.getGenerationMode())
                 && !"MIXED".equals(category.getGenerationMode())) {
             throw new BusinessException(ErrorCode.CREDENTIAL_BATCH_STATUS_INVALID, "分类不支持系统生成");
@@ -202,7 +206,7 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
         JSONObject payload = new JSONObject();
         payload.put("points", request.getPoints());
         payload.put("remark", request.getRemark());
-        CredentialBatchEntity batch = buildBatch(request.getBatchName(), category, CredentialConstants.GENERATION_MODE_SYSTEM_GENERATED,
+        CredentialBatchEntity batch = buildBatch(defaultBatchName(request.getBatchName(), DEFAULT_POINTS_BATCH_NAME_PREFIX), category, CredentialConstants.GENERATION_MODE_SYSTEM_GENERATED,
                 payload.toJSONString(), request.getTotalCount(), request.getValidFrom(), request.getValidTo());
         credentialBatchMapper.insert(batch);
         for (int index = 0; index < request.getTotalCount(); index++) {
@@ -219,7 +223,7 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
      */
     @Override
     public CredentialImportPreviewVo previewImport(CredentialImportPreviewRequest request) {
-        loadCategory(request.getCategoryId());
+        resolveCategory(request.getCategoryId(), CredentialConstants.CATEGORY_TEXT_CARD_SECRET);
         ImportParseResult result = parseImport(request);
         log.info("credential import preview parsed, categoryId={}, totalRows={}, validRows={}",
                 request.getCategoryId(), result.totalRows, result.validRows);
@@ -232,7 +236,7 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CredentialBatchVo confirmImport(CredentialImportConfirmRequest request) {
-        CredentialCategoryEntity category = loadCategory(request.getCategoryId());
+        CredentialCategoryEntity category = resolveCategory(request.getCategoryId(), CredentialConstants.CATEGORY_TEXT_CARD_SECRET);
         if (!CredentialConstants.GENERATION_MODE_TEXT_IMPORTED.equals(category.getGenerationMode())
                 && !"MIXED".equals(category.getGenerationMode())) {
             throw new BusinessException(ErrorCode.CREDENTIAL_BATCH_STATUS_INVALID, "分类不支持文本导入");
@@ -241,9 +245,9 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
         if (result.validRows <= 0) {
             throw new BusinessException(ErrorCode.CREDENTIAL_SECRET_INVALID, "没有可导入的有效卡密");
         }
-        CredentialImportTaskEntity task = buildImportTask(request, result, IMPORT_STATUS_PREVIEWED);
+        CredentialImportTaskEntity task = buildImportTask(request, category, result, IMPORT_STATUS_PREVIEWED);
         credentialImportTaskMapper.insert(task);
-        CredentialBatchEntity batch = buildBatch(request.getBatchName(), category, CredentialConstants.GENERATION_MODE_TEXT_IMPORTED,
+        CredentialBatchEntity batch = buildBatch(defaultBatchName(request.getBatchName(), DEFAULT_TEXT_SECRET_BATCH_NAME_PREFIX), category, CredentialConstants.GENERATION_MODE_TEXT_IMPORTED,
                 "{\"label\":\"卡密\",\"remark\":\"" + safeJsonText(request.getRemark()) + "\"}", result.validRows,
                 request.getValidFrom(), request.getValidTo());
         credentialBatchMapper.insert(batch);
@@ -258,7 +262,7 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
             CredentialExtractLinkCreateRequest linkRequest = new CredentialExtractLinkCreateRequest();
             linkRequest.setItemsPerLink(request.getItemsPerLink());
             linkRequest.setMaxAccessCount(request.getMaxAccessCount());
-            linkRequest.setExpireAt(request.getExpireAt());
+            linkRequest.setExpireAt(defaultDateTime(request.getExpireAt(), DEFAULT_EXTRACT_EXPIRE_DAYS));
             linkRequest.setRemark(request.getRemark());
             credentialExtractLinkService.createBatchLinks(batch.getId(), linkRequest);
         }
@@ -386,7 +390,7 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
                                              String payloadConfig, int totalCount, String validFrom, String validTo) {
         CredentialBatchEntity batch = new CredentialBatchEntity();
         batch.setBatchNo(createNo(BATCH_NO_PREFIX));
-        batch.setBatchName(batchName.trim());
+        batch.setBatchName(batchName);
         batch.setCategoryId(category.getId());
         batch.setFulfillmentType(category.getFulfillmentType());
         batch.setGenerationMode(generationMode);
@@ -395,8 +399,8 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
         batch.setAvailableCount(totalCount);
         batch.setConsumedCount(0);
         batch.setLinkedCount(0);
-        batch.setValidFrom(validateDateTime(validFrom));
-        batch.setValidTo(validateDateTime(validTo));
+        batch.setValidFrom(defaultDateTime(validFrom, 0));
+        batch.setValidTo(defaultDateTime(validTo, DEFAULT_VALID_DAYS));
         batch.setStatus(CredentialConstants.STATUS_ACTIVE);
         batch.setCreatedBy(currentUserId());
         return batch;
@@ -457,10 +461,13 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
         return result;
     }
 
-    private CredentialImportTaskEntity buildImportTask(CredentialImportConfirmRequest request, ImportParseResult result, String status) {
+    private CredentialImportTaskEntity buildImportTask(CredentialImportConfirmRequest request,
+                                                       CredentialCategoryEntity category,
+                                                       ImportParseResult result,
+                                                       String status) {
         CredentialImportTaskEntity entity = new CredentialImportTaskEntity();
         entity.setTaskNo(createNo(TASK_NO_PREFIX));
-        entity.setCategoryId(request.getCategoryId());
+        entity.setCategoryId(category.getId());
         entity.setDelimiter(request.getDelimiter());
         entity.setTotalRows(result.totalRows);
         entity.setValidRows(result.validRows);
@@ -488,6 +495,17 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
 
     private String createGeneratedSecret() {
         return "CDK-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
+    }
+
+    private CredentialCategoryEntity resolveCategory(Long id, String defaultCategoryCode) {
+        if (id != null) {
+            return loadCategory(id);
+        }
+        CredentialCategoryEntity category = credentialCategoryMapper.findByCode(defaultCategoryCode);
+        if (category == null) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_BATCH_NOT_FOUND, "默认凭证分类不存在");
+        }
+        return category;
     }
 
     private CredentialCategoryEntity loadCategory(Long id) {
@@ -523,13 +541,23 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
         return item;
     }
 
-    private String validateDateTime(String value) {
+    private String defaultDateTime(String value, int plusDays) {
+        if (!StringUtils.hasText(value)) {
+            return LocalDateTime.now().plusDays(plusDays).format(DATE_TIME_FORMATTER);
+        }
         try {
             LocalDateTime.parse(value, DATE_TIME_FORMATTER);
             return value;
         } catch (Exception ex) {
             throw new BusinessException(ErrorCode.REQUEST_PARAM_INVALID, "时间格式必须为 yyyy-MM-dd HH:mm:ss");
         }
+    }
+
+    private String defaultBatchName(String batchName, String prefix) {
+        if (StringUtils.hasText(batchName)) {
+            return batchName.trim();
+        }
+        return prefix + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
     }
 
     private List<CredentialCategoryVo> toCategoryVos(List<CredentialCategoryEntity> entities) {

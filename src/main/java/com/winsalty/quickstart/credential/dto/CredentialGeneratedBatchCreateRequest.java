@@ -3,7 +3,6 @@ package com.winsalty.quickstart.credential.dto;
 import lombok.Data;
 
 import javax.validation.constraints.Min;
-import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 
 /**
@@ -15,10 +14,8 @@ import javax.validation.constraints.NotNull;
 @Data
 public class CredentialGeneratedBatchCreateRequest {
 
-    @NotNull(message = "分类不能为空")
     private Long categoryId;
 
-    @NotBlank(message = "批次名称不能为空")
     private String batchName;
 
     @NotNull(message = "生成数量不能为空")
@@ -29,10 +26,8 @@ public class CredentialGeneratedBatchCreateRequest {
     @Min(value = 1, message = "积分数量必须大于 0")
     private Long points;
 
-    @NotBlank(message = "生效时间不能为空")
     private String validFrom;
 
-    @NotBlank(message = "失效时间不能为空")
     private String validTo;
 
     private String remark;
