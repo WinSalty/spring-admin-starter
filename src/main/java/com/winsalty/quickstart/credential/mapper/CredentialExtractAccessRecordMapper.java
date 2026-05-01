@@ -1,7 +1,9 @@
 package com.winsalty.quickstart.credential.mapper;
 
 import com.winsalty.quickstart.credential.entity.CredentialExtractAccessRecordEntity;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
@@ -46,4 +48,9 @@ public interface CredentialExtractAccessRecordMapper {
     long countPage(@Param("linkId") Long linkId,
                    @Param("success") Integer success,
                    @Param("fingerprint") String fingerprint);
+
+    @Insert("INSERT INTO credential_extract_access_record(access_no, link_id, batch_id, item_count, success, failure_reason, client_ip, user_agent_hash, browser_fingerprint, device_snapshot, trace_id) "
+            + "VALUES(#{accessNo}, #{linkId}, #{batchId}, #{itemCount}, #{success}, #{failureReason}, #{clientIp}, #{userAgentHash}, #{browserFingerprint}, #{deviceSnapshot}, #{traceId})")
+    @Options(useGeneratedKeys = true, keyProperty = "id")
+    int insert(CredentialExtractAccessRecordEntity entity);
 }

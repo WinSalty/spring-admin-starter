@@ -4,6 +4,7 @@ import com.winsalty.quickstart.auth.annotation.AuditLog;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.credential.dto.CredentialExtractAccessRecordListRequest;
+import com.winsalty.quickstart.credential.dto.CredentialExtractLinkCreateRequest;
 import com.winsalty.quickstart.credential.dto.CredentialExtractLinkDisableRequest;
 import com.winsalty.quickstart.credential.dto.CredentialExtractLinkExtendRequest;
 import com.winsalty.quickstart.credential.dto.CredentialExtractLinkListRequest;
@@ -103,5 +104,16 @@ public class AdminCredentialExtractLinkController {
                                                        @Valid @RequestBody CredentialExtractLinkExtendRequest request,
                                                        HttpServletRequest servletRequest) {
         return ApiResponse.success("延期成功", credentialExtractLinkService.extendLink(id, request, servletRequest));
+    }
+
+    /**
+     * 补发凭证提取链接。
+     */
+    @AuditLog(logType = "operation", code = "credential_extract_link_reissue", name = "补发凭证提取链接")
+    @PostMapping("/{id}/reissue")
+    public ApiResponse<CredentialExtractLinkCopyVo> reissue(@PathVariable("id") Long id,
+                                                            @Valid @RequestBody CredentialExtractLinkCreateRequest request,
+                                                            HttpServletRequest servletRequest) {
+        return ApiResponse.success("补发成功", credentialExtractLinkService.reissueLink(id, request, servletRequest));
     }
 }

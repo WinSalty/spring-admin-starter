@@ -1,6 +1,7 @@
 package com.winsalty.quickstart.credential.mapper;
 
 import com.winsalty.quickstart.credential.entity.CredentialItemEntity;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -23,4 +24,13 @@ public interface CredentialExtractLinkItemMapper {
             + "FROM credential_extract_link_item li INNER JOIN credential_item i ON i.id = li.item_id "
             + "WHERE li.link_id = #{linkId} ORDER BY li.sort_no ASC, li.id ASC")
     List<CredentialItemEntity> findItemsByLinkId(@Param("linkId") Long linkId);
+
+    @Select("SELECT item_id FROM credential_extract_link_item WHERE link_id = #{linkId} ORDER BY sort_no ASC, id ASC")
+    List<Long> findItemIdsByLinkId(@Param("linkId") Long linkId);
+
+    @Insert("INSERT INTO credential_extract_link_item(link_id, item_id, batch_id, sort_no) VALUES(#{linkId}, #{itemId}, #{batchId}, #{sortNo})")
+    int insert(@Param("linkId") Long linkId,
+               @Param("itemId") Long itemId,
+               @Param("batchId") Long batchId,
+               @Param("sortNo") int sortNo);
 }

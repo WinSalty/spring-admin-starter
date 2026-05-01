@@ -4,9 +4,11 @@ import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.credential.dto.CredentialExtractAccessRecordListRequest;
 import com.winsalty.quickstart.credential.dto.CredentialExtractLinkDisableRequest;
 import com.winsalty.quickstart.credential.dto.CredentialExtractLinkExtendRequest;
+import com.winsalty.quickstart.credential.dto.CredentialExtractLinkCreateRequest;
 import com.winsalty.quickstart.credential.dto.CredentialExtractLinkListRequest;
 import com.winsalty.quickstart.credential.vo.CredentialExtractAccessRecordVo;
 import com.winsalty.quickstart.credential.vo.CredentialExtractLinkCopyVo;
+import com.winsalty.quickstart.credential.vo.CredentialExtractLinkCreateResultVo;
 import com.winsalty.quickstart.credential.vo.CredentialExtractLinkVo;
 import com.winsalty.quickstart.credential.vo.CredentialItemVo;
 
@@ -41,4 +43,13 @@ public interface CredentialExtractLinkService {
 
     /** 延期提取链接。 */
     CredentialExtractLinkVo extendLink(Long id, CredentialExtractLinkExtendRequest request, HttpServletRequest servletRequest);
+
+    /** 按批次批量生成提取链接。 */
+    CredentialExtractLinkCreateResultVo createBatchLinks(Long batchId, CredentialExtractLinkCreateRequest request);
+
+    /** 按单个凭证明细生成提取链接。 */
+    CredentialExtractLinkCreateResultVo createItemLink(Long itemId, CredentialExtractLinkCreateRequest request);
+
+    /** 补发提取链接并停用旧链接。 */
+    CredentialExtractLinkCopyVo reissueLink(Long id, CredentialExtractLinkCreateRequest request, HttpServletRequest servletRequest);
 }

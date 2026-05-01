@@ -1,7 +1,9 @@
 package com.winsalty.quickstart.credential.mapper;
 
 import com.winsalty.quickstart.credential.entity.CredentialExtractLinkEntity;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -87,9 +89,20 @@ public interface CredentialExtractLinkMapper {
     @Select(LINK_SELECT + "WHERE l.id = #{id} LIMIT 1 FOR UPDATE")
     CredentialExtractLinkEntity findByIdForUpdate(@Param("id") Long id);
 
+    @Select(LINK_SELECT + "WHERE l.token_hash = #{tokenHash} LIMIT 1 FOR UPDATE")
+    CredentialExtractLinkEntity findByTokenHashForUpdate(@Param("tokenHash") String tokenHash);
+
+    @Insert("INSERT INTO credential_extract_link(link_no, category_id, batch_id, token_hash, encrypted_token, token_key_id, item_count, max_access_count, accessed_count, expire_at, status, created_by, remark) "
+            + "VALUES(#{linkNo}, #{categoryId}, #{batchId}, #{tokenHash}, #{encryptedToken}, #{tokenKeyId}, #{itemCount}, #{maxAccessCount}, #{accessedCount}, STR_TO_DATE(#{expireAt}, '%Y-%m-%d %H:%i:%s'), #{status}, #{createdBy}, #{remark})")
+    @Options(useGeneratedKeys = true, keyProperty = "id")
+    int insert(CredentialExtractLinkEntity entity);
+
     @Update("UPDATE credential_extract_link SET status = 'disabled', disabled_by = #{disabledBy}, disabled_at = NOW(), remark = #{remark} WHERE id = #{id} AND status = 'active'")
     int disable(@Param("id") Long id, @Param("disabledBy") Long disabledBy, @Param("remark") String remark);
 
     @Update("UPDATE credential_extract_link SET expire_at = STR_TO_DATE(#{expireAt}, '%Y-%m-%d %H:%i:%s') WHERE id = #{id} AND status = 'active'")
     int extend(@Param("id") Long id, @Param("expireAt") String expireAt);
+
+    @Update("UPDATE credential_extract_link SET accessed_count = accessed_count + 1, last_accessed_at = NOW(), status = CASE WHEN accessed_count + 1 >= max_access_count THEN 'exhausted' ELSE status END WHERE id = #{id} AND status = 'active' AND accessed_count < max_access_count")
+    int increaseAccess(@Param("id") Long id);
 }

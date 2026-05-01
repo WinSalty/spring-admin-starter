@@ -19,12 +19,20 @@ public class CredentialItemEntity {
     private Long categoryId;
     /** 明细编号。 */
     private String itemNo;
+    /** 敏感文本 HMAC。 */
+    private String secretHash;
+    /** 加密后的敏感文本。 */
+    private String encryptedSecret;
     /** 脱敏展示值。 */
     private String secretMask;
     /** 校验位或短摘要。 */
     private String checksum;
+    /** 履约配置快照。 */
+    private String payloadSnapshot;
     /** 来源类型。 */
     private String sourceType;
+    /** 导入行号。 */
+    private Integer sourceLineNo;
     /** 状态。 */
     private String status;
     /** 兑换用户ID。 */
@@ -33,6 +41,8 @@ public class CredentialItemEntity {
     private String consumedAt;
     /** 消费业务单号。 */
     private String consumeBizNo;
+    /** 乐观锁版本。 */
+    private Integer version;
     /** 创建时间。 */
     private String createdAt;
     /** 更新时间。 */

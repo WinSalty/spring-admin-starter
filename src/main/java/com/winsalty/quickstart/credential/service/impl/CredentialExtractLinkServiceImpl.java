@@ -9,20 +9,26 @@ import com.winsalty.quickstart.common.util.IpUtils;
 import com.winsalty.quickstart.credential.config.CredentialProperties;
 import com.winsalty.quickstart.credential.constant.CredentialConstants;
 import com.winsalty.quickstart.credential.dto.CredentialExtractAccessRecordListRequest;
+import com.winsalty.quickstart.credential.dto.CredentialExtractLinkCreateRequest;
 import com.winsalty.quickstart.credential.dto.CredentialExtractLinkDisableRequest;
 import com.winsalty.quickstart.credential.dto.CredentialExtractLinkExtendRequest;
 import com.winsalty.quickstart.credential.dto.CredentialExtractLinkListRequest;
+import com.winsalty.quickstart.credential.entity.CredentialBatchEntity;
 import com.winsalty.quickstart.credential.entity.CredentialExtractAccessRecordEntity;
 import com.winsalty.quickstart.credential.entity.CredentialExtractLinkEntity;
 import com.winsalty.quickstart.credential.entity.CredentialItemEntity;
 import com.winsalty.quickstart.credential.entity.CredentialOperationAuditEntity;
+import com.winsalty.quickstart.credential.mapper.CredentialBatchMapper;
 import com.winsalty.quickstart.credential.mapper.CredentialExtractAccessRecordMapper;
 import com.winsalty.quickstart.credential.mapper.CredentialExtractLinkItemMapper;
 import com.winsalty.quickstart.credential.mapper.CredentialExtractLinkMapper;
+import com.winsalty.quickstart.credential.mapper.CredentialItemMapper;
 import com.winsalty.quickstart.credential.mapper.CredentialOperationAuditMapper;
 import com.winsalty.quickstart.credential.service.CredentialExtractLinkService;
+import com.winsalty.quickstart.credential.service.support.CredentialCryptoService;
 import com.winsalty.quickstart.credential.vo.CredentialExtractAccessRecordVo;
 import com.winsalty.quickstart.credential.vo.CredentialExtractLinkCopyVo;
+import com.winsalty.quickstart.credential.vo.CredentialExtractLinkCreateResultVo;
 import com.winsalty.quickstart.credential.vo.CredentialExtractLinkVo;
 import com.winsalty.quickstart.credential.vo.CredentialItemVo;
 import org.slf4j.Logger;
@@ -59,8 +65,10 @@ public class CredentialExtractLinkServiceImpl extends BaseService implements Cre
     private static final String OPERATION_COPY_URL = "extract_link_copy_url";
     private static final String OPERATION_DISABLE = "extract_link_disable";
     private static final String OPERATION_EXTEND = "extract_link_extend";
+    private static final String OPERATION_REISSUE = "extract_link_reissue";
     private static final String TARGET_TYPE_EXTRACT_LINK = "extract_link";
     private static final String TOKEN_URL_PATH = "/credentials/extract/";
+    private static final String TOKEN_KEY_ID_DEFAULT = "default";
     private static final String AES_GCM_ALGORITHM = "AES/GCM/NoPadding";
     private static final String AES_ALGORITHM = "AES";
     private static final int AES_GCM_TAG_BITS = 128;
@@ -69,23 +77,34 @@ public class CredentialExtractLinkServiceImpl extends BaseService implements Cre
     private static final int AES_KEY_192_BYTES = 24;
     private static final int AES_KEY_256_BYTES = 32;
     private static final int UUID_FRAGMENT_LENGTH = 12;
+    private static final int TOKEN_UUID_COUNT = 2;
+    private static final int FIRST_SORT_NO = 1;
 
+    private final CredentialBatchMapper credentialBatchMapper;
+    private final CredentialItemMapper credentialItemMapper;
     private final CredentialExtractLinkMapper credentialExtractLinkMapper;
     private final CredentialExtractLinkItemMapper credentialExtractLinkItemMapper;
     private final CredentialExtractAccessRecordMapper credentialExtractAccessRecordMapper;
     private final CredentialOperationAuditMapper credentialOperationAuditMapper;
     private final CredentialProperties credentialProperties;
+    private final CredentialCryptoService credentialCryptoService;
 
-    public CredentialExtractLinkServiceImpl(CredentialExtractLinkMapper credentialExtractLinkMapper,
+    public CredentialExtractLinkServiceImpl(CredentialBatchMapper credentialBatchMapper,
+                                            CredentialItemMapper credentialItemMapper,
+                                            CredentialExtractLinkMapper credentialExtractLinkMapper,
                                             CredentialExtractLinkItemMapper credentialExtractLinkItemMapper,
                                             CredentialExtractAccessRecordMapper credentialExtractAccessRecordMapper,
                                             CredentialOperationAuditMapper credentialOperationAuditMapper,
-                                            CredentialProperties credentialProperties) {
+                                            CredentialProperties credentialProperties,
+                                            CredentialCryptoService credentialCryptoService) {
+        this.credentialBatchMapper = credentialBatchMapper;
+        this.credentialItemMapper = credentialItemMapper;
         this.credentialExtractLinkMapper = credentialExtractLinkMapper;
         this.credentialExtractLinkItemMapper = credentialExtractLinkItemMapper;
         this.credentialExtractAccessRecordMapper = credentialExtractAccessRecordMapper;
         this.credentialOperationAuditMapper = credentialOperationAuditMapper;
         this.credentialProperties = credentialProperties;
+        this.credentialCryptoService = credentialCryptoService;
     }
 
     /**
@@ -212,6 +231,176 @@ public class CredentialExtractLinkServiceImpl extends BaseService implements Cre
         log.info("credential extract link extended, linkNo={}, linkId={}, expireAt={}, operator={}",
                 before.getLinkNo(), before.getId(), after.getExpireAt(), currentUserId());
         return toLinkVo(after);
+    }
+
+    /**
+     * 按批次批量生成提取链接。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CredentialExtractLinkCreateResultVo createBatchLinks(Long batchId, CredentialExtractLinkCreateRequest request) {
+        CredentialBatchEntity batch = credentialBatchMapper.findByIdForUpdate(batchId);
+        if (batch == null) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_BATCH_NOT_FOUND);
+        }
+        if (!CredentialConstants.STATUS_ACTIVE.equals(batch.getStatus())) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_BATCH_STATUS_INVALID);
+        }
+        CredentialExtractLinkCreateRequest command = normalizeCreateRequest(request);
+        List<CredentialItemEntity> items = credentialItemMapper.findActiveByBatchForUpdate(batchId, credentialProperties.getMaxBatchSize());
+        if (items.isEmpty()) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_ITEM_NOT_FOUND, "没有可生成链接的凭证明细");
+        }
+        CredentialExtractLinkCreateResultVo result = createLinksForItems(batch, items, command, true);
+        log.info("credential extract links created by batch, batchId={}, linkCount={}, itemCount={}",
+                batchId, result.getLinkCount(), result.getItemCount());
+        return result;
+    }
+
+    /**
+     * 按单个凭证明细生成提取链接。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CredentialExtractLinkCreateResultVo createItemLink(Long itemId, CredentialExtractLinkCreateRequest request) {
+        CredentialItemEntity item = credentialItemMapper.findByIdForUpdate(itemId);
+        if (item == null) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_ITEM_NOT_FOUND);
+        }
+        if (!CredentialConstants.STATUS_ACTIVE.equals(item.getStatus())) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_ITEM_STATUS_INVALID);
+        }
+        CredentialBatchEntity batch = credentialBatchMapper.findByIdForUpdate(item.getBatchId());
+        if (batch == null || !CredentialConstants.STATUS_ACTIVE.equals(batch.getStatus())) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_BATCH_STATUS_INVALID);
+        }
+        CredentialExtractLinkCreateRequest command = normalizeCreateRequest(request);
+        List<CredentialItemEntity> items = new ArrayList<CredentialItemEntity>();
+        items.add(item);
+        return createLinksForItems(batch, items, command, true);
+    }
+
+    /**
+     * 补发提取链接并停用旧链接。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CredentialExtractLinkCopyVo reissueLink(Long id, CredentialExtractLinkCreateRequest request, HttpServletRequest servletRequest) {
+        CredentialExtractLinkEntity before = loadLinkForUpdate(id);
+        CredentialBatchEntity batch = credentialBatchMapper.findByIdForUpdate(before.getBatchId());
+        if (batch == null) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_BATCH_NOT_FOUND);
+        }
+        List<Long> itemIds = credentialExtractLinkItemMapper.findItemIdsByLinkId(id);
+        if (itemIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_ITEM_NOT_FOUND);
+        }
+        String ids = joinIds(itemIds);
+        List<CredentialItemEntity> items = credentialItemMapper.findByUnsafeIds(ids);
+        CredentialExtractLinkCreateRequest command = normalizeCreateRequest(request);
+        credentialExtractLinkMapper.disable(id, currentUserId(), "补发链接自动停用");
+        CredentialExtractLinkCreateResultVo result = createLinksForItems(batch, items, command, false);
+        CredentialExtractLinkCopyVo copyVo = result.getLinks().get(0);
+        CredentialExtractLinkEntity after = loadLink(Long.valueOf(copyVo.getId()));
+        audit(before, OPERATION_REISSUE, after, true, "", servletRequest);
+        log.info("credential extract link reissued, oldLinkId={}, newLinkId={}, operator={}", id, copyVo.getId(), currentUserId());
+        return copyVo;
+    }
+
+    private CredentialExtractLinkCreateResultVo createLinksForItems(CredentialBatchEntity batch,
+                                                                    List<CredentialItemEntity> items,
+                                                                    CredentialExtractLinkCreateRequest request,
+                                                                    boolean updateItemStatus) {
+        List<CredentialExtractLinkCopyVo> links = new ArrayList<CredentialExtractLinkCopyVo>();
+        int cursor = 0;
+        while (cursor < items.size()) {
+            int end = Math.min(cursor + request.getItemsPerLink(), items.size());
+            List<CredentialItemEntity> group = items.subList(cursor, end);
+            CredentialExtractLinkCopyVo copyVo = createSingleLink(batch, group, request, updateItemStatus);
+            links.add(copyVo);
+            cursor = end;
+        }
+        CredentialExtractLinkCreateResultVo result = new CredentialExtractLinkCreateResultVo();
+        result.setLinkCount(links.size());
+        result.setItemCount(items.size());
+        result.setLinks(links);
+        return result;
+    }
+
+    private CredentialExtractLinkCopyVo createSingleLink(CredentialBatchEntity batch,
+                                                        List<CredentialItemEntity> items,
+                                                        CredentialExtractLinkCreateRequest request,
+                                                        boolean updateItemStatus) {
+        String token = createToken();
+        CredentialExtractLinkEntity link = new CredentialExtractLinkEntity();
+        link.setLinkNo(createNo("CEL"));
+        link.setCategoryId(batch.getCategoryId());
+        link.setBatchId(batch.getId());
+        link.setTokenHash(credentialCryptoService.hmacToken(token));
+        link.setEncryptedToken(credentialCryptoService.encryptToken(token));
+        link.setTokenKeyId(TOKEN_KEY_ID_DEFAULT);
+        link.setItemCount(items.size());
+        link.setMaxAccessCount(request.getMaxAccessCount());
+        link.setAccessedCount(0);
+        link.setExpireAt(request.getExpireAt());
+        link.setStatus(CredentialConstants.STATUS_ACTIVE);
+        link.setCreatedBy(currentUserId());
+        link.setRemark(request.getRemark() == null ? "" : request.getRemark());
+        credentialExtractLinkMapper.insert(link);
+        int sortNo = FIRST_SORT_NO;
+        for (CredentialItemEntity item : items) {
+            credentialExtractLinkItemMapper.insert(link.getId(), item.getId(), batch.getId(), sortNo++);
+            if (updateItemStatus && CredentialConstants.FULFILLMENT_TYPE_TEXT_SECRET.equals(batch.getFulfillmentType())) {
+                credentialItemMapper.markLinked(item.getId());
+            }
+        }
+        int availableDelta = CredentialConstants.FULFILLMENT_TYPE_TEXT_SECRET.equals(batch.getFulfillmentType()) && updateItemStatus ? items.size() : 0;
+        credentialBatchMapper.increaseLinked(batch.getId(), items.size(), availableDelta);
+        CredentialExtractLinkCopyVo vo = new CredentialExtractLinkCopyVo();
+        vo.setId(String.valueOf(link.getId()));
+        vo.setLinkNo(link.getLinkNo());
+        vo.setUrl(buildPublicUrl(token));
+        return vo;
+    }
+
+    private CredentialExtractLinkCreateRequest normalizeCreateRequest(CredentialExtractLinkCreateRequest request) {
+        CredentialExtractLinkCreateRequest command = request == null ? new CredentialExtractLinkCreateRequest() : request;
+        if (command.getItemsPerLink() == null || command.getItemsPerLink() <= 0
+                || command.getItemsPerLink() > credentialProperties.getExtract().getMaxItemsPerLink()) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_EXTRACT_LINK_LIMIT_INVALID, "单链接凭证数量不合法");
+        }
+        if (command.getMaxAccessCount() == null || command.getMaxAccessCount() <= 0
+                || command.getMaxAccessCount() > credentialProperties.getExtract().getMaxAccessCount()) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_EXTRACT_LINK_LIMIT_INVALID);
+        }
+        LocalDateTime expireAt = parseDateTime(command.getExpireAt());
+        LocalDateTime maxExpireAt = LocalDateTime.now().plusDays(credentialProperties.getExtract().getMaxExpireDays());
+        if (!expireAt.isAfter(LocalDateTime.now()) || expireAt.isAfter(maxExpireAt)) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_EXTRACT_LINK_EXPIRED, "提取链接过期时间不合法");
+        }
+        return command;
+    }
+
+    private String createToken() {
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < TOKEN_UUID_COUNT; index++) {
+            builder.append(UUID.randomUUID().toString().replace("-", ""));
+        }
+        return builder.toString();
+    }
+
+    private String joinIds(List<Long> ids) {
+        StringBuilder builder = new StringBuilder();
+        for (Long id : ids) {
+            if (id == null || id <= 0L) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(",");
+            }
+            builder.append(id);
+        }
+        return builder.toString();
     }
 
     private CredentialExtractLinkEntity loadLink(Long id) {
