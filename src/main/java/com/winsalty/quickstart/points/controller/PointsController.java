@@ -1,9 +1,5 @@
 package com.winsalty.quickstart.points.controller;
 
-import com.winsalty.quickstart.auth.annotation.AuditLog;
-import com.winsalty.quickstart.cdk.dto.CdkRedeemRequest;
-import com.winsalty.quickstart.cdk.service.CdkService;
-import com.winsalty.quickstart.cdk.vo.CdkRedeemResultVo;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.common.api.PageResponse;
 import com.winsalty.quickstart.common.base.BaseController;
@@ -15,18 +11,13 @@ import com.winsalty.quickstart.points.vo.PointLedgerVo;
 import com.winsalty.quickstart.points.vo.PointRechargeOrderVo;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.validation.Valid;
-
 /**
  * 用户积分控制器。
- * 提供当前用户积分账户、流水、单据和 CDK 兑换入口。
+ * 提供当前用户积分账户、流水和单据查询入口。
  * 创建日期：2026-04-24
  * author：sunshengxian
  */
@@ -36,11 +27,9 @@ import javax.validation.Valid;
 public class PointsController extends BaseController {
 
     private final PointAccountService pointAccountService;
-    private final CdkService cdkService;
 
-    public PointsController(PointAccountService pointAccountService, CdkService cdkService) {
+    public PointsController(PointAccountService pointAccountService) {
         this.pointAccountService = pointAccountService;
-        this.cdkService = cdkService;
     }
 
     @GetMapping("/account")
@@ -71,10 +60,4 @@ public class PointsController extends BaseController {
         return ApiResponse.success("获取成功", pointAccountService.listCurrentUserFreezeOrders(currentUserId(), pageNo, pageSize));
     }
 
-    @AuditLog(logType = "business", code = "cdk_redeem", name = "CDK兑换", recordRequest = false)
-    @PostMapping("/cdk/redeem")
-    public ApiResponse<CdkRedeemResultVo> redeem(@Valid @RequestBody CdkRedeemRequest request,
-                                                 HttpServletRequest servletRequest) {
-        return ApiResponse.success("兑换成功", cdkService.redeem(request, servletRequest));
-    }
 }

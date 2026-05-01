@@ -15,11 +15,11 @@ public final class PointsConstants {
     public static final String DIRECTION_FREEZE = "freeze";
     public static final String DIRECTION_UNFREEZE = "unfreeze";
     public static final String DIRECTION_REFUND = "refund";
-    public static final String BIZ_TYPE_CDK_RECHARGE = "cdk_recharge";
+    public static final String BIZ_TYPE_CREDENTIAL_REDEEM = "credential_redeem";
     public static final String BIZ_TYPE_ONLINE_RECHARGE = "online_recharge";
     public static final String BIZ_TYPE_ADMIN_ADJUST = "admin_adjust";
     public static final String BIZ_TYPE_BENEFIT_EXCHANGE = "benefit_exchange";
-    public static final String CHANNEL_CDK = "cdk";
+    public static final String CHANNEL_CREDENTIAL = "credential";
     public static final String CHANNEL_ONLINE_PAY = "online_pay";
     public static final String OPERATOR_TYPE_USER = "user";
     public static final String OPERATOR_TYPE_ADMIN = "admin";

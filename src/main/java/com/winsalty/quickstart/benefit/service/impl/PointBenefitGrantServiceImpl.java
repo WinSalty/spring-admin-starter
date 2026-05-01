@@ -5,9 +5,9 @@ import com.alibaba.fastjson2.JSONObject;
 import com.winsalty.quickstart.benefit.dto.BenefitGrantCommand;
 import com.winsalty.quickstart.benefit.dto.BenefitGrantResult;
 import com.winsalty.quickstart.benefit.service.BenefitGrantService;
-import com.winsalty.quickstart.cdk.constant.CdkConstants;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.exception.BusinessException;
+import com.winsalty.quickstart.credential.constant.CredentialConstants;
 import com.winsalty.quickstart.points.dto.PointChangeCommand;
 import com.winsalty.quickstart.points.constant.PointsConstants;
 import com.winsalty.quickstart.points.service.PointAccountService;
@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * 积分权益发放服务实现。
- * 首期仅支持 CDK 兑换积分，后续权限或服务包权益可在此扩展独立适配器。
+ * 首期支持凭证兑换积分，后续权限或服务包权益可在此扩展独立适配器。
  * 创建日期：2026-04-24
  * author：sunshengxian
  */
@@ -42,9 +42,9 @@ public class PointBenefitGrantServiceImpl implements BenefitGrantService {
      */
     @Override
     public BenefitGrantResult grant(BenefitGrantCommand command) {
-        // 当前实现只承接 CDK 积分权益，其他权益类型应由独立适配器处理，避免混入不同发放语义。
-        if (!CdkConstants.BENEFIT_TYPE_POINTS.equals(command.getBenefitType())) {
-            throw new BusinessException(ErrorCode.CDK_BENEFIT_UNSUPPORTED);
+        // 当前实现只承接积分权益，其他权益类型应由独立适配器处理，避免混入不同发放语义。
+        if (!CredentialConstants.BENEFIT_TYPE_POINTS.equals(command.getBenefitType())) {
+            throw new BusinessException(ErrorCode.BENEFIT_TYPE_UNSUPPORTED);
         }
         // benefitConfig 是权益发放合同，积分数量必须从配置解析，不能依赖前端请求值。
         JSONObject config = JSON.parseObject(command.getBenefitConfig());
@@ -55,7 +55,7 @@ public class PointBenefitGrantServiceImpl implements BenefitGrantService {
         PointChangeCommand changeCommand = new PointChangeCommand();
         changeCommand.setUserId(command.getUserId());
         changeCommand.setAmount(points);
-        changeCommand.setBizType(PointsConstants.BIZ_TYPE_CDK_RECHARGE);
+        changeCommand.setBizType(PointsConstants.BIZ_TYPE_CREDENTIAL_REDEEM);
         changeCommand.setBizNo(command.getBizNo());
         changeCommand.setIdempotencyKey(command.getIdempotencyKey());
         changeCommand.setOperatorType(command.getOperatorType());
@@ -65,7 +65,7 @@ public class PointBenefitGrantServiceImpl implements BenefitGrantService {
         pointAccountService.credit(changeCommand);
         PointAccountVo account = pointAccountService.getOrCreateAccount(command.getUserId());
         JSONObject snapshot = new JSONObject();
-        // 快照记录发放后的账户余额，便于回查 CDK 兑换结果而不需要重放流水。
+        // 快照记录发放后的账户余额，便于回查凭证兑换结果而不需要重放流水。
         snapshot.put(SNAPSHOT_GRANTED_POINTS, points);
         snapshot.put(SNAPSHOT_AVAILABLE_POINTS, account.getAvailablePoints());
         snapshot.put(SNAPSHOT_FROZEN_POINTS, account.getFrozenPoints());

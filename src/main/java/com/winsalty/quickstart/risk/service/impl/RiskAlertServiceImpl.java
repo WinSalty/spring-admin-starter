@@ -1,7 +1,7 @@
 package com.winsalty.quickstart.risk.service.impl;
 
-import com.winsalty.quickstart.cdk.constant.CdkConstants;
 import com.winsalty.quickstart.common.api.PageResponse;
+import com.winsalty.quickstart.credential.constant.CredentialConstants;
 import com.winsalty.quickstart.points.constant.PointsConstants;
 import com.winsalty.quickstart.risk.dto.RiskAlertListRequest;
 import com.winsalty.quickstart.risk.entity.RiskAlertEntity;
@@ -53,7 +53,7 @@ public class RiskAlertServiceImpl implements RiskAlertService {
         entity.setSubjectNo(subjectNo);
         entity.setUserId(userId);
         // 新告警统一处于 open 状态，后续处置动作再更新处理人和处理时间。
-        entity.setStatus(CdkConstants.ALERT_STATUS_OPEN);
+        entity.setStatus(CredentialConstants.ALERT_STATUS_OPEN);
         entity.setDetailSnapshot(detailSnapshot);
         riskAlertMapper.insert(entity);
         log.info("risk alert created, alertNo={}, alertType={}, riskLevel={}, subjectNo={}",

@@ -168,34 +168,44 @@ app:
     lock-lease-seconds: ${REDISSON_LOCK_LEASE_SECONDS:30}
     # 锁生命周期日志开关，生产排查并发问题时建议保持开启。
     lock-log-enabled: ${REDISSON_LOCK_LOG_ENABLED:true}
-  # CDK 兑换码业务配置。
-  cdk:
-    # CDK 明文哈希 pepper，生产环境必须外部注入。
-    pepper: ${CDK_PEPPER:}
-    # 单个 CDK 批次最大生成数量，防止误操作生成超大批次。
-    max-batch-size: ${CDK_MAX_BATCH_SIZE:10000}
+  # 凭证中心业务配置。
+  credential:
+    # 凭证明文 HMAC pepper，生产环境必须外部注入。
+    secret-pepper: ${CREDENTIAL_SECRET_PEPPER:}
+    # 凭证明文 AES-GCM 加密密钥，生产环境必须外部注入。
+    secret-encryption-key: ${CREDENTIAL_SECRET_ENCRYPTION_KEY:}
+    # 单个系统生成凭证批次最大数量，防止误操作生成超大批次。
+    max-batch-size: ${CREDENTIAL_MAX_BATCH_SIZE:10000}
+    # 文本导入最大凭证数量。
+    import-max-items: ${CREDENTIAL_IMPORT_MAX_ITEMS:10000}
+    # 文本导入最大原文大小，单位字节。
+    import-max-text-bytes: ${CREDENTIAL_IMPORT_MAX_TEXT_BYTES:1048576}
     # 单用户兑换限流窗口，单位秒。
-    redeem-user-window-seconds: ${CDK_REDEEM_USER_WINDOW_SECONDS:60}
+    redeem-user-window-seconds: ${CREDENTIAL_REDEEM_USER_WINDOW_SECONDS:60}
     # 单用户在窗口期内允许兑换次数。
-    redeem-user-limit: ${CDK_REDEEM_USER_LIMIT:10}
+    redeem-user-limit: ${CREDENTIAL_REDEEM_USER_LIMIT:10}
     # 单 IP 兑换限流窗口，单位秒。
-    redeem-ip-window-seconds: ${CDK_REDEEM_IP_WINDOW_SECONDS:60}
+    redeem-ip-window-seconds: ${CREDENTIAL_REDEEM_IP_WINDOW_SECONDS:60}
     # 单 IP 在窗口期内允许兑换次数。
-    redeem-ip-limit: ${CDK_REDEEM_IP_LIMIT:30}
+    redeem-ip-limit: ${CREDENTIAL_REDEEM_IP_LIMIT:30}
     # 连续兑换失败后用户锁定时间，单位秒。
-    redeem-lock-seconds: ${CDK_REDEEM_LOCK_SECONDS:900}
+    redeem-lock-seconds: ${CREDENTIAL_REDEEM_LOCK_SECONDS:900}
     # 触发兑换锁定的连续失败次数。
-    redeem-failure-limit: ${CDK_REDEEM_FAILURE_LIMIT:5}
-    # CDK 临时提取链接配置。
+    redeem-failure-limit: ${CREDENTIAL_REDEEM_FAILURE_LIMIT:5}
+    # 凭证公开提取链接配置。
     extract:
       # 公开提取页面基础 URL，管理端生成完整提取链接时使用。
-      public-base-url: ${CDK_EXTRACT_PUBLIC_BASE_URL:http://localhost:5173}
-      # 提取 token 摘要密钥，生产环境必须外部注入。
-      token-secret: ${CDK_EXTRACT_TOKEN_SECRET:}
+      public-base-url: ${CREDENTIAL_EXTRACT_PUBLIC_BASE_URL:http://localhost:5173}
+      # 提取 token HMAC 密钥，生产环境必须外部注入。
+      token-secret: ${CREDENTIAL_EXTRACT_TOKEN_SECRET:}
+      # 提取 token AES-GCM 加密密钥，用于管理端重复复制 URL。
+      token-encryption-key: ${CREDENTIAL_EXTRACT_TOKEN_ENCRYPTION_KEY:}
       # 单个提取链接最大访问次数。
-      max-access-count: ${CDK_EXTRACT_MAX_ACCESS_COUNT:100}
+      max-access-count: ${CREDENTIAL_EXTRACT_MAX_ACCESS_COUNT:100}
       # 单个提取链接最长有效天数。
-      max-expire-days: ${CDK_EXTRACT_MAX_EXPIRE_DAYS:30}
+      max-expire-days: ${CREDENTIAL_EXTRACT_MAX_EXPIRE_DAYS:30}
+      # 单个提取链接最多包含凭证数量。
+      max-items-per-link: ${CREDENTIAL_EXTRACT_MAX_ITEMS_PER_LINK:50}
   # 积分账务配置。
   points:
     # 是否启用积分日终对账任务。

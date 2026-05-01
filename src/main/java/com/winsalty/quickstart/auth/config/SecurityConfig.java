@@ -86,7 +86,7 @@ public class SecurityConfig {
         matchers.add(new AntPathRequestMatcher("/api/auth/register/resend-verify-mail"));
         // 支付渠道回调依赖 HMAC 验签，不依赖用户 access token。
         matchers.add(new AntPathRequestMatcher("/api/trade/recharge/callback"));
-        // 公开 CDK 提取链接通过高熵 token 自身鉴权，不依赖登录态。
+        // 公开凭证提取链接通过高熵 token 自身鉴权，不依赖登录态。
         matchers.add(new AntPathRequestMatcher("/api/public/**"));
         // 头像允许匿名读取，但控制器会进一步校验资源必须为公开、启用且被用户资料引用的头像文件。
         matchers.add(new AntPathRequestMatcher("/api/file/avatar/*"));

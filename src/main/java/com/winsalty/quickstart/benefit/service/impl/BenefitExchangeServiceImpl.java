@@ -324,7 +324,7 @@ public class BenefitExchangeServiceImpl extends BaseService implements BenefitEx
     private void validateBenefitType(String benefitType) {
         if (!BenefitConstants.BENEFIT_TYPE_PERMISSION.equals(benefitType)
                 && !BenefitConstants.BENEFIT_TYPE_SERVICE_PACKAGE.equals(benefitType)) {
-            throw new BusinessException(ErrorCode.CDK_BENEFIT_UNSUPPORTED);
+            throw new BusinessException(ErrorCode.BENEFIT_TYPE_UNSUPPORTED);
         }
     }
 
