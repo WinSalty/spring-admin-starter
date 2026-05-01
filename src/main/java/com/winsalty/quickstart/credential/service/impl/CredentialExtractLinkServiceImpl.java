@@ -62,6 +62,7 @@ public class CredentialExtractLinkServiceImpl extends BaseService implements Cre
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter NO_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final String AUDIT_NO_PREFIX = "COA";
+    private static final String OPERATION_CREATE = "extract_link_create";
     private static final String OPERATION_COPY_URL = "extract_link_copy_url";
     private static final String OPERATION_DISABLE = "extract_link_disable";
     private static final String OPERATION_EXTEND = "extract_link_extend";
@@ -361,6 +362,7 @@ public class CredentialExtractLinkServiceImpl extends BaseService implements Cre
         vo.setId(String.valueOf(link.getId()));
         vo.setLinkNo(link.getLinkNo());
         vo.setUrl(buildPublicUrl(token));
+        auditCreatedLink(link);
         return vo;
     }
 
@@ -447,6 +449,21 @@ public class CredentialExtractLinkServiceImpl extends BaseService implements Cre
         entity.setClientIp(IpUtils.getClientIp(servletRequest));
         entity.setSuccess(success ? 1 : 0);
         entity.setFailureReason(failureReason == null ? "" : failureReason);
+        credentialOperationAuditMapper.insert(entity);
+    }
+
+    private void auditCreatedLink(CredentialExtractLinkEntity after) {
+        CredentialOperationAuditEntity entity = new CredentialOperationAuditEntity();
+        entity.setAuditNo(createNo(AUDIT_NO_PREFIX));
+        entity.setOperatorId(currentUserId());
+        entity.setOperationType(OPERATION_CREATE);
+        entity.setTargetType(TARGET_TYPE_EXTRACT_LINK);
+        entity.setTargetId(after.getId());
+        entity.setBeforeSnapshot(null);
+        entity.setAfterSnapshot(toAuditSnapshot(after));
+        entity.setClientIp("");
+        entity.setSuccess(1);
+        entity.setFailureReason("");
         credentialOperationAuditMapper.insert(entity);
     }
 

@@ -78,7 +78,7 @@ public class AdminCredentialExtractLinkController {
     /**
      * 复制凭证提取链接 URL。
      */
-    @AuditLog(logType = "operation", code = "credential_extract_link_copy_url", name = "复制凭证提取链接")
+    @AuditLog(logType = "operation", code = "credential_extract_link_copy_url", name = "复制凭证提取链接", recordResponse = false)
     @PostMapping("/{id}/copy-url")
     public ApiResponse<CredentialExtractLinkCopyVo> copyUrl(@PathVariable("id") Long id, HttpServletRequest servletRequest) {
         return ApiResponse.success("复制成功", credentialExtractLinkService.copyUrl(id, servletRequest));
@@ -109,7 +109,7 @@ public class AdminCredentialExtractLinkController {
     /**
      * 补发凭证提取链接。
      */
-    @AuditLog(logType = "operation", code = "credential_extract_link_reissue", name = "补发凭证提取链接")
+    @AuditLog(logType = "operation", code = "credential_extract_link_reissue", name = "补发凭证提取链接", recordResponse = false)
     @PostMapping("/{id}/reissue")
     public ApiResponse<CredentialExtractLinkCopyVo> reissue(@PathVariable("id") Long id,
                                                             @Valid @RequestBody CredentialExtractLinkCreateRequest request,

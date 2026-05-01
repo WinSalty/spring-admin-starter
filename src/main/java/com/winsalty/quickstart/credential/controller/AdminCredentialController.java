@@ -90,7 +90,7 @@ public class AdminCredentialController {
     }
 
     /** 创建系统生成凭证批次。 */
-    @AuditLog(logType = "operation", code = "credential_batch_create_generated", name = "创建系统生成凭证批次")
+    @AuditLog(logType = "operation", code = "credential_batch_create_generated", name = "创建系统生成凭证批次", recordResponse = false)
     @PostMapping("/batches/generated")
     public ApiResponse<CredentialBatchVo> createGeneratedBatch(@Valid @RequestBody CredentialGeneratedBatchCreateRequest request) {
         return ApiResponse.success("创建成功", credentialAdminService.createGeneratedBatch(request));
@@ -103,7 +103,7 @@ public class AdminCredentialController {
     }
 
     /** 文本卡密确认导入。 */
-    @AuditLog(logType = "operation", code = "credential_batch_import_confirm", name = "确认导入卡密批次")
+    @AuditLog(logType = "operation", code = "credential_batch_import_confirm", name = "确认导入卡密批次", recordRequest = false, recordResponse = false)
     @PostMapping("/batches/imported/confirm")
     public ApiResponse<CredentialBatchVo> confirmImport(@Valid @RequestBody CredentialImportConfirmRequest request) {
         return ApiResponse.success("导入成功", credentialAdminService.confirmImport(request));
@@ -123,7 +123,7 @@ public class AdminCredentialController {
     }
 
     /** 按批次生成提取链接。 */
-    @AuditLog(logType = "operation", code = "credential_extract_link_create_batch", name = "按批次生成提取链接")
+    @AuditLog(logType = "operation", code = "credential_extract_link_create_batch", name = "按批次生成提取链接", recordResponse = false)
     @PostMapping("/batches/{id}/extract-links")
     public ApiResponse<CredentialExtractLinkCreateResultVo> createBatchLinks(@PathVariable("id") Long id,
                                                                              @Valid @RequestBody CredentialExtractLinkCreateRequest request) {
@@ -137,7 +137,7 @@ public class AdminCredentialController {
     }
 
     /** 按明细生成提取链接。 */
-    @AuditLog(logType = "operation", code = "credential_extract_link_create_item", name = "按凭证明细生成提取链接")
+    @AuditLog(logType = "operation", code = "credential_extract_link_create_item", name = "按凭证明细生成提取链接", recordResponse = false)
     @PostMapping("/items/{id}/extract-links")
     public ApiResponse<CredentialExtractLinkCreateResultVo> createItemLink(@PathVariable("id") Long id,
                                                                            @Valid @RequestBody CredentialExtractLinkCreateRequest request) {
@@ -159,7 +159,7 @@ public class AdminCredentialController {
     }
 
     /** 查看凭证明文。 */
-    @AuditLog(logType = "operation", code = "credential_item_reveal", name = "查看凭证明文")
+    @AuditLog(logType = "operation", code = "credential_item_reveal", name = "查看凭证明文", recordResponse = false)
     @PostMapping("/items/{id}/reveal")
     public ApiResponse<CredentialRevealVo> revealItem(@PathVariable("id") Long id, HttpServletRequest servletRequest) {
         CredentialRevealVo vo = new CredentialRevealVo();

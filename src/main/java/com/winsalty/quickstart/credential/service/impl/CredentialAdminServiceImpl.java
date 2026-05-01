@@ -35,6 +35,8 @@ import com.winsalty.quickstart.credential.service.CredentialExtractLinkService;
 import com.winsalty.quickstart.credential.service.support.CredentialCryptoService;
 import com.winsalty.quickstart.credential.vo.CredentialBatchVo;
 import com.winsalty.quickstart.credential.vo.CredentialCategoryVo;
+import com.winsalty.quickstart.credential.vo.CredentialExtractLinkCreateResultVo;
+import com.winsalty.quickstart.credential.vo.CredentialGeneratedSecretVo;
 import com.winsalty.quickstart.credential.vo.CredentialImportPreviewItemVo;
 import com.winsalty.quickstart.credential.vo.CredentialImportPreviewVo;
 import com.winsalty.quickstart.credential.vo.CredentialImportTaskVo;
@@ -208,13 +210,21 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
         CredentialBatchEntity batch = buildBatch(defaultBatchName(request.getBatchName(), DEFAULT_POINTS_BATCH_NAME_PREFIX), category, CredentialConstants.GENERATION_MODE_SYSTEM_GENERATED,
                 payload.toJSONString(), request.getTotalCount(), request.getValidFrom(), request.getValidTo());
         credentialBatchMapper.insert(batch);
+        List<CredentialGeneratedSecretVo> generatedSecrets = new ArrayList<CredentialGeneratedSecretVo>();
         for (int index = 0; index < request.getTotalCount(); index++) {
             String secretText = createGeneratedSecret();
-            insertItem(batch, secretText, CredentialConstants.SOURCE_TYPE_GENERATED, null);
+            CredentialItemEntity item = insertItem(batch, secretText, CredentialConstants.SOURCE_TYPE_GENERATED, null);
+            CredentialGeneratedSecretVo secretVo = new CredentialGeneratedSecretVo();
+            secretVo.setItemNo(item.getItemNo());
+            secretVo.setSecretText(secretText);
+            secretVo.setCopyLabel("CDK " + (index + 1));
+            generatedSecrets.add(secretVo);
         }
         log.info("credential generated batch created, batchNo={}, totalCount={}, operator={}",
                 batch.getBatchNo(), request.getTotalCount(), currentUserId());
-        return toBatchVo(credentialBatchMapper.findById(batch.getId()));
+        CredentialBatchVo vo = toBatchVo(credentialBatchMapper.findById(batch.getId()));
+        vo.setGeneratedSecrets(generatedSecrets);
+        return vo;
     }
 
     /**
@@ -257,17 +267,20 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
         task.setStatus(IMPORT_STATUS_SUCCESS);
         task.setResultSummary(JSON.toJSONString(result.toVo()));
         credentialImportTaskMapper.updateResult(task);
+        CredentialExtractLinkCreateResultVo linkResult = null;
         if (Boolean.TRUE.equals(request.getCreateExtractLinks())) {
             CredentialExtractLinkCreateRequest linkRequest = new CredentialExtractLinkCreateRequest();
             linkRequest.setItemsPerLink(request.getItemsPerLink());
             linkRequest.setMaxAccessCount(request.getMaxAccessCount());
             linkRequest.setExpireAt(defaultExpireDateTime(request.getExpireAt()));
             linkRequest.setRemark(request.getRemark());
-            credentialExtractLinkService.createBatchLinks(batch.getId(), linkRequest);
+            linkResult = credentialExtractLinkService.createBatchLinks(batch.getId(), linkRequest);
         }
         log.info("credential imported batch created, batchNo={}, validRows={}, operator={}",
                 batch.getBatchNo(), result.validRows, currentUserId());
-        return toBatchVo(credentialBatchMapper.findById(batch.getId()));
+        CredentialBatchVo vo = toBatchVo(credentialBatchMapper.findById(batch.getId()));
+        vo.setExtractLinks(linkResult == null ? null : linkResult.getLinks());
+        return vo;
     }
 
     /**
@@ -405,7 +418,7 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
         return batch;
     }
 
-    private void insertItem(CredentialBatchEntity batch, String secretText, String sourceType, Integer lineNo) {
+    private CredentialItemEntity insertItem(CredentialBatchEntity batch, String secretText, String sourceType, Integer lineNo) {
         CredentialItemEntity item = new CredentialItemEntity();
         item.setBatchId(batch.getId());
         item.setCategoryId(batch.getCategoryId());
@@ -419,6 +432,7 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
         item.setSourceLineNo(lineNo);
         item.setStatus(CredentialConstants.STATUS_ACTIVE);
         credentialItemMapper.insert(item);
+        return item;
     }
 
     private ImportParseResult parseImport(CredentialImportPreviewRequest request) {

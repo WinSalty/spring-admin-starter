@@ -2,6 +2,8 @@ package com.winsalty.quickstart.credential.vo;
 
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * 凭证批次展示对象。
  * 汇总批次数量、分类、履约方式、有效期和状态。
@@ -30,4 +32,6 @@ public class CredentialBatchVo {
     private String createdBy;
     private String createdAt;
     private String updatedAt;
+    private List<CredentialGeneratedSecretVo> generatedSecrets;
+    private List<CredentialExtractLinkCopyVo> extractLinks;
 }
