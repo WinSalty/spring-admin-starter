@@ -283,6 +283,7 @@ public class CredentialAdminServiceImpl extends BaseService implements Credentia
             CredentialExtractLinkCreateRequest linkRequest = new CredentialExtractLinkCreateRequest();
             linkRequest.setItemsPerLink(request.getItemsPerLink());
             linkRequest.setMaxAccessCount(request.getMaxAccessCount());
+            linkRequest.setItemScope(request.getItemScope());
             linkRequest.setExpireAt(request.getExpireAt());
             linkRequest.setRemark(request.getRemark());
             linkResult = credentialExtractLinkService.createBatchLinks(batch.getId(), linkRequest);

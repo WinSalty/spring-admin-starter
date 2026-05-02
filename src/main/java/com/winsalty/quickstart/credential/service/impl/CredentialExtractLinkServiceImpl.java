@@ -270,6 +270,9 @@ public class CredentialExtractLinkServiceImpl extends BaseService implements Cre
         if (items.isEmpty()) {
             throw new BusinessException(ErrorCode.CREDENTIAL_ITEM_NOT_FOUND, "没有可生成链接的凭证明细");
         }
+        if (CredentialConstants.ITEM_SCOPE_ALL_IN_ONE.equals(command.getItemScope())) {
+            command.setItemsPerLink(items.size());
+        }
         CredentialExtractLinkCreateResultVo result = createLinksForItems(batch, items, command, true);
         log.info("credential extract links created by batch, batchId={}, linkCount={}, itemCount={}",
                 batchId, result.getLinkCount(), result.getItemCount());

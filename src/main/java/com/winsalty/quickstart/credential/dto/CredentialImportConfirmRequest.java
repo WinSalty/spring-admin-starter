@@ -21,5 +21,6 @@ public class CredentialImportConfirmRequest extends CredentialImportPreviewReque
     private Boolean createExtractLinks = false;
     private Integer itemsPerLink = 1;
     private Integer maxAccessCount = 3;
+    private String itemScope = com.winsalty.quickstart.credential.constant.CredentialConstants.ITEM_SCOPE_UNLINKED_ACTIVE;
     private String expireAt;
 }

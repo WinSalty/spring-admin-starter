@@ -25,7 +25,7 @@ public class CredentialExtractLinkCreateRequest {
 
     private String expireAt;
 
-    private String itemScope = "UNLINKED_ACTIVE";
+    private String itemScope = com.winsalty.quickstart.credential.constant.CredentialConstants.ITEM_SCOPE_UNLINKED_ACTIVE;
 
     @Size(max = 255, message = "备注不能超过 255 个字符")
     private String remark;

@@ -22,6 +22,8 @@ public final class CredentialConstants {
     public static final String ITEM_STATUS_LINKED = "linked";
     public static final String ITEM_STATUS_EXTRACTED = "extracted";
     public static final String ITEM_STATUS_REDEEMED = "redeemed";
+    public static final String ITEM_SCOPE_UNLINKED_ACTIVE = "UNLINKED_ACTIVE";
+    public static final String ITEM_SCOPE_ALL_IN_ONE = "ALL_IN_ONE";
     public static final String LINK_STATUS_EXPIRED = "expired";
     public static final String LINK_STATUS_EXHAUSTED = "exhausted";
     public static final String RECORD_STATUS_SUCCESS = "success";
