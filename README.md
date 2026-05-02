@@ -108,7 +108,7 @@
 | 在线充值 | `/api/trade/recharge/orders`、`/orders/{rechargeNo}`、`/callback`，支持充值单创建、支付回调 HMAC 验签、重复回调幂等和积分入账 |
 | 权益兑换 | `/api/benefits/products`、`/products/{id}/exchange`、`/orders`、`/mine`，支持积分冻结、权益发放和确认扣减 |
 | 管理端凭证 | `/api/admin/credentials/*`，规划用于凭证分类、批次、明细、导入任务、提取链接和兑换记录 |
-| 凭证公开提取 | `/api/public/credentials/extract/{token}`，规划支持临时 URL 次数控制、设备指纹审计和一键复制页面 |
+| 凭证公开提取 | `/api/public/credentials/extract/{token}`，支持临时 URL 次数控制、设备指纹审计、提取说明信息和一键复制页面 |
 | 积分审计 | `/api/admin/points/accounts`、`/ledger`、`/adjustments`、`/adjustments/{id}/approve`、`/reconciliation` |
 | 权益管理 | `/api/admin/benefits/products`、`/products/{id}`、`/products/{id}/status`、`/orders` |
 | 风控告警 | `/api/admin/risk-alerts`，支持查询异常兑换锁定和高价值批次复核告警 |
@@ -131,7 +131,7 @@
 12. 凭证兑换、权益兑换成功会写入 `transaction_outbox`，当前由定时任务标记处理，后续可平滑替换为 MQ 投递。
 13. 在线充值通过 `trade` 模块创建 `online_pay` 充值单，支付回调使用 `TRADE_CALLBACK_SECRET` 做 HMAC 验签，成功后按充值单号幂等入账。
 14. 凭证管理端规划统一提供批次、明细、提取链接、分类、导入任务和兑换记录页面。
-15. 提取链接规划支持一个链接包含多个凭证、可配置访问次数、过期时间、补发、停用、复制 URL 和访问审计。
+15. 提取链接支持一个链接包含多个凭证、可配置访问次数、过期时间、说明信息、停用、复制 URL 和访问审计。
 16. `V21__init_points_schema.sql`、`V24__init_benefit_exchange_schema.sql`、`V25__init_points_compensation_outbox_schema.sql`、`V33__init_credential_schema.sql`、`V34__seed_credential_permissions.sql` 初始化积分、权益、事务事件、凭证中心、风控告警和权限菜单。
 
 ## 配套环境说明

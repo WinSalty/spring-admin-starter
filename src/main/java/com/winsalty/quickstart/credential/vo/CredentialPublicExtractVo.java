@@ -17,6 +17,7 @@ public class CredentialPublicExtractVo {
     private String categoryName;
     private String fulfillmentType;
     private String batchName;
+    private String remark;
     private Integer remainingAccessCount;
     private String expireAt;
     private List<CredentialPublicExtractItemVo> items;

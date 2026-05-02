@@ -149,6 +149,7 @@ public class CredentialPublicExtractServiceImpl extends BaseService implements C
         vo.setCategoryName(batch.getCategoryName());
         vo.setFulfillmentType(batch.getFulfillmentType());
         vo.setBatchName(batch.getBatchName());
+        vo.setRemark(link.getRemark());
         vo.setRemainingAccessCount(Math.max(0, link.getMaxAccessCount() - link.getAccessedCount() - 1));
         vo.setExpireAt(link.getExpireAt());
         vo.setItems(itemVos);
