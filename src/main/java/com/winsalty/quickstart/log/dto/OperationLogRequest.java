@@ -18,6 +18,13 @@ public class OperationLogRequest {
     private String target;
     private String ipAddress;
     private String deviceInfo;
+    private String userAgent;
+    private String browser;
+    private String browserVersion;
+    private String osName;
+    private String osVersion;
+    private String deviceType;
+    private String deviceBrand;
     private String requestInfo;
     private String responseInfo;
     private String result;

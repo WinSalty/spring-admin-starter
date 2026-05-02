@@ -19,7 +19,8 @@ import java.util.List;
 public interface CredentialExtractAccessRecordMapper {
 
     String ACCESS_SELECT = "SELECT id, access_no AS accessNo, link_id AS linkId, batch_id AS batchId, item_count AS itemCount, "
-            + "success, failure_reason AS failureReason, client_ip AS clientIp, user_agent_hash AS userAgentHash, "
+            + "success, failure_reason AS failureReason, client_ip AS clientIp, user_agent AS userAgent, user_agent_hash AS userAgentHash, "
+            + "browser, browser_version AS browserVersion, os_name AS osName, os_version AS osVersion, device_type AS deviceType, device_brand AS deviceBrand, "
             + "browser_fingerprint AS browserFingerprint, device_snapshot AS deviceSnapshot, trace_id AS traceId, "
             + "DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS createdAt FROM credential_extract_access_record ";
 
@@ -49,8 +50,8 @@ public interface CredentialExtractAccessRecordMapper {
                    @Param("success") Integer success,
                    @Param("fingerprint") String fingerprint);
 
-    @Insert("INSERT INTO credential_extract_access_record(access_no, link_id, batch_id, item_count, success, failure_reason, client_ip, user_agent_hash, browser_fingerprint, device_snapshot, trace_id) "
-            + "VALUES(#{accessNo}, #{linkId}, #{batchId}, #{itemCount}, #{success}, #{failureReason}, #{clientIp}, #{userAgentHash}, #{browserFingerprint}, #{deviceSnapshot}, #{traceId})")
+    @Insert("INSERT INTO credential_extract_access_record(access_no, link_id, batch_id, item_count, success, failure_reason, client_ip, user_agent, user_agent_hash, browser, browser_version, os_name, os_version, device_type, device_brand, browser_fingerprint, device_snapshot, trace_id) "
+            + "VALUES(#{accessNo}, #{linkId}, #{batchId}, #{itemCount}, #{success}, #{failureReason}, #{clientIp}, #{userAgent}, #{userAgentHash}, #{browser}, #{browserVersion}, #{osName}, #{osVersion}, #{deviceType}, #{deviceBrand}, #{browserFingerprint}, #{deviceSnapshot}, #{traceId})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(CredentialExtractAccessRecordEntity entity);
 }

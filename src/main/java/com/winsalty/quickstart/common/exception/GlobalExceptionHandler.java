@@ -3,6 +3,8 @@ package com.winsalty.quickstart.common.exception;
 import com.winsalty.quickstart.common.api.ApiResponse;
 import com.winsalty.quickstart.common.constant.ErrorCode;
 import com.winsalty.quickstart.common.constant.SystemConstants;
+import com.winsalty.quickstart.common.util.ClientDeviceInfo;
+import com.winsalty.quickstart.common.util.ClientDeviceParser;
 import com.winsalty.quickstart.common.util.IpUtils;
 import com.winsalty.quickstart.log.dto.OperationLogRequest;
 import com.winsalty.quickstart.log.service.LogService;
@@ -51,7 +53,7 @@ public class GlobalExceptionHandler {
                 request.getMethod(), request.getRequestURI(), clientIp, exception.getCode(), exception.getMessage());
         // 业务异常代表可预期失败，响应保留原业务码；同时写异常日志，方便后台追踪高频失败原因。
         recordExceptionLog(buildLogTarget(request), buildLogDescription(exception.getCode(), exception.getMessage()),
-                LOG_TYPE_BUSINESS, clientIp);
+                LOG_TYPE_BUSINESS, clientIp, request);
         return ApiResponse.failure(exception.getCode(), exception.getMessage());
     }
 
@@ -110,15 +112,16 @@ public class GlobalExceptionHandler {
                 request.getMethod(), request.getRequestURI(), clientIp, exception.getMessage(), exception);
         // 未预期异常不把堆栈或数据库错误暴露给前端，只在服务端日志和异常日志保留细节。
         recordExceptionLog(buildLogTarget(request), buildLogDescription(SYSTEM_ERROR_CODE, exception.getMessage()),
-                LOG_TYPE_SYSTEM, clientIp);
+                LOG_TYPE_SYSTEM, clientIp, request);
         return ApiResponse.failure(SYSTEM_ERROR_CODE, "系统繁忙，请稍后重试");
     }
 
     /**
      * 将异常事件写入系统日志模块。日志写入失败由 LogService 内部吞吐，不反向影响接口响应。
      */
-    private void recordExceptionLog(String target, String description, String logType, String ipAddress) {
+    private void recordExceptionLog(String target, String description, String logType, String ipAddress, HttpServletRequest servletRequest) {
         OperationLogRequest request = new OperationLogRequest();
+        ClientDeviceInfo deviceInfo = ClientDeviceParser.parse(servletRequest == null ? "" : servletRequest.getHeader("User-Agent"));
         // 这里复用日志模块的 DTO，统一进入 operation_log 表；LogService 内部会吞掉二次写日志失败。
         request.setLogType(logType);
         request.setOwner(SystemConstants.SYSTEM_OPERATOR);
@@ -127,6 +130,14 @@ public class GlobalExceptionHandler {
         request.setDescription(description);
         request.setTarget(target);
         request.setIpAddress(ipAddress);
+        request.setDeviceInfo(deviceInfo.toDeviceInfo());
+        request.setUserAgent(deviceInfo.getUserAgent());
+        request.setBrowser(deviceInfo.getBrowser());
+        request.setBrowserVersion(deviceInfo.getBrowserVersion());
+        request.setOsName(deviceInfo.getOsName());
+        request.setOsVersion(deviceInfo.getOsVersion());
+        request.setDeviceType(deviceInfo.getDeviceType());
+        request.setDeviceBrand(deviceInfo.getDeviceBrand());
         request.setResult(SystemConstants.RESULT_FAILURE);
         request.setDurationMs(0L);
         logService.record(request);

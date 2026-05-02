@@ -5,6 +5,8 @@ import com.winsalty.quickstart.auth.security.AuthContext;
 import com.winsalty.quickstart.auth.security.AuthUser;
 import com.winsalty.quickstart.common.constant.CommonStatusConstants;
 import com.winsalty.quickstart.common.constant.SystemConstants;
+import com.winsalty.quickstart.common.util.ClientDeviceInfo;
+import com.winsalty.quickstart.common.util.ClientDeviceParser;
 import com.winsalty.quickstart.common.util.IpUtils;
 import com.winsalty.quickstart.infra.json.FastJsonUtils;
 import com.winsalty.quickstart.log.dto.OperationLogRequest;
@@ -89,7 +91,7 @@ public class AuditLogAspect {
         logRequest.setCode(auditLog.code());
         logRequest.setTarget(resolveTarget(auditLog, request));
         logRequest.setIpAddress(IpUtils.getClientIp(request));
-        logRequest.setDeviceInfo(resolveDeviceInfo(request));
+        fillDeviceInfo(logRequest, request);
         logRequest.setRequestInfo(auditLog.recordRequest() ? safeJson(buildRequestPayload(joinPoint, request)) : "");
         logRequest.setResponseInfo(auditLog.recordResponse() ? safeJson(buildResponsePayload(result, throwable)) : "");
         // result 只表示业务方法是否抛异常，不依赖 ApiResponse.code，避免切面对响应协议产生强耦合。
@@ -111,8 +113,17 @@ public class AuditLogAspect {
         return request == null ? "" : request.getRequestURI();
     }
 
-    private String resolveDeviceInfo(HttpServletRequest request) {
-        return request == null ? "" : defaultText(request.getHeader("User-Agent"));
+    private void fillDeviceInfo(OperationLogRequest logRequest, HttpServletRequest request) {
+        String userAgent = request == null ? "" : defaultText(request.getHeader("User-Agent"));
+        ClientDeviceInfo deviceInfo = ClientDeviceParser.parse(userAgent);
+        logRequest.setUserAgent(deviceInfo.getUserAgent());
+        logRequest.setBrowser(deviceInfo.getBrowser());
+        logRequest.setBrowserVersion(deviceInfo.getBrowserVersion());
+        logRequest.setOsName(deviceInfo.getOsName());
+        logRequest.setOsVersion(deviceInfo.getOsVersion());
+        logRequest.setDeviceType(deviceInfo.getDeviceType());
+        logRequest.setDeviceBrand(deviceInfo.getDeviceBrand());
+        logRequest.setDeviceInfo(deviceInfo.toDeviceInfo());
     }
 
     private Map<String, Object> buildRequestPayload(ProceedingJoinPoint joinPoint, HttpServletRequest request) {

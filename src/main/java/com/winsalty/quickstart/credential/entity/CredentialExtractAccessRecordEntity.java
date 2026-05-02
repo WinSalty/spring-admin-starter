@@ -27,8 +27,22 @@ public class CredentialExtractAccessRecordEntity {
     private String failureReason;
     /** 客户端 IP。 */
     private String clientIp;
+    /** 原始 User-Agent。 */
+    private String userAgent;
     /** UA 摘要。 */
     private String userAgentHash;
+    /** 浏览器名称。 */
+    private String browser;
+    /** 浏览器版本。 */
+    private String browserVersion;
+    /** 操作系统名称。 */
+    private String osName;
+    /** 操作系统版本。 */
+    private String osVersion;
+    /** 设备类型。 */
+    private String deviceType;
+    /** 设备品牌。 */
+    private String deviceBrand;
     /** 浏览器指纹。 */
     private String browserFingerprint;
     /** 设备摘要。 */

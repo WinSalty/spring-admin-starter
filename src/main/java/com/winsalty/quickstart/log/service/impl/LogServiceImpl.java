@@ -41,6 +41,12 @@ public class LogServiceImpl implements LogService {
         request.setDescription(limit(request.getDescription(), 255));
         request.setTarget(limit(request.getTarget(), 180));
         request.setDeviceInfo(limit(request.getDeviceInfo(), 255));
+        request.setBrowser(limit(request.getBrowser(), 64));
+        request.setBrowserVersion(limit(request.getBrowserVersion(), 64));
+        request.setOsName(limit(request.getOsName(), 64));
+        request.setOsVersion(limit(request.getOsVersion(), 64));
+        request.setDeviceType(limit(request.getDeviceType(), 32));
+        request.setDeviceBrand(limit(request.getDeviceBrand(), 64));
         if (request.getDurationMs() == null) {
             request.setDurationMs(0L);
         }

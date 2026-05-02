@@ -611,7 +611,14 @@ public class CredentialExtractLinkServiceImpl extends BaseService implements Cre
             vo.setSuccess(Integer.valueOf(1).equals(entity.getSuccess()));
             vo.setFailureReason(entity.getFailureReason());
             vo.setClientIp(entity.getClientIp());
+            vo.setUserAgent(entity.getUserAgent());
             vo.setUserAgentHash(entity.getUserAgentHash());
+            vo.setBrowser(entity.getBrowser());
+            vo.setBrowserVersion(entity.getBrowserVersion());
+            vo.setOsName(entity.getOsName());
+            vo.setOsVersion(entity.getOsVersion());
+            vo.setDeviceType(entity.getDeviceType());
+            vo.setDeviceBrand(entity.getDeviceBrand());
             vo.setBrowserFingerprint(entity.getBrowserFingerprint());
             vo.setDeviceSnapshot(entity.getDeviceSnapshot());
             vo.setTraceId(entity.getTraceId());

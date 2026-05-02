@@ -56,6 +56,20 @@ public class SystemRecordEntity {
     private String ipAddress;
     /** 设备信息。 */
     private String deviceInfo;
+    /** 原始 User-Agent。 */
+    private String userAgent;
+    /** 浏览器名称。 */
+    private String browser;
+    /** 浏览器版本。 */
+    private String browserVersion;
+    /** 操作系统名称。 */
+    private String osName;
+    /** 操作系统版本。 */
+    private String osVersion;
+    /** 设备类型。 */
+    private String deviceType;
+    /** 设备品牌。 */
+    private String deviceBrand;
     /** 请求信息。 */
     private String requestInfo;
     /** 响应信息。 */

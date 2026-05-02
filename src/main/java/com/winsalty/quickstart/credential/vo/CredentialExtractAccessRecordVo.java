@@ -19,7 +19,14 @@ public class CredentialExtractAccessRecordVo {
     private Boolean success;
     private String failureReason;
     private String clientIp;
+    private String userAgent;
     private String userAgentHash;
+    private String browser;
+    private String browserVersion;
+    private String osName;
+    private String osVersion;
+    private String deviceType;
+    private String deviceBrand;
     private String browserFingerprint;
     private String deviceSnapshot;
     private String traceId;
