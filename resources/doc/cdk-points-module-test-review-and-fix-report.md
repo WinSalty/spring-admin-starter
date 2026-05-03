@@ -40,7 +40,7 @@ author：sunshengxian
 已执行：
 
 ```bash
-mvn -q -f /Users/salty/codeProject/ai/spring-admin-starter/pom.xml test
+mvn -q -f /Users/salty/codeProject/ai/coding/back/spring-admin-starter/pom.xml test
 ```
 
 结果：通过。
@@ -50,7 +50,7 @@ mvn -q -f /Users/salty/codeProject/ai/spring-admin-starter/pom.xml test
 目标环境联调仍需在真实 MySQL、Redis 和外部配置下执行：
 
 ```bash
-RUN_DEV_INTEGRATION_TESTS=true mvn -q -f /Users/salty/codeProject/ai/spring-admin-starter/pom.xml -Dtest=CdkPointsDevIntegrationTest test
+RUN_DEV_INTEGRATION_TESTS=true mvn -q -f /Users/salty/codeProject/ai/coding/back/spring-admin-starter/pom.xml -Dtest=CdkPointsDevIntegrationTest test
 ```
 
 执行前需确保目标环境已完成 `V21` 至 `V26` 数据库迁移，并显式配置 `CDK_PEPPER`、Redis 和测试账号权限。

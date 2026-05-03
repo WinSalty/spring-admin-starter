@@ -732,7 +732,7 @@ export LOG_ARCHIVE_BATCH_SIZE=1000
 ### 本地初始化
 
 ```bash
-cd /Users/salty/codeProject/ai/spring-admin-starter
+cd /Users/salty/codeProject/ai/coding/back/spring-admin-starter
 mysql -u spring_admin -p spring_admin < sql/init.sql
 mysql -u spring_admin -p spring_admin < sql/seed-data.sql
 ```
@@ -749,7 +749,7 @@ mysql -u spring_admin -p spring_admin < sql/seed-data.sql
 ### 1. 安装依赖并编译
 
 ```bash
-cd /Users/salty/codeProject/ai/spring-admin-starter
+cd /Users/salty/codeProject/ai/coding/back/spring-admin-starter
 mvn clean compile -DskipTests
 ```
 
@@ -811,7 +811,7 @@ kill <PID>
 ### 打包
 
 ```bash
-cd /Users/salty/codeProject/ai/spring-admin-starter
+cd /Users/salty/codeProject/ai/coding/back/spring-admin-starter
 mvn clean package -DskipTests
 ```
 
@@ -854,7 +854,7 @@ echo $! > spring-admin-starter.pid
 
 ## 与前端配套关系
 
-当前项目默认对接 `/Users/salty/codeProject/ai/react-admin-starter`，两者的职责边界如下：
+当前项目默认对接 `/Users/salty/codeProject/ai/coding/front/react-admin-starter`，两者的职责边界如下：
 
 | 系统 | 职责 |
 | --- | --- |
